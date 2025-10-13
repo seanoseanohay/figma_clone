@@ -1,0 +1,107 @@
+graph TB
+    subgraph "Client Application"
+        subgraph "Components Layer"
+            Auth[Auth Components<br/>LoginForm, RegisterForm]
+            Canvas[Canvas Component<br/>5000x5000px workspace]
+            Toolbar[Toolbar<br/>Shape creation tools]
+            Objects[CanvasObject<br/>Rectangle, Circle, Text]
+            Cursors[UserCursor<br/>Real-time cursors]
+            Presence[OnlineUsers<br/>User list display]
+            Status[ConnectionStatus<br/>Online/offline indicator]
+        end
+        
+        subgraph "Hooks Layer"
+            useAuth[useAuth<br/>Auth state management]
+            usePresence[usePresence<br/>User presence data]
+            useCursor[useCursorTracking<br/>50-100ms throttle]
+            useObjects[useCanvasObjects<br/>Canvas state]
+        end
+        
+        subgraph "Services Layer"
+            AuthService[auth.service.js<br/>Sign in/out, register]
+            PresenceService[presence.service.js<br/>Cursor & online status]
+            CanvasService[canvas.service.js<br/>CRUD operations]
+            BoundaryUtils[boundary.utils.js<br/>Validation & clamping]
+        end
+    end
+    
+    subgraph "Firebase Backend"
+        subgraph "Firebase Auth"
+            GoogleAuth[Google OAuth]
+            EmailAuth[Email/Password]
+        end
+        
+        subgraph "Firestore - Persistent Data"
+            Users[(Users Collection<br/>uid, displayName, email)]
+            CanvasObjects[(Canvas Objects<br/>shapes, positions)]
+            Sessions[(Canvas Sessions<br/>metadata)]
+        end
+        
+        subgraph "Realtime Database - Ephemeral"
+            CursorData[(Presence Data<br/>cursor x/y, connected)]
+        end
+    end
+    
+    subgraph "Data Flow"
+        direction LR
+        Client1[User Browser 1]
+        Client2[User Browser 2]
+        Client3[User Browser N]
+    end
+    
+    %% Component to Hook connections
+    Auth --> useAuth
+    Canvas --> useObjects
+    Canvas --> useCursor
+    Canvas --> usePresence
+    Cursors --> usePresence
+    Presence --> usePresence
+    
+    %% Hook to Service connections
+    useAuth --> AuthService
+    usePresence --> PresenceService
+    useCursor --> PresenceService
+    useObjects --> CanvasService
+    
+    %% Service to Firebase connections
+    AuthService --> GoogleAuth
+    AuthService --> EmailAuth
+    AuthService --> Users
+    
+    PresenceService --> CursorData
+    PresenceService -.->|read online users| CursorData
+    
+    CanvasService --> CanvasObjects
+    CanvasService --> Sessions
+    CanvasService --> BoundaryUtils
+    
+    %% Real-time sync between clients
+    Client1 -.->|cursor updates<br/>< 50ms| CursorData
+    Client2 -.->|cursor updates<br/>< 50ms| CursorData
+    Client3 -.->|cursor updates<br/>< 50ms| CursorData
+    
+    Client1 -.->|object sync<br/>< 100ms| CanvasObjects
+    Client2 -.->|object sync<br/>< 100ms| CanvasObjects
+    Client3 -.->|object sync<br/>< 100ms| CanvasObjects
+    
+    %% Canvas rendering
+    Objects --> Canvas
+    Cursors --> Canvas
+    Toolbar --> Canvas
+    
+    %% Boundary validation
+    BoundaryUtils -.->|validates| Objects
+    BoundaryUtils -.->|clamps to<br/>5000x5000| CanvasService
+    
+    %% Styling
+    classDef firebase fill:#FFA611,stroke:#F57C00,color:#000
+    classDef component fill:#42A5F5,stroke:#1976D2,color:#fff
+    classDef service fill:#66BB6A,stroke:#388E3C,color:#fff
+    classDef hook fill:#AB47BC,stroke:#7B1FA2,color:#fff
+    classDef client fill:#EC407A,stroke:#C2185B,color:#fff
+    
+    class GoogleAuth,EmailAuth,Users,CanvasObjects,Sessions,CursorData firebase
+    class Auth,Canvas,Toolbar,Objects,Cursors,Presence,Status component
+    class AuthService,PresenceService,CanvasService,BoundaryUtils service
+    class useAuth,usePresence,useCursor,useObjects hook
+    class Client1,Client2,Client3 client
