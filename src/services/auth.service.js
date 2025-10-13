@@ -1,0 +1,199 @@
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile
+} from 'firebase/auth';
+import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, googleProvider, db } from './firebase.js';
+import { FIREBASE_COLLECTIONS } from '../constants/canvas.constants.js';
+
+/**
+ * Authentication Service
+ * Handles all Firebase authentication operations
+ */
+
+// Sign up with email and password
+export const signUpWithEmail = async (email, password, displayName = null) => {
+  try {
+    // Create user account
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Set display name (defaults to email if not provided)
+    const name = displayName || email.split('@')[0];
+    
+    // Update user profile
+    await updateProfile(user, {
+      displayName: name
+    });
+
+    // Create user document in Firestore
+    await createUserDocument(user, { displayName: name });
+
+    return {
+      success: true,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: name,
+        photoURL: user.photoURL
+      }
+    };
+  } catch (error) {
+    console.error('Error signing up with email:', error);
+    return {
+      success: false,
+      error: getAuthErrorMessage(error.code)
+    };
+  }
+};
+
+// Sign in with email and password
+export const signInWithEmail = async (email, password) => {
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+
+    // Update lastSeen timestamp
+    await updateUserLastSeen(user.uid);
+
+    return {
+      success: true,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName || email.split('@')[0],
+        photoURL: user.photoURL
+      }
+    };
+  } catch (error) {
+    console.error('Error signing in with email:', error);
+    return {
+      success: false,
+      error: getAuthErrorMessage(error.code)
+    };
+  }
+};
+
+// Sign in with Google
+export const signInWithGoogle = async () => {
+  try {
+    const userCredential = await signInWithPopup(auth, googleProvider);
+    const user = userCredential.user;
+
+    // Create or update user document
+    await createUserDocument(user);
+
+    return {
+      success: true,
+      user: {
+        uid: user.uid,
+        email: user.email,
+        displayName: user.displayName,
+        photoURL: user.photoURL
+      }
+    };
+  } catch (error) {
+    console.error('Error signing in with Google:', error);
+    return {
+      success: false,
+      error: getAuthErrorMessage(error.code)
+    };
+  }
+};
+
+// Sign out
+export const signOut = async () => {
+  try {
+    await firebaseSignOut(auth);
+    return { success: true };
+  } catch (error) {
+    console.error('Error signing out:', error);
+    return {
+      success: false,
+      error: 'Failed to sign out. Please try again.'
+    };
+  }
+};
+
+// Listen to auth state changes
+export const onAuthChange = (callback) => {
+  return onAuthStateChanged(auth, callback);
+};
+
+// Create or update user document in Firestore
+const createUserDocument = async (user, additionalData = {}) => {
+  const userDocRef = doc(db, FIREBASE_COLLECTIONS.USERS, user.uid);
+  
+  try {
+    // Check if user document already exists
+    const userDoc = await getDoc(userDocRef);
+    
+    if (!userDoc.exists()) {
+      // Create new user document
+      const userData = {
+        uid: user.uid,
+        displayName: additionalData.displayName || user.displayName || user.email?.split('@')[0] || 'Anonymous',
+        email: user.email,
+        photoURL: user.photoURL || null,
+        createdAt: serverTimestamp(),
+        lastSeen: serverTimestamp(),
+        ...additionalData
+      };
+      
+      await setDoc(userDocRef, userData);
+      console.log('User document created successfully');
+    } else {
+      // Update existing user's lastSeen
+      await updateUserLastSeen(user.uid);
+    }
+  } catch (error) {
+    console.error('Error creating/updating user document:', error);
+    throw error;
+  }
+};
+
+// Update user's last seen timestamp
+const updateUserLastSeen = async (userId) => {
+  try {
+    const userDocRef = doc(db, FIREBASE_COLLECTIONS.USERS, userId);
+    await setDoc(userDocRef, {
+      lastSeen: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.error('Error updating lastSeen:', error);
+  }
+};
+
+// Get user-friendly error messages
+const getAuthErrorMessage = (errorCode) => {
+  switch (errorCode) {
+    case 'auth/user-disabled':
+      return 'This account has been disabled. Please contact support.';
+    case 'auth/user-not-found':
+      return 'No account found with this email address.';
+    case 'auth/wrong-password':
+      return 'Incorrect password. Please try again.';
+    case 'auth/email-already-in-use':
+      return 'An account with this email address already exists.';
+    case 'auth/weak-password':
+      return 'Password should be at least 6 characters long.';
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.';
+    case 'auth/operation-not-allowed':
+      return 'This sign-in method is not enabled. Please contact support.';
+    case 'auth/popup-closed-by-user':
+      return 'Sign-in was cancelled. Please try again.';
+    case 'auth/popup-blocked':
+      return 'Popup was blocked by your browser. Please allow popups and try again.';
+    case 'auth/too-many-requests':
+      return 'Too many failed attempts. Please wait a moment and try again.';
+    case 'auth/network-request-failed':
+      return 'Network error. Please check your connection and try again.';
+    default:
+      return 'An error occurred during authentication. Please try again.';
+  }
+};
