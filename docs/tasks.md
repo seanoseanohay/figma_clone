@@ -373,98 +373,105 @@ collabcanvas-mvp/
 **Goal:** Implement shape creation with toolbar and render shapes on canvas.
 
 ### Tasks:
-- [ ] **7.1** Create Toolbar component
+- [ ] **7.1** Create Toolbar component with single shape tool
   - Files: `src/components/canvas/Toolbar.jsx`
-  - Buttons for Rectangle, Circle, Text
-  - Active tool state
+  - Button for Rectangle tool only (Text and Circle moved to post-MVP)
+  - Active tool state (default: rectangle)
 
-- [ ] **7.2** Create CanvasObject component
+- [ ] **7.2** Create CanvasObject component for rectangles
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Render rectangle, circle, or text based on type
-  - Use Konva shapes (Rect, Circle, Text)
+  - Render rectangle shapes only (Text and Circle moved to post-MVP)
+  - Use Konva Rect shape
+  - **NEW:** Include resize handles for selected rectangles
 
-- [ ] **7.3** Implement rectangle creation
+- [ ] **7.3** Implement rectangle creation with click-and-drag
   - Files: `src/components/canvas/Canvas.jsx`
-  - Click on canvas to create 200x100px gray rectangle
-  - Validate position is in bounds before creating
+  - Click-and-drag to create rectangle from first corner to opposite corner
+  - **NEW:** Show preview/ghost rectangle while dragging
+  - **NEW:** Enforce minimum 2x1px size
+  - Validate position is in bounds during creation
 
-- [ ] **7.4** Implement circle creation
-  - Files: `src/components/canvas/Canvas.jsx`
-  - Click on canvas to create 100px diameter gray circle
-  - Validate position is in bounds before creating
+- [ ] **7.4** REMOVED - Text creation moved to post-MVP stretch goals
 
-- [ ] **7.5** Implement immutable text creation
+- [ ] **7.5** Integrate canvas objects hook
   - Files: `src/components/canvas/Canvas.jsx`
-  - Click on canvas, prompt for text input using input dialog
-  - **NEW:** Text is immutable after creation (cannot be edited)
-  - **NEW:** Empty text input creates object with empty string content
-  - Create gray text object at click position
-  - Validate position is in bounds before creating (use imaginary rectangle around text)
+  - Load rectangles from Firestore
+  - Render all rectangles using CanvasObject component
 
-- [ ] **7.6** Integrate canvas objects hook
+- [ ] **7.6** Show rectangle creation feedback
   - Files: `src/components/canvas/Canvas.jsx`
-  - Load objects from Firestore
-  - Render all objects using CanvasObject component
-
-- [ ] **7.7** Show creation feedback
-  - Files: `src/components/canvas/Canvas.jsx`
-  - Prevent creation outside bounds with user feedback
+  - Prevent rectangle creation outside bounds with user feedback
 
 **Files Created/Modified:**
 - `src/components/canvas/Toolbar.jsx`, `CanvasObject.jsx`, `Canvas.jsx`
 
 **Testing:**
 - [ ] **Integration Test:** `tests/integration/canvas-sync.integration.test.js`
-  - Test shape creation in one client appears in another
-  - Test creation prevented outside bounds
-  - Test all three shape types sync correctly
+  - Test rectangle creation with click-and-drag in one client appears in another **UPDATED**
+  - Test minimum size constraints work properly (2x1px) **NEW**
+  - Test rectangle creation prevented outside bounds
+  - Test preview/ghost rectangle during creation **NEW**
   - Mock Firebase for testing
 
 ---
 
-## PR #8: Object Selection & Manipulation
+## PR #8: Object Selection, Movement & Resize (UPDATED)
 
-**Goal:** Implement selection and drag-to-move with boundary clamping.
+**Goal:** Implement selection, drag-to-move, and resize for rectangles with boundary constraints and real-time sync.
 
 ### Tasks:
-- [ ] **8.1** Implement click-to-select
+- [ ] **8.1** Implement click-to-select rectangles with resize handles
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Add click handler, highlight selected object
-  - Store selected object ID in state
+  - Add click handler, highlight selected rectangle
+  - **NEW:** Show resize handles on selected rectangles (corner and edge handles)
+  - Store selected rectangle ID in state
 
-- [ ] **8.2** Implement drag-to-move
+- [ ] **8.2** Implement rectangle drag-to-move and resize operations
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Enable dragging on Konva shapes
-  - Throttle position updates during drag
+  - Enable dragging on Konva rectangles for movement
+  - **NEW:** Enable resize handles for rectangle width/height adjustment
+  - Throttle position/size updates during drag/resize (100ms)
 
-- [ ] **8.3** Implement boundary snapping on drag
+- [ ] **8.3** Implement boundary constraints for rectangle move and resize
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Use boundary utils to snap position to boundaries
-  - **UPDATED:** Apply snapping during drag and on dragend (shapes snap to edges)
-  - **CHANGED:** Snapping behavior instead of clamping
+  - Use boundary utils to snap rectangle position and size to canvas bounds
+  - Apply constraints during drag/resize and on operation end
+  - **NEW:** Disable resize handles when rectangles reach canvas limits
+  - **NEW:** Constrain resize operations to maintain minimum rectangle sizes (2x1px)
 
-- [ ] **8.4** Broadcast position updates to Firestore
+- [ ] **8.4** Broadcast rectangle position and size updates to Firestore
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Call canvas service to update position
+  - Call canvas service to update rectangle position and dimensions
+  - **NEW:** Real-time sync of rectangle resize operations (100ms throttle)
+  - **NEW:** Immediate sync on operation completion (move or resize end)
   - Throttle updates to avoid excessive writes
 
-- [ ] **8.5** Handle optimistic updates
+- [ ] **8.5** Handle optimistic updates for rectangle move and resize
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Update locally immediately, then sync to Firestore
+  - Update rectangle position and size locally immediately
+  - Then sync to Firestore with conflict resolution
+  - **NEW:** Handle concurrent rectangle resize conflicts with last-write-wins
 
-- [ ] **8.6** Add visual feedback for selection
+- [ ] **8.6** Add visual feedback for rectangle selection and resize
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Border or highlight on selected object
+  - Border/highlight on selected rectangle
+  - **NEW:** Resize handles (corner squares and edge midpoints) for rectangles
+  - **NEW:** Visual feedback during rectangle resize operations
+  - **NEW:** Cursor changes for different rectangle resize directions
 
 **Files Created/Modified:**
 - `src/components/canvas/CanvasObject.jsx`, `Canvas.jsx`
 
 **Testing:**
 - [ ] **Integration Test:** `tests/integration/canvas-sync.integration.test.js` (extend existing)
-  - Test object movement syncs across clients
-  - Test boundary snapping during drag **CHANGED from clamping**
-  - Test concurrent edits (last-write-wins)
-  - Verify object sync latency <100ms
+  - Test rectangle movement syncs across clients **UPDATED**
+  - **NEW:** Test rectangle resizing syncs across clients in real-time
+  - **NEW:** Test resize handle interactions and constraints for rectangles
+  - **NEW:** Test minimum size enforcement during rectangle resize (2x1px)
+  - Test boundary constraints during rectangle move and resize **UPDATED**
+  - Test concurrent edits (last-write-wins) for both rectangle move and resize **UPDATED**
+  - **NEW:** Verify rectangle resize sync latency <100ms during operation
+  - Verify rectangle sync latency <100ms
 
 ---
 
@@ -695,9 +702,11 @@ After all PRs are complete, verify:
 - [ ] ✅ Users can authenticate with Google
 - [ ] ✅ Users must land on login page before accessing canvas **NEW REQUIREMENT**
 - [ ] ✅ Authentication errors show clear messages with retry prompts **NEW REQUIREMENT**
-- [ ] ✅ Users can create and move three shape types (rectangle, circle, text)
-- [ ] ✅ Text objects are immutable after creation **NEW REQUIREMENT**
-- [ ] ✅ Empty text input creates object with empty string **NEW REQUIREMENT**
+- [ ] ✅ Users can create and move rectangles **SIMPLIFIED - Single shape type for MVP**
+- [ ] ✅ Rectangle creation uses click-and-drag interaction with minimum 2x1px size **NEW BEHAVIOR**
+- [ ] ✅ Users can resize rectangles using corner/edge handles **NEW FEATURE - Added to MVP**
+- [ ] ✅ Resize operations sync in real-time across users (100ms throttle) **NEW FEATURE**
+- [ ] ✅ Any authenticated user can resize any rectangle **NEW CAPABILITY**
 - [ ] ✅ Boundary enforcement works with snapping behavior **UPDATED from clamping**
 - [ ] ✅ Shapes snap to canvas boundaries when dragged near edges **NEW BEHAVIOR**
 - [ ] ✅ Global canvas accessible to all authenticated users **UPDATED ARCHITECTURE**
@@ -718,4 +727,4 @@ After all PRs are complete, verify:
 - **NEW - Boundaries:** Snapping behavior provides better UX than hard clamping.
 - **NEW - Firebase:** Quota monitoring is critical for production readiness.
 - **NEW - Auth Flow:** Login page requirement ensures proper authentication before canvas access.
-- **NEW - Text:** Immutable text objects simplify conflict resolution in MVP.
+- **NEW - Rectangle Focus:** Single shape type (rectangle) demonstrates all core functionality while keeping MVP simple and achievable.

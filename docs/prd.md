@@ -23,8 +23,8 @@ CollabCanvas MVP is a real-time collaborative design tool where multiple users c
 - Create an account and log in so I can have a persistent identity
 - See a large canvas workspace so I can create designs without feeling constrained
 - Pan and zoom the canvas so I can navigate my design space
-- Create basic shapes (rectangles, circles, text) so I can start designing
-- Move and manipulate objects so I can arrange my design
+- Create basic shapes (rectangles) so I can start designing
+- Move and manipulate rectangles so I can arrange my design
 - See other users' cursors in real-time so I know where they're working
 - See who else is online so I know who I'm collaborating with
 - Have my work persist when I leave so I don't lose progress
@@ -62,21 +62,24 @@ CollabCanvas MVP is a real-time collaborative design tool where multiple users c
 - **Out of scope:** Infinite canvas, grid snapping, rulers, minimap
 
 ### 3. Shape Creation & Manipulation
-- **Three shape types (fixed gray color):**
-  - Rectangle (200x100px default size, gray fill)
-  - Circle (100px diameter default, gray fill)
-  - Text (basic, single font/size, gray text, **immutable after creation**)
-- **Text creation:** Prompt for text input using input dialog. Empty text creates object with empty string content.
-- **Text boundaries:** Text objects are bounded by an imaginary rectangle containing the text
+- **Single shape type for MVP (fixed gray color):**
+  - Rectangle (click-and-drag creation, minimum 2x1px, gray fill)
+- **Shape creation behavior:**
+  - **Rectangle:** Click at first corner, drag to opposite corner to set size
+  - **Visual feedback:** Show preview/ghost rectangle while dragging
+  - **Minimum constraints:** Rectangle minimum 2x1px to prevent accidental tiny shapes
 - **Shape creation rules:**
   - Shapes can only be created within the 5000x5000px canvas boundary
   - Creation attempts outside boundary are prevented entirely (no shape created)
 - **Basic transformations:**
-  - Move only (drag to reposition)
+  - Move (drag to reposition)
+  - Resize (corner/edge handles for any authenticated user)
+  - **Real-time sync:** Resize operations sync across users in real-time (100ms frequency)
+  - **Post-creation editing:** Any user can resize any object
   - Boundary constraint: Shapes **snap to canvas edges** - no part of any shape can go outside the 5000x5000px boundary
   - When dragging near edges, shape **snaps to boundary** (enforced on both client and server)
-- Selection of single objects (click to select, shows selection indicator)
-- **Out of scope:** Resize, rotation, color picker, delete, copy/paste, multi-select, borders, shadows
+- Selection of single objects (click to select, shows selection indicator with resize handles)
+- **Out of scope:** Delete, copy/paste, multi-select, rotation, borders, shadows
 
 ### 4. Real-Time Collaboration (CRITICAL)
 - **Multiplayer cursors:**
@@ -266,6 +269,7 @@ These features are explicitly excluded to maintain focus:
 - Object batching
 - WebSocket connection pooling
 - Operational transforms for better conflict resolution
+- **Real-time resize optimization:** Throttle resize updates to 100ms during drag
 
 ---
 
@@ -382,28 +386,25 @@ The MVP must demonstrate:
 
 ### Canvas Objects Collection (Firestore)
 ```javascript
-// Canvas object document structure (stored in global canvas)
+// Canvas object document structure (single shape type for MVP)
 {
   id: string,               // Unique object ID
-  type: 'rectangle' | 'circle' | 'text',
+  type: 'rectangle',        // Only rectangle for MVP
   position: {
-    x: number,              // Clamped to canvas bounds (0 to 5000 minus shape width)
-    y: number               // Clamped to canvas bounds (0 to 5000 minus shape height)
+    x: number,              // Top-left corner X (clamped to canvas bounds)
+    y: number               // Top-left corner Y (clamped to canvas bounds)  
   },
-  // Type-specific properties
-  width: number,            // For rectangles (default: 200)
-  height: number,           // For rectangles (default: 100)
-  radius: number,           // For circles (default: 50)
-  text: string,             // For text objects (immutable after creation, can be empty string)
-  fontSize: number,         // For text (default: 16)
+  // Rectangle properties
+  width: number,            // Minimum 2px, user-defined via drag
+  height: number,           // Minimum 1px, user-defined via drag
   
   // Metadata
   createdBy: string,        // User UID
   createdAt: timestamp,
-  lastModifiedBy: string,   // User UID
+  lastModifiedBy: string,   // User UID  
   lastModifiedAt: timestamp,
   
-  // All shapes are gray (#808080)
+  // Fixed gray color for MVP
   color: '#808080'          // Fixed gray color
 }
 ```
@@ -471,9 +472,11 @@ The MVP must demonstrate:
 
 5. **Global Canvas Design:** Single shared canvas accessible to all authenticated users. No session management needed for MVP.
 
-6. **Boundary Enforcement:** Position values must be validated on both client and server to ensure no part of a shape exceeds the 5000x5000px boundary. Shapes snap to boundaries when dragged near edges.
+6. **Boundary Enforcement:** Position and resize operations are constrained to canvas boundaries. Shapes snap to boundaries when created or resized near edges. Resize handles are disabled/constrained when shapes reach canvas limits.
 
 7. **Initial Canvas View:** Canvas loads centered at (2500, 2500) with zoom level adjusted to show the entire 5000x5000px area within the viewport.
+
+8. **Real-time Resize:** Resize operations broadcast to all users in real-time with 100ms throttling during active resize, immediate sync on release.
 
 ---
 
@@ -613,12 +616,19 @@ The MVP must demonstrate:
 - ✅ Performance stays smooth (30+ FPS) with multiple users
 - ✅ Deployed and publicly accessible
 - ✅ Users can authenticate with Google
-- ✅ Users can create and move three shape types (rectangle, circle, text)
+- ✅ Users can create and move rectangles **SIMPLIFIED - Single shape type for MVP**
+- ✅ Rectangle creation uses click-and-drag interaction with minimum 2x1px size **NEW BEHAVIOR**
+- ✅ Users can resize rectangles using corner/edge handles **NEW FEATURE - Added to MVP**
+- ✅ Resize operations sync in real-time across users (100ms throttle) **NEW FEATURE**
+- ✅ Any authenticated user can resize any rectangle **NEW CAPABILITY**
 
 **Stretch Goals (if time permits):**
 - Object deletion
-- Resize functionality
+- Text shape creation (click-and-drag text boxes) **MOVED from MVP**
+- Circle shape creation (click center, drag radius) **MOVED from MVP**
 - Color customization
+- Multi-select operations
+- Shape rotation
 - Better visual feedback for selections
 - Improved error handling and reconnection UI
 
