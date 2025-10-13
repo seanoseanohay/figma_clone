@@ -21,7 +21,7 @@ graph TB
             AuthService[auth.service.js<br/>Sign in/out, register]
             PresenceService[presence.service.js<br/>Cursor & online status]
             CanvasService[canvas.service.js<br/>CRUD operations]
-            BoundaryUtils[boundary.utils.js<br/>Validation & clamping]
+            BoundaryUtils[boundary.utils.js<br/>Validation & snapping]
         end
     end
     
@@ -34,7 +34,7 @@ graph TB
         subgraph "Firestore - Persistent Data"
             Users[(Users Collection<br/>uid, displayName, email)]
             CanvasObjects[(Canvas Objects<br/>shapes, positions)]
-            Sessions[(Canvas Sessions<br/>metadata)]
+            GlobalCanvas[(Global Canvas<br/>single shared canvas)]
         end
         
         subgraph "Realtime Database - Ephemeral"
@@ -72,7 +72,7 @@ graph TB
     PresenceService -.->|read online users| CursorData
     
     CanvasService --> CanvasObjects
-    CanvasService --> Sessions
+    CanvasService --> GlobalCanvas
     CanvasService --> BoundaryUtils
     
     %% Real-time sync between clients
@@ -91,7 +91,7 @@ graph TB
     
     %% Boundary validation
     BoundaryUtils -.->|validates| Objects
-    BoundaryUtils -.->|clamps to<br/>5000x5000| CanvasService
+    BoundaryUtils -.->|snaps to<br/>5000x5000| CanvasService
     
     %% Styling
     classDef firebase fill:#FFA611,stroke:#F57C00,color:#000
@@ -100,7 +100,7 @@ graph TB
     classDef hook fill:#AB47BC,stroke:#7B1FA2,color:#fff
     classDef client fill:#EC407A,stroke:#C2185B,color:#fff
     
-    class GoogleAuth,EmailAuth,Users,CanvasObjects,Sessions,CursorData firebase
+    class GoogleAuth,EmailAuth,Users,CanvasObjects,GlobalCanvas,CursorData firebase
     class Auth,Canvas,Toolbar,Objects,Cursors,Presence,Status component
     class AuthService,PresenceService,CanvasService,BoundaryUtils service
     class useAuth,usePresence,useCursor,useObjects hook

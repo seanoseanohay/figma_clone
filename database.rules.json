@@ -1,0 +1,35 @@
+{
+  "rules": {
+    "globalCanvas": {
+      "users": {
+        "$userId": {
+          ".read": "auth != null",
+          ".write": "auth != null && auth.uid == $userId",
+          ".validate": "newData.hasChildren(['displayName', 'cursor', 'connected', 'lastUpdate'])",
+          "displayName": {
+            ".validate": "newData.isString() && newData.val().length > 0"
+          },
+          "cursor": {
+            ".validate": "newData.hasChildren(['x', 'y'])",
+            "x": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5000"
+            },
+            "y": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5000"
+            }
+          },
+          "connected": {
+            ".validate": "newData.isBoolean()"
+          },
+          "lastUpdate": {
+            ".validate": "newData.isNumber()"
+          }
+        }
+      }
+    },
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}
