@@ -52,40 +52,73 @@ CollabCanvas MVP is a real-time collaborative design tool where multiple users c
 - **Authentication error handling:** Show clear error messages when login fails and prompt to retry
 - **Out of scope:** Custom display names during registration, password reset, profile pictures, other social providers (Facebook, GitHub, etc.)
 
-### 2. Canvas Workspace
+### 2. Canvas Workspace & Tool System
 - Canvas size: 5000x5000px with visible boundary (different background color outside bounds)
 - Initial view: Centered at (2500, 2500) showing entire canvas area zoomed out to fit screen
-- Smooth pan (click-and-drag or spacebar + drag)
-- Smooth zoom (mouse wheel or pinch gesture)
-- Background: Canvas area has one color, outside boundary area has different color to indicate edges
+- **Three-tool system for interaction:**
+  - **Hand Tool:** Pan canvas by click-and-drag (spacebar + drag also works)
+  - **Arrow Tool:** Select, move, and resize rectangles (DEFAULT TOOL)
+  - **Rectangle Tool:** Create rectangles by click-and-drag
+- **Toolbar placement:** Above canvas in separate section, left-aligned
+- **Tool behavior:**
+  - Only one tool active at a time (required selection)
+  - Arrow tool default on canvas load
+  - Rectangle tool auto-switches to arrow tool after shape creation (on mouse up)
+  - **Independent per user:** Each user has their own tool selection (not synced between users)
+  - **Local state only:** Tool selection stored in local React state, not Firebase
+- **Cursor feedback:**
+  - Hand tool: `grab` cursor (idle), `grabbing` cursor (dragging)
+  - Arrow tool: Default arrow cursor  
+  - Rectangle tool: `crosshair` cursor
+- **Visual tool feedback:** 
+  - Active tool highlighted with different background color
+  - **Individual per user:** Each user sees their own toolbar highlighting their own selected tool
+  - **Not synced:** Tool selection visual state is local to each user
 - Smooth interaction during all operations (targeting 30+ FPS)
-- **Out of scope:** Infinite canvas, grid snapping, rulers, minimap
+- **Out of scope:** Infinite canvas, grid snapping, rulers, minimap, keyboard shortcuts
 
-### 3. Shape Creation & Manipulation
+### 3. Shape Creation & Manipulation (Tool-Based)
 - **Single shape type for MVP (fixed gray color):**
   - Rectangle (click-and-drag creation, minimum 2x1px, gray fill)
+- **Tool-specific shape interactions:**
+  - **Rectangle Tool:** Click-and-drag to create rectangle from first corner to opposite corner
+  - **Arrow Tool:** Click rectangle body to move, click corners to resize
+  - **Hand Tool:** Rectangles ignored during panning (no interaction)
 - **Shape creation behavior:**
-  - **Rectangle:** Click at first corner, drag to opposite corner to set size
-  - **Visual feedback:** Show preview/ghost rectangle while dragging
+  - **Visual feedback:** Show preview/ghost rectangle while dragging (Rectangle Tool only)
   - **Minimum constraints:** Rectangle minimum 2x1px to prevent accidental tiny shapes
+  - **Auto tool switch:** Rectangle Tool → Arrow Tool after shape creation completion
+- **Selection and manipulation (Arrow Tool only):**
+  - **Click empty canvas:** Deselect all rectangles
+  - **Click rectangle body:** Select rectangle, show selection indicator with resize handles
+  - **Click rectangle corners:** Begin resize operation  
+  - **Drag selected rectangle:** Move operation
+  - **Drag resize handles:** Resize operation
 - **Shape creation rules:**
   - Shapes can only be created within the 5000x5000px canvas boundary
   - Creation attempts outside boundary are prevented entirely (no shape created)
-- **Basic transformations:**
-  - Move (drag to reposition)
-  - Resize (corner/edge handles for any authenticated user)
-  - **Real-time sync:** Resize operations sync across users in real-time (100ms frequency)
-  - **Post-creation editing:** Any user can resize any object
+- **Basic transformations (Arrow Tool):**
+  - Move (drag rectangle body to reposition)
+  - Resize (drag corner handles to adjust width/height)
+  - **Real-time sync:** Move and resize operations sync across users in real-time (100ms frequency)
+  - **Multi-user editing:** Any user can move/resize any rectangle
   - Boundary constraint: Shapes **snap to canvas edges** - no part of any shape can go outside the 5000x5000px boundary
   - When dragging near edges, shape **snaps to boundary** (enforced on both client and server)
-- Selection of single objects (click to select, shows selection indicator with resize handles)
-- **Out of scope:** Delete, copy/paste, multi-select, rotation, borders, shadows
+- Selection of rectangles (Arrow Tool: click to select, shows selection indicator with resize handles)
+- **Tool system:** Hand (pan), Arrow (select/move/resize), Rectangle (create) with visual active state
+- **Out of scope:** Delete, copy/paste, multi-select, rotation, borders, shadows, keyboard shortcuts
 
 ### 4. Real-Time Collaboration (CRITICAL)
 - **Multiplayer cursors:**
   - Show all connected users' cursor positions
   - Display username label above cursor
+  - **Position only:** Cursors show position, NOT which tool other users have selected
   - Update positions in <50ms
+- **Multiplayer tool behavior:**
+  - **Independent selection:** Each user selects their own tools independently
+  - **Local tool state:** Tool selection never syncs between users
+  - **Actions sync:** Only the results of tool use sync (create, move, resize operations)
+  - **Example:** User A uses Hand Tool while User B uses Rectangle Tool simultaneously
 - **Object synchronization:**
   - Broadcast all create/move/delete operations
   - Sync across all clients in <100ms
@@ -618,6 +651,13 @@ The MVP must demonstrate:
 - ✅ Users can authenticate with Google
 - ✅ Users can create and move rectangles **SIMPLIFIED - Single shape type for MVP**
 - ✅ Rectangle creation uses click-and-drag interaction with minimum 2x1px size **NEW BEHAVIOR**
+- ✅ Three-tool system works correctly (Hand, Arrow, Rectangle) **NEW FEATURE**
+- ✅ Independent tool selection per user (not synced between users) **NEW MULTIPLAYER BEHAVIOR**
+- ✅ Tool state stored locally, cursors show position only **NEW ARCHITECTURE**
+- ✅ Arrow tool default, proper tool switching after rectangle creation **NEW BEHAVIOR**
+- ✅ Tool-specific cursors and visual feedback work **NEW FEATURE**
+- ✅ Arrow tool can move and resize rectangles with handles **NEW CAPABILITY**
+- ✅ Hand tool pans without affecting rectangles **NEW BEHAVIOR**
 - ✅ Users can resize rectangles using corner/edge handles **NEW FEATURE - Added to MVP**
 - ✅ Resize operations sync in real-time across users (100ms throttle) **NEW FEATURE**
 - ✅ Any authenticated user can resize any rectangle **NEW CAPABILITY**

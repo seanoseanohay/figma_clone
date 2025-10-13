@@ -3,8 +3,8 @@ graph TB
         subgraph "Components Layer"
             Auth[Auth Components<br/>LoginForm, RegisterForm]
             Canvas[Canvas Component<br/>5000x5000px workspace]
-            Toolbar[Toolbar<br/>Shape creation tools]
-            Objects[CanvasObject<br/>Rectangle, Circle, Text]
+            Toolbar[Toolbar Component<br/>Hand, Arrow, Rectangle tools]
+            Objects[CanvasObject<br/>Rectangle shapes]
             Cursors[UserCursor<br/>Real-time cursors]
             Presence[OnlineUsers<br/>User list display]
             Status[ConnectionStatus<br/>Online/offline indicator]
@@ -49,11 +49,12 @@ graph TB
         Client3[User Browser N]
     end
     
-    %% Component to Hook connections
+    %% Component connections
     Auth --> useAuth
     Canvas --> useObjects
     Canvas --> useCursor
     Canvas --> usePresence
+    Toolbar --> Canvas
     Cursors --> usePresence
     Presence --> usePresence
     
@@ -84,12 +85,12 @@ graph TB
     Client2 -.->|object sync<br/>< 100ms| CanvasObjects
     Client3 -.->|object sync<br/>< 100ms| CanvasObjects
     
-    %% Canvas rendering
+    %% Canvas rendering with toolbar
     Objects --> Canvas
     Cursors --> Canvas
     Toolbar --> Canvas
     
-    %% Boundary validation
+    %% Tool interactions
     BoundaryUtils -.->|validates| Objects
     BoundaryUtils -.->|snaps to<br/>5000x5000| CanvasService
     

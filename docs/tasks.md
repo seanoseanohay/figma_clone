@@ -194,13 +194,17 @@ collabcanvas-mvp/
 **Goal:** Set up the canvas with pan, zoom, and boundary visualization.
 
 ### Tasks:
-- [ ] **3.1** Create Canvas component
+- [ ] **3.1** Create Canvas component with tool system
   - Files: `src/components/canvas/Canvas.jsx`
   - Initialize Konva Stage and Layer
+  - **NEW:** Implement tool state management (hand, arrow, rectangle)
+  - **NEW:** Tool-specific mouse event handling
 
-- [ ] **3.2** Implement pan functionality
+- [ ] **3.2** Implement tool-based pan functionality (Hand Tool)
   - Files: `src/components/canvas/Canvas.jsx`
-  - Click-and-drag or spacebar + drag to pan
+  - **UPDATED:** Pan only active when Hand Tool is selected
+  - **NEW:** Ignore rectangle interactions during Hand Tool panning
+  - **NEW:** Cursor changes to grab/grabbing during Hand Tool use
 
 - [ ] **3.3** Implement zoom functionality
   - Files: `src/components/canvas/Canvas.jsx`
@@ -214,15 +218,26 @@ collabcanvas-mvp/
   - Files: `src/components/canvas/Canvas.jsx`
   - Different background color for canvas area vs outside boundary
 
-- [ ] **3.6** Add Canvas to protected route
-  - Files: `src/App.jsx`
-  - Canvas accessible at `/canvas` route
+- [ ] **3.6** Create Toolbar component with independent tool state
+  - Files: `src/components/canvas/Toolbar.jsx`
+  - **NEW:** Three tool buttons: Hand, Arrow (default), Rectangle
+  - **NEW:** Active tool visual feedback (background color change)
+  - **NEW:** Local tool state management (React state, NOT Firebase)
+  - **NEW:** Each user has independent tool selection (not synced between users)
+  - **NEW:** Left-aligned placement above canvas
+  - **NEW:** Integration with Canvas component for tool state
 
-- [ ] **3.7** Test performance
-  - Manual testing: Verify 30+ FPS during pan/zoom
+- [ ] **3.7** Add Canvas to protected route with Toolbar
+  - Files: `src/App.jsx`
+  - **UPDATED:** Canvas accessible at `/canvas` route with Toolbar above canvas
+  - **NEW:** Page layout: Header → Toolbar Section → Canvas Section
+
+- [ ] **3.8** Test performance with tool system
+  - Manual testing: Verify 30+ FPS during pan/zoom with tool switching
+  - Test tool cursor changes and visual feedback
 
 **Files Created/Modified:**
-- `src/components/canvas/Canvas.jsx`
+- `src/components/canvas/Canvas.jsx`, `Toolbar.jsx` **NEW**
 - `src/App.jsx`
 
 **Testing:** Manual verification - smooth pan/zoom, visible boundary
@@ -239,19 +254,21 @@ collabcanvas-mvp/
   - Functions: `updateCursorPosition()`, `setUserOnline()`, `setUserOffline()`, `subscribeToGlobalPresence()`
   - **UPDATED:** Use global canvas structure `/globalCanvas/users/{userId}` instead of sessions
 
-- [ ] **4.2** Create cursor tracking hook
+- [ ] **4.2** Create cursor tracking hook for position only
   - Files: `src/hooks/useCursorTracking.js`
   - Throttle cursor updates to 50-100ms
-  - Broadcast to Realtime Database
+  - Broadcast **position only** to Realtime Database
+  - **NOT INCLUDED:** Tool selection (stays local to each user)
 
 - [ ] **4.3** Create presence hook
   - Files: `src/hooks/usePresence.js`
   - Subscribe to other users' presence data
   - Return array of connected users with cursor positions
 
-- [ ] **4.4** Create UserCursor component
+- [ ] **4.4** Create UserCursor component for position display
   - Files: `src/components/canvas/UserCursor.jsx`
   - Render cursor with username label
+  - **POSITION ONLY:** Show cursor position, NOT tool selection of other users
 
 - [ ] **4.5** Integrate cursor tracking into Canvas
   - Files: `src/components/canvas/Canvas.jsx`
@@ -291,6 +308,9 @@ collabcanvas-mvp/
   - Mock Realtime Database for testing
 
 **Critical:** Test with 2+ browser windows before proceeding!
+- **Test independent tool selection:** Each user should be able to select different tools
+- **Test tool state isolation:** Tool changes in one browser should NOT affect other browsers
+- **Test cursor position sync:** Only cursor position should sync, NOT tool selection
 
 ---
 
@@ -373,10 +393,11 @@ collabcanvas-mvp/
 **Goal:** Implement shape creation with toolbar and render shapes on canvas.
 
 ### Tasks:
-- [ ] **7.1** Create Toolbar component with single shape tool
+- [ ] **7.1** Update Toolbar component for Rectangle Tool
   - Files: `src/components/canvas/Toolbar.jsx`
-  - Button for Rectangle tool only (Text and Circle moved to post-MVP)
-  - Active tool state (default: rectangle)
+  - **UPDATED:** Toolbar already exists from PR #3, now add Rectangle Tool functionality
+  - **NEW:** Visual feedback when Rectangle Tool is active
+  - **NEW:** Auto-switch to Arrow Tool after rectangle creation
 
 - [ ] **7.2** Create CanvasObject component for rectangles
   - Files: `src/components/canvas/CanvasObject.jsx`
@@ -384,11 +405,14 @@ collabcanvas-mvp/
   - Use Konva Rect shape
   - **NEW:** Include resize handles for selected rectangles
 
-- [ ] **7.3** Implement rectangle creation with click-and-drag
+- [ ] **7.3** Implement Rectangle Tool creation behavior
   - Files: `src/components/canvas/Canvas.jsx`
+  - **UPDATED:** Only active when Rectangle Tool is selected
   - Click-and-drag to create rectangle from first corner to opposite corner
   - **NEW:** Show preview/ghost rectangle while dragging
   - **NEW:** Enforce minimum 2x1px size
+  - **NEW:** Auto-switch to Arrow Tool after rectangle creation (mouse up)
+  - **NEW:** Crosshair cursor during Rectangle Tool use
   - Validate position is in bounds during creation
 
 - [ ] **7.4** REMOVED - Text creation moved to post-MVP stretch goals
@@ -417,19 +441,23 @@ collabcanvas-mvp/
 
 ## PR #8: Object Selection, Movement & Resize (UPDATED)
 
-**Goal:** Implement selection, drag-to-move, and resize for rectangles with boundary constraints and real-time sync.
+**Goal:** Implement Arrow Tool selection, drag-to-move, and resize for rectangles with boundary constraints and real-time sync.
 
 ### Tasks:
-- [ ] **8.1** Implement click-to-select rectangles with resize handles
+- [ ] **8.1** Implement Arrow Tool selection with resize handles
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Add click handler, highlight selected rectangle
-  - **NEW:** Show resize handles on selected rectangles (corner and edge handles)
+  - **UPDATED:** Only active when Arrow Tool is selected
+  - **NEW:** Click empty canvas with Arrow Tool deselects all rectangles
+  - **NEW:** Click rectangle body selects and shows resize handles
+  - **NEW:** Default arrow cursor during Arrow Tool use
   - Store selected rectangle ID in state
 
-- [ ] **8.2** Implement rectangle drag-to-move and resize operations
+- [ ] **8.2** Implement Arrow Tool move and resize operations
   - Files: `src/components/canvas/CanvasObject.jsx`
-  - Enable dragging on Konva rectangles for movement
-  - **NEW:** Enable resize handles for rectangle width/height adjustment
+  - **UPDATED:** Only active when Arrow Tool is selected
+  - **NEW:** Click rectangle body + drag = move rectangle
+  - **NEW:** Click rectangle corners + drag = resize rectangle
+  - **NEW:** Resize handles (corner and edge) for selected rectangles
   - Throttle position/size updates during drag/resize (100ms)
 
 - [ ] **8.3** Implement boundary constraints for rectangle move and resize
@@ -704,6 +732,9 @@ After all PRs are complete, verify:
 - [ ] ✅ Authentication errors show clear messages with retry prompts **NEW REQUIREMENT**
 - [ ] ✅ Users can create and move rectangles **SIMPLIFIED - Single shape type for MVP**
 - [ ] ✅ Rectangle creation uses click-and-drag interaction with minimum 2x1px size **NEW BEHAVIOR**
+- [ ] ✅ Three-tool system works correctly (Hand, Arrow, Rectangle) **NEW FEATURE**
+- [ ] ✅ Independent tool selection per user (not synced between users) **NEW MULTIPLAYER BEHAVIOR**
+- [ ] ✅ Tool state stored locally, cursors show position only **NEW ARCHITECTURE**
 - [ ] ✅ Users can resize rectangles using corner/edge handles **NEW FEATURE - Added to MVP**
 - [ ] ✅ Resize operations sync in real-time across users (100ms throttle) **NEW FEATURE**
 - [ ] ✅ Any authenticated user can resize any rectangle **NEW CAPABILITY**
@@ -728,3 +759,4 @@ After all PRs are complete, verify:
 - **NEW - Firebase:** Quota monitoring is critical for production readiness.
 - **NEW - Auth Flow:** Login page requirement ensures proper authentication before canvas access.
 - **NEW - Rectangle Focus:** Single shape type (rectangle) demonstrates all core functionality while keeping MVP simple and achievable.
+- **NEW - Multiplayer Tools:** Each user has independent tool selection (local state only). Tool selection never syncs between users, only the results of tool actions sync.
