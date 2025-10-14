@@ -55,9 +55,6 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const [resizeHandle, setResizeHandle] = useState(null);
   const [resizeStartData, setResizeStartData] = useState(null);
   
-  // Edge detection state for smooth corner swapping
-  const [edgeDetectionActive, setEdgeDetectionActive] = useState(false);
-  
   // Local rectangle state during operations (for immediate visual feedback)
   const [localRectUpdates, setLocalRectUpdates] = useState({});
   
@@ -168,163 +165,116 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     };
   }, []);
 
-  // Dimension flipping function - handles when corners cross past each other
-  const normalizeDimensions = useCallback((rect, currentHandle) => {
-    let newRect = { ...rect };
-    let newHandle = currentHandle;
-    
-    // Handle negative width (horizontal flip - corner crossed left-right boundary)
-    if (newRect.width < 0) {
-      newRect.x = newRect.x + newRect.width;  // Move x to the left edge
-      newRect.width = Math.abs(newRect.width);  // Make width positive
-      
-      // Flip handle horizontally: nw↔ne, sw↔se
-      if (newHandle.includes('w')) {
-        newHandle = newHandle.replace('w', 'e');
-      } else if (newHandle.includes('e')) {
-        newHandle = newHandle.replace('e', 'w');
-      }
-    }
-    
-    // Handle negative height (vertical flip - corner crossed top-bottom boundary)
-    if (newRect.height < 0) {
-      newRect.y = newRect.y + newRect.height;  // Move y to the top edge
-      newRect.height = Math.abs(newRect.height);  // Make height positive
-      
-      // Flip handle vertically: nw↔sw, ne↔se
-      if (newHandle.includes('n')) {
-        newHandle = newHandle.replace('n', 's');
-      } else if (newHandle.includes('s')) {
-        newHandle = newHandle.replace('s', 'n');
-      }
-    }
-    
-    return { rect: newRect, handle: newHandle };
-  }, []);
-
-  // Edge detection and smooth corner swapping system
-  const detectAndHandleCornerSwap = useCallback((mousePos, currentRect, currentHandle) => {
-    const TRIGGER_THRESHOLD = 25;  // Activate edge detection when width/height <= 25px
-    
-    // Check if we should activate edge detection (immediate activation)
-    if (!edgeDetectionActive) {
-      const shouldActivate = currentRect.width <= TRIGGER_THRESHOLD || currentRect.height <= TRIGGER_THRESHOLD;
-      if (shouldActivate) {
-        setEdgeDetectionActive(true);
-        console.log('🎯 Edge detection activated at threshold');
-      }
-      // If not activated, return current state
-      if (!shouldActivate) {
-        return { rect: currentRect, handle: currentHandle, swapped: false };
-      }
-    }
-    
-    // Edge detection is active - perform smooth corner swapping
-    const { x: rectX, y: rectY, width, height } = currentRect;
+  // Simple crossover detection - handles coordinate flipping when resizing past opposite corners
+  const handleCrossoverDetection = useCallback((mousePos, currentHandle, originalRect) => {
     const { x: mouseX, y: mouseY } = mousePos;
     
-    // Calculate rectangle edges
-    const leftEdge = rectX;
-    const rightEdge = rectX + width;
-    const topEdge = rectY;
-    const bottomEdge = rectY + height;
+    // Calculate the opposite corner coordinates of the original rectangle
+    const leftX = originalRect.x;
+    const rightX = originalRect.x + originalRect.width;
+    const topY = originalRect.y;  
+    const bottomY = originalRect.y + originalRect.height;
     
-    // Determine which edge crossovers have occurred
     let newHandle = currentHandle;
-    let hasSwapped = false;
+    let hasFlipped = false;
     
-    // Calculate deltas to determine dominant axis
-    const originalRect = rectangles.find(r => r.id === resizeSelectedId);
-    if (!originalRect) return { rect: currentRect, handle: currentHandle, swapped: false };
-    
-    // Check for edge crossovers and handle dominant axis first
-    const crossedLeft = mouseX < leftEdge;
-    const crossedRight = mouseX > rightEdge;
-    const crossedTop = mouseY < topEdge;
-    const crossedBottom = mouseY > bottomEdge;
-    
-    // Handle horizontal crossovers
-    if (crossedLeft || crossedRight) {
-      if (currentHandle.includes('e') && crossedLeft) {
-        // East handle crossed to west side
-        newHandle = newHandle.replace('e', 'w');
-        hasSwapped = true;
-        console.log(`🔄 Horizontal swap: ${currentHandle} → ${newHandle} (crossed left)`);
-      } else if (currentHandle.includes('w') && crossedRight) {
-        // West handle crossed to east side  
-        newHandle = newHandle.replace('w', 'e');
-        hasSwapped = true;
-        console.log(`🔄 Horizontal swap: ${currentHandle} → ${newHandle} (crossed right)`);
-      }
+    // Check for crossovers based on current handle
+    switch (currentHandle) {
+      case 'nw':
+        // NW handle: check if crossed right edge (becomes NE) or bottom edge (becomes SW) or both (becomes SE)
+        if (mouseX > rightX && mouseY > bottomY) {
+          newHandle = 'se';
+          hasFlipped = true;
+        } else if (mouseX > rightX) {
+          newHandle = 'ne';
+          hasFlipped = true;
+        } else if (mouseY > bottomY) {
+          newHandle = 'sw';
+          hasFlipped = true;
+        }
+        break;
+        
+      case 'ne':
+        // NE handle: check if crossed left edge (becomes NW) or bottom edge (becomes SE) or both (becomes SW)
+        if (mouseX < leftX && mouseY > bottomY) {
+          newHandle = 'sw';
+          hasFlipped = true;
+        } else if (mouseX < leftX) {
+          newHandle = 'nw';
+          hasFlipped = true;
+        } else if (mouseY > bottomY) {
+          newHandle = 'se';
+          hasFlipped = true;
+        }
+        break;
+        
+      case 'sw':
+        // SW handle: check if crossed right edge (becomes SE) or top edge (becomes NW) or both (becomes NE)
+        if (mouseX > rightX && mouseY < topY) {
+          newHandle = 'ne';
+          hasFlipped = true;
+        } else if (mouseX > rightX) {
+          newHandle = 'se';
+          hasFlipped = true;
+        } else if (mouseY < topY) {
+          newHandle = 'nw';
+          hasFlipped = true;
+        }
+        break;
+        
+      case 'se':
+        // SE handle: check if crossed left edge (becomes SW) or top edge (becomes NE) or both (becomes NW)
+        if (mouseX < leftX && mouseY < topY) {
+          newHandle = 'nw';
+          hasFlipped = true;
+        } else if (mouseX < leftX) {
+          newHandle = 'sw';
+          hasFlipped = true;
+        } else if (mouseY < topY) {
+          newHandle = 'ne';
+          hasFlipped = true;
+        }
+        break;
     }
     
-    // Handle vertical crossovers
-    if (crossedTop || crossedBottom) {
-      if (currentHandle.includes('s') && crossedTop) {
-        // South handle crossed to north side
-        newHandle = newHandle.replace('s', 'n');
-        hasSwapped = true;
-        console.log(`🔄 Vertical swap: ${currentHandle} → ${newHandle} (crossed top)`);
-      } else if (currentHandle.includes('n') && crossedBottom) {
-        // North handle crossed to south side
-        newHandle = newHandle.replace('n', 's');
-        hasSwapped = true;
-        console.log(`🔄 Vertical swap: ${currentHandle} → ${newHandle} (crossed bottom)`);
-      }
-    }
-    
-    // Calculate new rectangle geometry maintaining mouse-to-rectangle relationship
-    let newRect = { ...currentRect };
-    
-    if (hasSwapped) {
-      // Recalculate rectangle geometry based on mouse position and new handle
-      // Mouse position becomes the new active corner
-      const cornerX = mouseX;
-      const cornerY = mouseY;
-      
-      // Find the opposite corner based on CURRENT rectangle position (not original)
-      // This ensures proper coordinate flipping behavior
+    // If flipped, calculate new rectangle with proper coordinate swapping
+    if (hasFlipped) {
+      // Mouse becomes the new corner, find the opposite corner in original rectangle
       let oppositeX, oppositeY;
       
       switch (newHandle) {
         case 'nw':
-          // NW handle - opposite is SE corner of current rectangle
-          oppositeX = currentRect.x + currentRect.width;
-          oppositeY = currentRect.y + currentRect.height;
+          oppositeX = rightX;
+          oppositeY = bottomY;
           break;
         case 'ne':
-          // NE handle - opposite is SW corner of current rectangle  
-          oppositeX = currentRect.x;
-          oppositeY = currentRect.y + currentRect.height;
+          oppositeX = leftX;
+          oppositeY = bottomY;
           break;
         case 'sw':
-          // SW handle - opposite is NE corner of current rectangle
-          oppositeX = currentRect.x + currentRect.width;
-          oppositeY = currentRect.y;
+          oppositeX = rightX;
+          oppositeY = topY;
           break;
         case 'se':
-          // SE handle - opposite is NW corner of current rectangle
-          oppositeX = currentRect.x;
-          oppositeY = currentRect.y;
+          oppositeX = leftX;
+          oppositeY = topY;
           break;
-        default:
-          oppositeX = currentRect.x + currentRect.width;
-          oppositeY = currentRect.y + currentRect.height;
       }
       
-      // Calculate new rectangle ensuring positive dimensions
-      // This creates proper coordinate flipping where corners swap positions
-      newRect = {
-        x: Math.min(cornerX, oppositeX),
-        y: Math.min(cornerY, oppositeY),
-        width: Math.abs(cornerX - oppositeX),
-        height: Math.abs(cornerY - oppositeY),
-        fill: currentRect.fill
+      // Create rectangle from mouse position to opposite corner
+      const newRect = {
+        x: Math.min(mouseX, oppositeX),
+        y: Math.min(mouseY, oppositeY),
+        width: Math.abs(mouseX - oppositeX),
+        height: Math.abs(mouseY - oppositeY),
+        fill: originalRect.fill
       };
+      
+      return { rect: newRect, handle: newHandle, flipped: true };
     }
     
-    return { rect: newRect, handle: newHandle, swapped: hasSwapped };
-  }, [edgeDetectionActive, rectangles, resizeSelectedId]);
+    return { rect: null, handle: currentHandle, flipped: false };
+  }, []);
   
   // Find closest corner to click position (within rectangle bounds)
   const getClosestCorner = useCallback((pos, rect) => {
@@ -524,9 +474,6 @@ const Canvas = ({ selectedTool, onToolChange }) => {
                   startPos: pos
                 });
                 
-                // Reset edge detection state - clean slate for new drag operation
-                setEdgeDetectionActive(false);
-                
                 return; // Handle click found - start resizing immediately
               } else {
                 console.log('Already resizing - ignoring click to prevent jumping');
@@ -701,24 +648,15 @@ const Canvas = ({ selectedTool, onToolChange }) => {
               break;
           }
           
-          // NEW: Apply smooth edge detection and corner swapping first
-          const edgeDetected = detectAndHandleCornerSwap(pos, newRect, currentHandle);
-          newRect = edgeDetected.rect;
-          
-          // Update the resize handle if corner swapped
-          if (edgeDetected.swapped) {
-            setResizeHandle(edgeDetected.handle);
-          }
-          
-          // FALLBACK: Apply dimension flipping if corners have crossed (safety net)
-          if (!edgeDetectionActive) {
-            const normalized = normalizeDimensions(newRect, edgeDetected.handle || currentHandle);
-            newRect = normalized.rect;
+          // Check for crossover and handle coordinate flipping
+          const crossoverResult = handleCrossoverDetection(pos, currentHandle, startRect);
+          if (crossoverResult.flipped) {
+            newRect = crossoverResult.rect;
             
-            // Update the resize handle if flipping occurred
-            if (normalized.handle !== (edgeDetected.handle || currentHandle)) {
-              console.log(`🔄 Fallback dimension flip: ${edgeDetected.handle || currentHandle} → ${normalized.handle}`);
-              setResizeHandle(normalized.handle);
+            // Update the resize handle if crossover occurred
+            if (crossoverResult.handle !== currentHandle) {
+              console.log(`🔄 Crossover detected: ${currentHandle} → ${crossoverResult.handle}`);
+              setResizeHandle(crossoverResult.handle);
             }
           }
           
@@ -760,7 +698,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         }
         break;
     }
-  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, normalizeDimensions, detectAndHandleCornerSwap, updateCursor, doWeOwnObject, canvasObjects, edgeDetectionActive]);
+  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
@@ -839,7 +777,6 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         setIsResizing(false);
         setResizeHandle(null);
         setResizeStartData(null);
-        setEdgeDetectionActive(false); // Clean slate reset
         
         // Don't clear resizeSelectedId - keep object selected for consecutive resizes
         // Only clear when user clicks elsewhere or switches tools
