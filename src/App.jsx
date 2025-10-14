@@ -7,10 +7,15 @@ import ProtectedRoute from './components/layout/ProtectedRoute.jsx';
 import Header from './components/layout/Header.jsx';
 import Toolbar, { TOOLS } from './components/canvas/Toolbar.jsx';
 import Canvas from './components/canvas/Canvas.jsx';
+import OnlineUsers, { OnlineUsersCount } from './components/presence/OnlineUsers.jsx';
+import ConnectionStatus from './components/presence/ConnectionStatus.jsx';
+import DebugCanvas from './components/debug/DebugCanvas.jsx';
+import FirebaseCostMonitor from './components/debug/FirebaseCostMonitor.jsx';
+import DatabaseTest from './components/debug/DatabaseTest.jsx';
 
 // Canvas page component with Toolbar and Canvas
 const CanvasPage = () => {
-  const [selectedTool, setSelectedTool] = useState(TOOLS.ARROW);
+  const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
@@ -23,11 +28,39 @@ const CanvasPage = () => {
         selectedTool={selectedTool}
         onToolChange={handleToolChange}
       />
-      <div className="flex-1">
-        <Canvas 
-          selectedTool={selectedTool}
-          onToolChange={handleToolChange}
-        />
+      <div className="flex flex-1">
+        {/* Main canvas area */}
+        <div className="flex-1">
+          <Canvas 
+            selectedTool={selectedTool}
+            onToolChange={handleToolChange}
+          />
+        </div>
+        
+        {/* Right sidebar with presence info */}
+        <div className="w-80 bg-gray-50 border-l border-gray-200 p-4 space-y-4">
+          <ConnectionStatus />
+          <DatabaseTest />
+          <OnlineUsers />
+          
+          {/* Firebase cost monitoring */}
+          {import.meta.env.DEV && (
+            <FirebaseCostMonitor />
+          )}
+          
+          {/* Development info */}
+          {import.meta.env.DEV && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+              <h4 className="text-sm font-medium text-yellow-800 mb-2">
+                🧪 Development Mode
+              </h4>
+              <p className="text-xs text-yellow-700">
+                Open multiple browser windows to test multiplayer functionality.
+                Each user's cursor will appear with a unique color and name label.
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -52,6 +85,16 @@ function App() {
               element={
                 <ProtectedRoute>
                   <CanvasPage />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Debug route for troubleshooting */}
+            <Route 
+              path="/debug" 
+              element={
+                <ProtectedRoute>
+                  <DebugCanvas />
                 </ProtectedRoute>
               } 
             />

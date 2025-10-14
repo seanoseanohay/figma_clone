@@ -1,6 +1,17 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Stage, Layer, Rect } from 'react-konva';
+import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
+import UserCursor from './UserCursor.jsx';
+import { useCursorTracking } from '../../hooks/useCursorTracking.js';
+import { usePresence } from '../../hooks/usePresence.js';
+import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
+import { 
+  createObject, 
+  updateObjectPosition, 
+  lockObject, 
+  unlockObject 
+} from '../../services/canvas.service.js';
 import { 
   CANVAS_WIDTH, 
   CANVAS_HEIGHT, 
@@ -15,33 +26,113 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const stageRef = useRef(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
-  const [isDragging, setIsDragging] = useState(false);
   
-  // Rectangle creation state
-  const [rectangles, setRectangles] = useState([]);
+  // Pan tool state (simple)
+  const [isPanning, setIsPanning] = useState(false);
+  
+  // Multiplayer presence hooks
+  const { updateCursor } = useCursorTracking();
+  const { usersWithCursors } = usePresence();
+  
+  // Canvas objects hook for real-time sync - start with empty canvas
+  const { objects: canvasObjects, isLoading: objectsLoading } = useCanvasObjects();
+  
+  // Rectangle creation state (Rectangle tool only)
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentRect, setCurrentRect] = useState(null);
   
-  // Rectangle selection and movement state
-  const [selectedRectId, setSelectedRectId] = useState(null);
+  // Move tool state (clean separation)
+  const [moveSelectedId, setMoveSelectedId] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
-  const [dragStartPos, setDragStartPos] = useState(null);
+  const [moveStartPos, setMoveStartPos] = useState(null);
+  const [mouseDownPos, setMouseDownPos] = useState(null);
+  const [isDragThresholdExceeded, setIsDragThresholdExceeded] = useState(false);
+  const [moveOriginalPos, setMoveOriginalPos] = useState(null); // Store original position
   
-  // Resize state
+  // Resize tool state (clean separation)
+  const [resizeSelectedId, setResizeSelectedId] = useState(null);
   const [isResizing, setIsResizing] = useState(false);
-  const [resizeHandle, setResizeHandle] = useState(null); // 'nw', 'ne', 'sw', 'se'
+  const [resizeHandle, setResizeHandle] = useState(null);
   const [resizeStartData, setResizeStartData] = useState(null);
   
-  // Resize handle size - Made 2.5x bigger for better usability
-  const HANDLE_SIZE = 20;
+  // Local rectangle state during operations (for immediate visual feedback)
+  const [localRectUpdates, setLocalRectUpdates] = useState({});
+  
+  // Constants
+  const DRAG_THRESHOLD = 5;
+  const HANDLE_SIZE = 20; // Reduced from 40 to test zoom/coordinate issues
+  
+  // Get the currently selected object ID based on active tool
+  const getSelectedObjectId = () => {
+    if (selectedTool === TOOLS.MOVE) return moveSelectedId;
+    if (selectedTool === TOOLS.RESIZE) return resizeSelectedId;
+    return null;
+  };
+
+  // Filter rectangles from canvas objects and merge with local updates
+  const rectangles = canvasObjects
+    .filter(obj => obj.type === 'rectangle')
+    .map(rect => {
+      // If WE are controlling this object, show our local updates for immediate feedback
+      if (localRectUpdates[rect.id] && rect.lockedBy === auth.currentUser?.uid) {
+        return {
+          ...rect,
+          ...localRectUpdates[rect.id]
+        };
+      }
+      
+      // For everyone else (including other users watching our movements), 
+      // show the latest Firestore data which gets updated in real-time
+      if (rect.lockedBy && rect.lockedBy !== auth.currentUser?.uid) {
+        return {
+          ...rect,
+          isLockedByOther: true,
+          lockedByName: rect.lastModifiedBy
+        };
+      }
+      
+      // No one is controlling it, show Firestore data
+      return rect;
+    });
+
+  // Helper function to check if current user can edit an object
+  const canEditObject = useCallback((objectId) => {
+    const obj = canvasObjects.find(o => o.id === objectId);
+    if (!obj) return false;
+    
+    // If object is not locked, anyone can edit
+    if (!obj.lockedBy) return true;
+    
+    // If current user locked it, they can edit
+    if (obj.lockedBy === auth.currentUser?.uid) return true;
+    
+    // Check if lock is stale (older than 30 seconds)
+    const lockAge = Date.now() - (obj.lockedAt?.toDate?.()?.getTime() || 0);
+    const isLockStale = lockAge > 30000; // 30 seconds
+    
+    return isLockStale;
+  }, [canvasObjects]);
+
+  // Helper to check if current user owns/controls an object
+  const doWeOwnObject = useCallback((objectId) => {
+    const obj = canvasObjects.find(o => o.id === objectId);
+    if (!obj || !obj.lockedBy) return false;
+    
+    return obj.lockedBy === auth.currentUser?.uid;
+  }, [canvasObjects]);
   
   // Helper function to get mouse position relative to canvas
   const getMousePos = useCallback((e) => {
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
-    const transform = stage.getAbsoluteTransform().copy();
-    transform.invert();
-    return transform.point(pointer);
+    
+    // Standard Konva coordinate transformation
+    const result = {
+      x: (pointer.x - stage.x()) / stage.scaleX(),
+      y: (pointer.y - stage.y()) / stage.scaleY()
+    };
+    
+    return result;
   }, []);
   
   // Helper function to check if point is inside rectangle
@@ -74,24 +165,39 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     };
   }, []);
   
-  // Check if point is in resize handle
-  const getResizeHandle = useCallback((pos, rect) => {
-    const handles = [
-      { name: 'nw', x: rect.x - HANDLE_SIZE/2, y: rect.y - HANDLE_SIZE/2 },
-      { name: 'ne', x: rect.x + rect.width - HANDLE_SIZE/2, y: rect.y - HANDLE_SIZE/2 },
-      { name: 'sw', x: rect.x - HANDLE_SIZE/2, y: rect.y + rect.height - HANDLE_SIZE/2 },
-      { name: 'se', x: rect.x + rect.width - HANDLE_SIZE/2, y: rect.y + rect.height - HANDLE_SIZE/2 }
+  // Find closest corner to click position (within rectangle bounds)
+  const getClosestCorner = useCallback((pos, rect) => {
+    // Only detect corners if click is inside the rectangle
+    if (pos.x < rect.x || pos.x > rect.x + rect.width || 
+        pos.y < rect.y || pos.y > rect.y + rect.height) {
+      return null;
+    }
+    
+    const corners = [
+      { name: 'nw', x: rect.x, y: rect.y },
+      { name: 'ne', x: rect.x + rect.width, y: rect.y },
+      { name: 'sw', x: rect.x, y: rect.y + rect.height },
+      { name: 'se', x: rect.x + rect.width, y: rect.y + rect.height }
     ];
     
-    for (const handle of handles) {
-      if (pos.x >= handle.x && pos.x <= handle.x + HANDLE_SIZE &&
-          pos.y >= handle.y && pos.y <= handle.y + HANDLE_SIZE) {
-        return handle.name;
+    let closestCorner = null;
+    let minDistance = Infinity;
+    
+    corners.forEach(corner => {
+      const distance = Math.sqrt(
+        Math.pow(pos.x - corner.x, 2) + Math.pow(pos.y - corner.y, 2)
+      );
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestCorner = corner.name;
       }
-    }
-    return null;
-  }, [HANDLE_SIZE]);
-  
+    });
+    
+    console.log('🎯 Closest corner detected:', closestCorner);
+    return closestCorner;
+  }, []);
+
   // Calculate initial view to center the canvas and fit it in viewport
   const initializeView = useCallback(() => {
     if (stageRef.current) {
@@ -159,192 +265,458 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     setStagePos(newPos);
   }, []);
 
-  // Handle mouse down - start panning, rectangle creation, selection, or resize
-  const handleMouseDown = useCallback((e) => {
+  // Clear selection when switching tools
+  useEffect(() => {
+    if (selectedTool === TOOLS.PAN || selectedTool === TOOLS.RECTANGLE) {
+      // Clear all selections when switching to pan or rectangle tools
+      setMoveSelectedId(null);
+      setResizeSelectedId(null);
+      setLocalRectUpdates({});
+    }
+  }, [selectedTool]);
+
+  // MOUSE DOWN HANDLER - Tool-specific logic
+  const handleMouseDown = useCallback(async (e) => {
     const pos = getMousePos(e);
     
-    if (selectedTool === TOOLS.HAND) {
-      setIsDragging(true);
-      e.target.getStage().container().style.cursor = 'grabbing';
-    } else if (selectedTool === TOOLS.ARROW) {
-      // Check if clicking on a selected rectangle's resize handle first
-      const selectedRect = rectangles.find(r => r.id === selectedRectId);
-      if (selectedRect) {
-        const handle = getResizeHandle(pos, selectedRect);
-        if (handle) {
-          // Start resizing
-          setIsResizing(true);
-          setResizeHandle(handle);
-          setResizeStartData({
-            rect: { ...selectedRect },
-            startPos: pos
-          });
+    console.log('Mouse down detected, tool:', selectedTool);
+    
+    switch (selectedTool) {
+      case TOOLS.PAN:
+        setIsPanning(true);
+        e.target.getStage().container().style.cursor = 'grabbing';
+        break;
+        
+      case TOOLS.MOVE:
+        // Click empty space = deselect
+        const clickedRect = findRectAt(pos);
+        if (!clickedRect) {
+          if (moveSelectedId) {
+            try {
+              await unlockObject(moveSelectedId);
+              console.log('Move tool: Deselected and unlocked object');
+            } catch (error) {
+              console.error('Failed to unlock on deselect:', error);
+            }
+          }
+          setMoveSelectedId(null);
           return;
         }
-      }
-      
-      // Arrow tool - select rectangle or deselect if clicking empty area
-      const clickedRect = findRectAt(pos);
-      if (clickedRect) {
-        setSelectedRectId(clickedRect.id);
-        setIsMoving(true);
-        setDragStartPos(pos);
-      } else {
-        setSelectedRectId(null);
-      }
-    } else if (selectedTool === TOOLS.RECTANGLE) {
-      // Start rectangle creation
-      if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
-        setIsDrawing(true);
-        const newRect = {
-          id: Date.now(),
-          x: pos.x,
-          y: pos.y,
-          width: 0,
-          height: 0,
-          fill: '#808080'
-        };
-        setCurrentRect(newRect);
-      }
+        
+        // Check if we can edit this object
+        if (!canEditObject(clickedRect.id)) {
+          console.log('Cannot select - object is locked by another user');
+          return;
+        }
+        
+        // Select object for potential movement
+        setMoveSelectedId(clickedRect.id);
+        setMouseDownPos(pos);
+        setIsDragThresholdExceeded(false);
+        setMoveOriginalPos({ x: clickedRect.x, y: clickedRect.y }); // Store original position
+        
+        // Lock the object to prevent others from grabbing it
+        try {
+          await lockObject(clickedRect.id);
+          console.log('Move tool: Object locked for potential movement');
+        } catch (error) {
+          console.error('Failed to lock object:', error);
+        }
+        break;
+        
+      case TOOLS.RESIZE:
+        console.log('Resize tool mouse down');
+        
+        // FIRST: Check if we clicked on a resize handle of the currently selected rectangle
+        // This must come BEFORE checking for empty space, because handles extend outside rectangle bounds
+        if (resizeSelectedId) {
+          const currentlySelected = rectangles.find(r => r.id === resizeSelectedId);
+          if (currentlySelected) {
+            console.log('=== RECTANGLE DATA DEBUG ===');
+            console.log('Selected rectangle ID:', resizeSelectedId);
+            console.log('Rectangle locked by:', currentlySelected.lockedBy);
+            console.log('Current user:', auth.currentUser?.uid);
+            console.log('=== END RECTANGLE DEBUG ===');
+            
+            const handle = getClosestCorner(pos, currentlySelected);
+            console.log('Checking closest corner on currently selected rectangle:', handle);
+            if (handle) {
+              console.log('Starting resize on corner:', handle, 'for selected rectangle');
+              
+              // CRITICAL: Only start new resize if we're not already resizing
+              if (!isResizing) {
+                // Lock the object for consecutive resizes (skip for test data)
+                if (!currentlySelected.id.match(/^[12]$/)) {
+                  try {
+                    await lockObject(resizeSelectedId);
+                    console.log('Re-locked object for consecutive resize');
+                  } catch (error) {
+                    console.error('Failed to lock object for consecutive resize:', error);
+                    return;
+                  }
+                }
+                
+                setIsResizing(true);
+                setResizeHandle(handle);
+                setResizeStartData({
+                  rect: { ...currentlySelected },
+                  startPos: pos
+                });
+                return; // Handle click found - start resizing immediately
+              } else {
+                console.log('Already resizing - ignoring click to prevent jumping');
+                return;
+              }
+            }
+          }
+        }
+        
+        // SECOND: Check if we clicked on a rectangle (for selection)
+        const resizeClickedRect = findRectAt(pos);
+        console.log('Found rectangle:', resizeClickedRect ? resizeClickedRect.id : 'none');
+        
+        if (!resizeClickedRect) {
+          // Click empty space = deselect
+          if (resizeSelectedId) {
+            try {
+              await unlockObject(resizeSelectedId);
+            } catch (error) {
+              console.error('Failed to unlock on deselect:', error);
+            }
+          }
+          setResizeSelectedId(null);
+          return;
+        }
+        
+        // Check if we can edit this object
+        if (!canEditObject(resizeClickedRect.id)) {
+          console.log('Cannot select - object is locked by another user');
+          return;
+        }
+        
+        // Select object for resizing and show handles
+        console.log('Selecting rectangle for resize:', resizeClickedRect.id);
+        setResizeSelectedId(resizeClickedRect.id);
+        
+        // Lock the object (skip for test data)
+        if (!resizeClickedRect.id.match(/^[12]$/)) {
+          try {
+            await lockObject(resizeClickedRect.id);
+          } catch (error) {
+            console.error('Failed to lock object:', error);
+          }
+        }
+        break;
+        
+      case TOOLS.RECTANGLE:
+        // Start rectangle creation
+        if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
+          setIsDrawing(true);
+          const newRect = {
+            id: Date.now(),
+            x: pos.x,
+            y: pos.y,
+            width: 0,
+            height: 0,
+            fill: '#808080'
+          };
+          setCurrentRect(newRect);
+        }
+        break;
     }
-  }, [selectedTool, getMousePos, findRectAt, rectangles, selectedRectId, getResizeHandle]);
+  }, [selectedTool, getMousePos, findRectAt, canEditObject, getClosestCorner, moveSelectedId, resizeSelectedId]);
 
-  // Handle mouse move - pan, rectangle resize, rectangle movement, or rectangle creation
+  // MOUSE MOVE HANDLER - Tool-specific logic
   const handleMouseMove = useCallback((e) => {
     const pos = getMousePos(e);
     
-    if (selectedTool === TOOLS.HAND && isDragging) {
-      const stage = e.target.getStage();
-      const newPos = {
-        x: stage.x() + e.evt.movementX,
-        y: stage.y() + e.evt.movementY,
-      };
-      
-      stage.position(newPos);
-      setStagePos(newPos);
-    } else if (selectedTool === TOOLS.ARROW && isResizing && resizeStartData && resizeHandle) {
-      // Handle resizing
-      const { rect: startRect, startPos } = resizeStartData;
-      const deltaX = pos.x - startPos.x;
-      const deltaY = pos.y - startPos.y;
-      
-      let newRect = { ...startRect };
-      
-      switch (resizeHandle) {
-        case 'nw':
-          newRect.x = startRect.x + deltaX;
-          newRect.y = startRect.y + deltaY;
-          newRect.width = startRect.width - deltaX;
-          newRect.height = startRect.height - deltaY;
-          break;
-        case 'ne':
-          newRect.y = startRect.y + deltaY;
-          newRect.width = startRect.width + deltaX;
-          newRect.height = startRect.height - deltaY;
-          break;
-        case 'sw':
-          newRect.x = startRect.x + deltaX;
-          newRect.width = startRect.width - deltaX;
-          newRect.height = startRect.height + deltaY;
-          break;
-        case 'se':
-          newRect.width = startRect.width + deltaX;
-          newRect.height = startRect.height + deltaY;
-          break;
-      }
-      
-      // Enforce minimum size
-      if (newRect.width < 2) newRect.width = 2;
-      if (newRect.height < 1) newRect.height = 1;
-      
-      // Enforce boundary constraints
-      newRect = clampRectToCanvas(newRect);
-      
-      setRectangles(prev => prev.map(rect => 
-        rect.id === selectedRectId ? newRect : rect
-      ));
-      
-    } else if (selectedTool === TOOLS.ARROW && isMoving && selectedRectId && dragStartPos) {
-      // Move selected rectangle with boundary enforcement
-      const deltaX = pos.x - dragStartPos.x;
-      const deltaY = pos.y - dragStartPos.y;
-      
-      setRectangles(prev => prev.map(rect => {
-        if (rect.id === selectedRectId) {
-          const newRect = clampRectToCanvas({
-            ...rect,
-            x: rect.x + deltaX,
-            y: rect.y + deltaY
-          });
-          return newRect;
+    // Update cursor position for multiplayer (only when not actively manipulating)
+    if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT &&
+        !isMoving && !isResizing && !isDrawing && !isPanning) {
+      updateCursor(pos);
+    }
+    
+    switch (selectedTool) {
+      case TOOLS.PAN:
+        if (isPanning) {
+          const stage = e.target.getStage();
+          const newPos = {
+            x: stage.x() + e.evt.movementX,
+            y: stage.y() + e.evt.movementY,
+          };
+          stage.position(newPos);
+          setStagePos(newPos);
         }
-        return rect;
-      }));
-      
-      setDragStartPos(pos);
-    } else if (selectedTool === TOOLS.RECTANGLE && isDrawing && currentRect) {
-      // Update rectangle size during drawing
-      const width = pos.x - currentRect.x;
-      const height = pos.y - currentRect.y;
-      
-      setCurrentRect({
-        ...currentRect,
-        width: width,
-        height: height
-      });
-    }
-  }, [selectedTool, isDragging, isMoving, isResizing, selectedRectId, dragStartPos, isDrawing, currentRect, getMousePos, resizeStartData, resizeHandle, clampRectToCanvas]);
-
-  // Handle mouse up - stop panning, finish rectangle creation, stop moving, or stop resizing
-  const handleMouseUp = useCallback((e) => {
-    if (selectedTool === TOOLS.HAND) {
-      setIsDragging(false);
-      e.target.getStage().container().style.cursor = 'grab';
-    } else if (selectedTool === TOOLS.ARROW && isMoving) {
-      // Stop moving rectangle
-      setIsMoving(false);
-      setDragStartPos(null);
-    } else if (selectedTool === TOOLS.ARROW && isResizing) {
-      // Stop resizing rectangle
-      setIsResizing(false);
-      setResizeHandle(null);
-      setResizeStartData(null);
-    } else if (selectedTool === TOOLS.RECTANGLE && isDrawing && currentRect) {
-      // Finish rectangle creation
-      const minWidth = 2;
-      const minHeight = 1;
-      
-      if (Math.abs(currentRect.width) >= minWidth && Math.abs(currentRect.height) >= minHeight) {
-        // Normalize negative dimensions and enforce boundaries
-        let finalRect = {
-          ...currentRect,
-          x: currentRect.width < 0 ? currentRect.x + currentRect.width : currentRect.x,
-          y: currentRect.height < 0 ? currentRect.y + currentRect.height : currentRect.y,
-          width: Math.abs(currentRect.width),
-          height: Math.abs(currentRect.height)
-        };
+        break;
         
-        finalRect = clampRectToCanvas(finalRect);
-        setRectangles(prev => [...prev, finalRect]);
-      }
-      
-      // Reset drawing state and switch back to arrow tool
-      setIsDrawing(false);
-      setCurrentRect(null);
-      onToolChange(TOOLS.ARROW);
+      case TOOLS.MOVE:
+        if (moveSelectedId && mouseDownPos) {
+          // Check if we should start dragging (threshold detection)
+          if (!isDragThresholdExceeded) {
+            const distance = Math.sqrt(
+              Math.pow(pos.x - mouseDownPos.x, 2) + 
+              Math.pow(pos.y - mouseDownPos.y, 2)
+            );
+            
+            if (distance > DRAG_THRESHOLD) {
+              console.log('Move: Drag threshold exceeded, starting movement');
+              setIsDragThresholdExceeded(true);
+              setIsMoving(true);
+              setMoveStartPos(mouseDownPos);
+            }
+          }
+          
+          // If we're now moving, handle the movement
+          if (isDragThresholdExceeded && isMoving && moveStartPos && moveOriginalPos) {
+            // Calculate delta from where we started dragging
+            const deltaX = pos.x - moveStartPos.x;
+            const deltaY = pos.y - moveStartPos.y;
+            
+            // Find the actual rectangle to get its dimensions
+            const originalRect = canvasObjects.find(r => r.id === moveSelectedId && r.type === 'rectangle');
+            if (originalRect) {
+              // Apply delta to original position (prevents accumulation)
+              const newRect = {
+                ...originalRect,
+                x: moveOriginalPos.x + deltaX,
+                y: moveOriginalPos.y + deltaY
+              };
+              
+              // Apply boundary constraints
+              const clampedRect = clampRectToCanvas(newRect);
+              
+              // Apply local visual update for immediate feedback
+              setLocalRectUpdates(prev => ({
+                ...prev,
+                [moveSelectedId]: clampedRect
+              }));
+              
+              // Send updates to Firestore if we own this object
+              if (doWeOwnObject(moveSelectedId)) {
+                updateObjectPosition(moveSelectedId, {
+                  x: clampedRect.x,
+                  y: clampedRect.y
+                });
+              }
+            }
+          }
+        }
+        break;
+        
+      case TOOLS.RESIZE:
+        if (isResizing && resizeStartData && resizeHandle) {
+          const { rect: startRect, startPos } = resizeStartData;
+          const deltaX = pos.x - startPos.x;
+          const deltaY = pos.y - startPos.y;
+          
+          let newRect = { ...startRect };
+          
+          switch (resizeHandle) {
+            case 'nw':
+              newRect.x = startRect.x + deltaX;
+              newRect.y = startRect.y + deltaY;
+              newRect.width = startRect.width - deltaX;
+              newRect.height = startRect.height - deltaY;
+              break;
+            case 'ne':
+              newRect.y = startRect.y + deltaY;
+              newRect.width = startRect.width + deltaX;
+              newRect.height = startRect.height - deltaY;
+              break;
+            case 'sw':
+              newRect.x = startRect.x + deltaX;
+              newRect.width = startRect.width - deltaX;
+              newRect.height = startRect.height + deltaY;
+              break;
+            case 'se':
+              newRect.width = startRect.width + deltaX;
+              newRect.height = startRect.height + deltaY;
+              break;
+          }
+          
+          // Enforce minimum size
+          if (newRect.width < 2) newRect.width = 2;
+          if (newRect.height < 1) newRect.height = 1;
+          
+          // Enforce boundary constraints
+          newRect = clampRectToCanvas(newRect);
+          
+          // Apply local visual update for immediate feedback
+          setLocalRectUpdates(prev => ({
+            ...prev,
+            [resizeSelectedId]: newRect
+          }));
+          
+          // Send updates to Firestore if we own this object (skip for test data)
+          if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
+            updateObjectPosition(resizeSelectedId, {
+              x: newRect.x,
+              y: newRect.y,
+              width: newRect.width,
+              height: newRect.height
+            });
+          }
+        }
+        break;
+        
+      case TOOLS.RECTANGLE:
+        if (isDrawing && currentRect) {
+          const width = pos.x - currentRect.x;
+          const height = pos.y - currentRect.y;
+          
+          setCurrentRect({
+            ...currentRect,
+            width: width,
+            height: height
+          });
+        }
+        break;
     }
-  }, [selectedTool, isDrawing, isMoving, isResizing, currentRect, onToolChange, clampRectToCanvas]);
+  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, updateCursor, doWeOwnObject, canvasObjects]);
+
+  // MOUSE UP HANDLER - Tool-specific logic
+  const handleMouseUp = useCallback(async (e) => {
+    console.log('Mouse up with tool:', selectedTool);
+    
+    switch (selectedTool) {
+      case TOOLS.PAN:
+        setIsPanning(false);
+        e.target.getStage().container().style.cursor = 'grab';
+        break;
+        
+      case TOOLS.MOVE:
+        if (isMoving && moveSelectedId && localRectUpdates[moveSelectedId] && doWeOwnObject(moveSelectedId)) {
+          const finalRect = localRectUpdates[moveSelectedId];
+          try {
+            console.log('Move: Final position sync and unlock');
+            await updateObjectPosition(moveSelectedId, {
+              x: finalRect.x,
+              y: finalRect.y
+            }, true); // true = final update, unlocks object
+            console.log('Move: Rectangle position synced and unlocked');
+          } catch (error) {
+            console.error('Failed to sync rectangle position:', error);
+            try {
+              await unlockObject(moveSelectedId);
+            } catch (unlockError) {
+              console.error('Failed to unlock object:', unlockError);
+            }
+          }
+        } else if (moveSelectedId && !isMoving) {
+          // Just a click without drag - keep object locked since it's selected
+          // Don't unlock here since user might want to start moving it
+          console.log('Move: Click only - keeping object selected and locked');
+        }
+        
+        // Reset movement states
+        setIsMoving(false);
+        setMoveStartPos(null);
+        setMouseDownPos(null);
+        setIsDragThresholdExceeded(false);
+        setMoveOriginalPos(null);
+        
+        // Clear local updates after sync
+        if (moveSelectedId) {
+          setLocalRectUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[moveSelectedId];
+            return updated;
+          });
+        }
+        break;
+        
+      case TOOLS.RESIZE:
+        if (isResizing && resizeSelectedId && localRectUpdates[resizeSelectedId] && doWeOwnObject(resizeSelectedId)) {
+          const finalRect = localRectUpdates[resizeSelectedId];
+          try {
+            console.log('Resize: Final resize sync and unlock');
+            await updateObjectPosition(resizeSelectedId, {
+              x: finalRect.x,
+              y: finalRect.y,
+              width: finalRect.width,
+              height: finalRect.height
+            }, true); // true = final update, unlocks object
+            console.log('Resize: Rectangle resize synced and unlocked');
+          } catch (error) {
+            console.error('Failed to sync rectangle resize:', error);
+            try {
+              await unlockObject(resizeSelectedId);
+            } catch (unlockError) {
+              console.error('Failed to unlock object:', unlockError);
+            }
+          }
+        }
+        
+        // Reset resize states but keep object selected for consecutive resizes
+        setIsResizing(false);
+        setResizeHandle(null);
+        setResizeStartData(null);
+        
+        // Don't clear resizeSelectedId - keep object selected for consecutive resizes
+        // Only clear when user clicks elsewhere or switches tools
+        
+        // Clear local updates after sync
+        if (resizeSelectedId) {
+          setLocalRectUpdates(prev => {
+            const updated = { ...prev };
+            delete updated[resizeSelectedId];
+            return updated;
+          });
+        }
+        break;
+        
+      case TOOLS.RECTANGLE:
+        if (isDrawing && currentRect) {
+          const minWidth = 2;
+          const minHeight = 1;
+          
+          if (Math.abs(currentRect.width) >= minWidth && Math.abs(currentRect.height) >= minHeight) {
+            // Normalize negative dimensions and enforce boundaries
+            const finalRect = {
+              x: currentRect.width < 0 ? currentRect.x + currentRect.width : currentRect.x,
+              y: currentRect.height < 0 ? currentRect.y + currentRect.height : currentRect.y,
+              width: Math.abs(currentRect.width),
+              height: Math.abs(currentRect.height)
+            };
+            
+            // Clamp to canvas bounds
+            const clampedRect = clampRectToCanvas(finalRect);
+            
+            try {
+              // Save rectangle to Firestore
+              await createObject('rectangle', clampedRect, {
+                fill: '#808080',
+                stroke: '#333333',
+                strokeWidth: 1
+              });
+              console.log('Rectangle created and saved to Firestore');
+            } catch (error) {
+              console.error('Failed to save rectangle:', error);
+            }
+          }
+          
+          // Reset drawing state and switch back to move tool
+          setIsDrawing(false);
+          setCurrentRect(null);
+          onToolChange(TOOLS.MOVE);
+        }
+        break;
+    }
+  }, [selectedTool, isPanning, isMoving, moveSelectedId, localRectUpdates, doWeOwnObject, isResizing, resizeSelectedId, isDrawing, currentRect, onToolChange, clampRectToCanvas]);
 
   // Set cursor based on selected tool
   useEffect(() => {
     if (stageRef.current) {
       const container = stageRef.current.container();
       switch (selectedTool) {
-        case TOOLS.HAND:
-          container.style.cursor = isDragging ? 'grabbing' : 'grab';
+        case TOOLS.PAN:
+          container.style.cursor = isPanning ? 'grabbing' : 'grab';
           break;
-        case TOOLS.ARROW:
+        case TOOLS.MOVE:
           container.style.cursor = 'default';
+          break;
+        case TOOLS.RESIZE:
+          container.style.cursor = 'nw-resize';
           break;
         case TOOLS.RECTANGLE:
           container.style.cursor = 'crosshair';
@@ -353,10 +725,13 @@ const Canvas = ({ selectedTool, onToolChange }) => {
           container.style.cursor = 'default';
       }
     }
-  }, [selectedTool, isDragging]);
+  }, [selectedTool, isPanning]);
 
   // Calculate stage dimensions to cover the entire viewport
-  const [stageDimensions, setStageDimensions] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [stageDimensions, setStageDimensions] = useState({ 
+    width: window.innerWidth, 
+    height: window.innerHeight 
+  });
   
   useEffect(() => {
     const updateDimensions = () => {
@@ -373,7 +748,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   }, []);
 
   // Calculate boundary background dimensions (extends beyond canvas bounds)
-  const boundarySize = Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) * 3; // Large enough to cover any zoom level
+  const boundarySize = Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) * 3;
   const boundaryOffset = -boundarySize / 2 + Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) / 2;
 
   return (
@@ -386,7 +761,8 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        draggable={false} // We handle dragging manually for tool-specific behavior
+        onMouseLeave={handleMouseUp} // Ensure cleanup if mouse leaves canvas
+        draggable={false}
       >
         <Layer>
           {/* Boundary background (extends beyond canvas) */}
@@ -408,31 +784,57 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             fill={CANVAS_BACKGROUND}
             stroke="#cccccc"
             strokeWidth={1}
-            listening={selectedTool !== TOOLS.HAND} // Only listen for events when not using Hand Tool
+            listening={selectedTool !== TOOLS.PAN && !(selectedTool === TOOLS.RESIZE && resizeSelectedId)}
           />
           
           {/* Render created rectangles */}
-          {rectangles.map((rect) => (
-            <Rect
-              key={rect.id}
-              x={rect.x}
-              y={rect.y}
-              width={rect.width}
-              height={rect.height}
-              fill={rect.fill}
-              stroke={selectedRectId === rect.id ? "#2563eb" : "#333333"}
-              strokeWidth={selectedRectId === rect.id ? 2 : 1}
-            />
-          ))}
+          {rectangles.map((rect) => {
+            const isSelected = 
+              (selectedTool === TOOLS.MOVE && moveSelectedId === rect.id) ||
+              (selectedTool === TOOLS.RESIZE && resizeSelectedId === rect.id);
+              
+            return (
+              <Rect
+                key={rect.id}
+                x={rect.x}
+                y={rect.y}
+                width={rect.width}
+                height={rect.height}
+                fill={rect.fill}
+                stroke={
+                  rect.isLockedByOther 
+                    ? "#f59e0b" // Orange border for locked objects
+                    : isSelected 
+                      ? "#2563eb" // Blue border for selected
+                      : "#333333" // Default border
+                }
+                strokeWidth={
+                  rect.isLockedByOther || isSelected 
+                    ? 2 
+                    : 1
+                }
+                opacity={rect.isLockedByOther ? 0.7 : 1.0}
+                listening={false} // Disable events - handle via Stage only
+              />
+            );
+          })}
           
-          {/* Render resize handles for selected rectangle */}
-          {selectedRectId && rectangles.find(r => r.id === selectedRectId) && (() => {
-            const selectedRect = rectangles.find(r => r.id === selectedRectId);
+          {/* Render resize handles for selected rectangle (RESIZE tool only) */}
+          {selectedTool === TOOLS.RESIZE && resizeSelectedId && rectangles.find(r => r.id === resizeSelectedId) && (() => {
+            const selectedRect = rectangles.find(r => r.id === resizeSelectedId);
+            
+            // Don't show handles if object is locked by another user
+            if (selectedRect.isLockedByOther) {
+              return null;
+            }
+            
+            // Position handles INSIDE the rectangle bounds  
+            const handlePadding = 5; // Distance from rectangle edge
             const handles = [
-              { name: 'nw', x: selectedRect.x - HANDLE_SIZE/2, y: selectedRect.y - HANDLE_SIZE/2 },
-              { name: 'ne', x: selectedRect.x + selectedRect.width - HANDLE_SIZE/2, y: selectedRect.y - HANDLE_SIZE/2 },
-              { name: 'sw', x: selectedRect.x - HANDLE_SIZE/2, y: selectedRect.y + selectedRect.height - HANDLE_SIZE/2 },
-              { name: 'se', x: selectedRect.x + selectedRect.width - HANDLE_SIZE/2, y: selectedRect.y + selectedRect.height - HANDLE_SIZE/2 }
+              { name: 'nw', x: selectedRect.x + handlePadding, y: selectedRect.y + handlePadding },
+              { name: 'ne', x: selectedRect.x + selectedRect.width - HANDLE_SIZE - handlePadding, y: selectedRect.y + handlePadding },
+              { name: 'sw', x: selectedRect.x + handlePadding, y: selectedRect.y + selectedRect.height - HANDLE_SIZE - handlePadding },
+              { name: 'se', x: selectedRect.x + selectedRect.width - HANDLE_SIZE - handlePadding, y: selectedRect.y + selectedRect.height - HANDLE_SIZE - handlePadding }
             ];
             
             return handles.map(handle => (
@@ -445,6 +847,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
                 fill="#2563eb"
                 stroke="#ffffff"
                 strokeWidth={1}
+                listening={false} // Disable built-in events - we handle clicks manually
               />
             ));
           })()}
@@ -462,6 +865,15 @@ const Canvas = ({ selectedTool, onToolChange }) => {
               opacity={0.7}
             />
           )}
+
+          {/* Render other users' cursors */}
+          {usersWithCursors.map((user) => (
+            <UserCursor 
+              key={user.uid}
+              user={user}
+              stageScale={stageScale}
+            />
+          ))}
         </Layer>
       </Stage>
     </div>

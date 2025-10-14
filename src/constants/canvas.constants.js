@@ -33,8 +33,8 @@ export const FUTURE_SHAPE_DEFAULTS = {
 
 // Performance settings
 export const CURSOR_UPDATE_THROTTLE = 50;   // 50ms for cursor updates
-export const OBJECT_UPDATE_THROTTLE = 100;  // 100ms for object updates and resize operations
-export const RESIZE_UPDATE_THROTTLE = 100;  // 100ms for real-time resize operations
+export const OBJECT_UPDATE_THROTTLE = 16;   // 16ms for smooth 60fps object updates (was 100ms)
+export const RESIZE_UPDATE_THROTTLE = 16;   // 16ms for real-time resize operations
 
 // Canvas background colors
 export const CANVAS_BACKGROUND = '#ffffff';

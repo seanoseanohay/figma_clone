@@ -1,30 +1,40 @@
-// Tool constants
+// Tool constants - 4 distinct tools for clean separation
 export const TOOLS = {
-  HAND: 'hand',
-  ARROW: 'arrow', 
+  PAN: 'pan',
+  MOVE: 'move', 
+  RESIZE: 'resize',
   RECTANGLE: 'rectangle'
 };
 
-// Tool configurations with icons and labels
+// Tool configurations with icons, labels, and cursors
 const TOOL_CONFIG = {
-  [TOOLS.HAND]: {
+  [TOOLS.PAN]: {
     icon: '🤚',
-    label: 'Hand Tool (Pan)',
+    label: 'Pan Tool (Navigate Canvas)',
+    shortLabel: 'Pan',
     cursor: 'grab'
   },
-  [TOOLS.ARROW]: {
-    icon: '⬆️',
-    label: 'Arrow Tool (Select)',
+  [TOOLS.MOVE]: {
+    icon: '👆',
+    label: 'Move Tool (Select & Move Objects)',
+    shortLabel: 'Move',
+    cursor: 'default'
+  },
+  [TOOLS.RESIZE]: {
+    icon: '↔️',
+    label: 'Resize Tool (Select & Resize Objects)',
+    shortLabel: 'Resize',
     cursor: 'default'
   },
   [TOOLS.RECTANGLE]: {
     icon: '⬜',
-    label: 'Rectangle Tool',
+    label: 'Rectangle Tool (Create Rectangles)',
+    shortLabel: 'Rectangle',
     cursor: 'crosshair'
   }
 };
 
-const Toolbar = ({ onToolChange, selectedTool = TOOLS.ARROW }) => {
+const Toolbar = ({ onToolChange, selectedTool = TOOLS.MOVE }) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
   };
@@ -52,7 +62,7 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.ARROW }) => {
                 {config.icon}
               </span>
               <span className="text-sm font-medium hidden sm:inline">
-                {config.label.split(' ')[0]}
+                {config.shortLabel}
               </span>
             </button>
           );
