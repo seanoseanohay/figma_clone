@@ -95,45 +95,22 @@ export const setUserOffline = async () => {
  * @returns {Function} Unsubscribe function
  */
 export const subscribeToGlobalPresence = (callback) => {
-  console.log('🚀 Starting subscribeToGlobalPresence...')
-  
   try {
     const presenceRef = ref(rtdb, REALTIME_PATHS.GLOBAL_PRESENCE)
-    console.log('📍 Firebase ref created for path:', REALTIME_PATHS.GLOBAL_PRESENCE)
-    console.log('🔥 rtdb instance:', rtdb)
     
     const handlePresenceUpdate = (snapshot) => {
-      console.log('📡 Firebase callback triggered!', snapshot)
-      
       const presenceData = snapshot.val() || {}
       const currentUserId = auth.currentUser?.uid
-      
-      // DEBUG: Log raw Firebase data
-      console.log('🔥 Raw Firebase presence data:', {
-        presenceData,
-        currentUserId,
-        dataKeys: Object.keys(presenceData),
-        dataValues: Object.values(presenceData)
-      })
       
       // Filter out current user and convert to array
       const otherUsers = Object.values(presenceData).filter(
         user => user.uid !== currentUserId
       )
       
-      // DEBUG: Log filtered results
-      console.log('👥 Filtered other users:', {
-        otherUsers,
-        count: otherUsers.length,
-        currentUserId
-      })
-      
       callback(otherUsers)
     }
 
-    console.log('🔗 Setting up onValue listener...')
     const unsubscribe = onValue(presenceRef, handlePresenceUpdate, (error) => {
-      console.error('❌ Firebase subscription error:', error)
       if (error.code === 'PERMISSION_DENIED') {
         console.warn('Realtime Database not initialized. Please create the database in Firebase Console.')
         callback([]) // Return empty array for graceful degradation
@@ -143,12 +120,10 @@ export const subscribeToGlobalPresence = (callback) => {
       callback([])
     })
     
-    console.log('✅ Firebase subscription setup complete')
-    
     // Return unsubscribe function
     return unsubscribe
   } catch (error) {
-    console.error('💥 Exception in subscribeToGlobalPresence:', error)
+    console.error('Error subscribing to presence:', error)
     return () => {} // Return no-op function
   }
 }

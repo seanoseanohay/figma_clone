@@ -8,15 +8,6 @@ import { usePresence } from '../../hooks/usePresence.js'
 const OnlineUsers = ({ className = "" }) => {
   const { users, onlineCount, isLoading, error, getSummary } = usePresence()
 
-  // DEBUG: Log component mounting and data
-  console.log('🟢 OnlineUsers component mounting/updating:', {
-    users,
-    onlineCount,
-    isLoading,
-    error,
-    usersLength: users.length
-  })
-
   if (isLoading) {
     return (
       <div className={`${className} bg-white border border-gray-200 rounded-lg shadow-sm p-3`}>

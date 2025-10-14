@@ -316,7 +316,7 @@ collabcanvas-mvp/
 
 ---
 
-## 🔄 PR #4: Multiplayer Presence System (CRITICAL) - PARTIALLY COMPLETE
+## ✅ PR #4: Multiplayer Presence System (CRITICAL) - COMPLETE
 
 **Goal:** Implement real-time cursor tracking and user presence.
 
@@ -337,24 +337,22 @@ collabcanvas-mvp/
   - Subscribe to other users' presence data
   - Return array of connected users with cursor positions
 
-- [ ] **4.4** Create UserCursor component for position display
+- [x] **4.4** Create UserCursor component for position display
   - Files: `src/components/canvas/UserCursor.jsx`
   - Render cursor with username label
   - **POSITION ONLY:** Show cursor position, NOT tool selection of other users
-  - **ISSUE FOUND:** Cursor data exists in Firebase but not displaying on canvas
-  - **REQUIREMENTS:** Simple cursor/pointer, different colors, visible only during active movement, canvas bounds only
+  - **COMPLETED:** Cursors display correctly with colors and names after Firebase database rules fix
 
-- [ ] **4.5** Integrate cursor tracking into Canvas
+- [x] **4.5** Integrate cursor tracking into Canvas
   - Files: `src/components/canvas/Canvas.jsx`
   - Track mouse movement on canvas
   - Render all user cursors
-  - **ISSUE FOUND:** UserCursor components not rendering despite presence data
+  - **COMPLETED:** UserCursor components render correctly when other users move mouse
 
-- [ ] **4.6** Create OnlineUsers component
+- [x] **4.6** Create OnlineUsers component
   - Files: `src/components/presence/OnlineUsers.jsx`
   - Display list of connected users
-  - **ISSUE FOUND:** Only showing current user, not other authenticated users
-  - **REQUIREMENTS:** Top-right position, colored squares with first letter of username, hover for full name
+  - **COMPLETED:** Moved to Header component as compact colored squares with hover tooltips showing full names
 
 - [x] **4.7** Implement auto-cleanup for stale presence
   - Files: `src/services/presence.service.js`

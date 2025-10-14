@@ -34,13 +34,6 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const { updateCursor } = useCursorTracking();
   const { usersWithCursors } = usePresence();
   
-  // DEBUG: Log cursor rendering data
-  console.log('🎯 Canvas - Users with cursors:', {
-    usersWithCursors,
-    count: usersWithCursors.length,
-    details: usersWithCursors.map(u => ({ uid: u.uid, name: u.displayName, pos: u.cursorPosition }))
-  });
-  
   // Canvas objects hook for real-time sync - start with empty canvas
   const { objects: canvasObjects, isLoading: objectsLoading } = useCanvasObjects();
   
