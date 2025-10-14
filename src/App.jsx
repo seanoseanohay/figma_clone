@@ -1,29 +1,33 @@
+import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './components/auth/AuthProvider.jsx';
 import LoginForm from './components/auth/LoginForm.jsx';
 import RegisterForm from './components/auth/RegisterForm.jsx';
 import ProtectedRoute from './components/layout/ProtectedRoute.jsx';
 import Header from './components/layout/Header.jsx';
+import Toolbar, { TOOLS } from './components/canvas/Toolbar.jsx';
+import Canvas from './components/canvas/Canvas.jsx';
 
-// Temporary Canvas placeholder component
-const CanvasPlaceholder = () => {
+// Canvas page component with Toolbar and Canvas
+const CanvasPage = () => {
+  const [selectedTool, setSelectedTool] = useState(TOOLS.ARROW);
+
+  const handleToolChange = (tool) => {
+    setSelectedTool(tool);
+  };
+
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       <Header />
-      <div className="flex items-center justify-center h-[calc(100vh-80px)]">
-        <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 mb-4">
-            🎨 Canvas Coming Soon
-          </h2>
-          <p className="text-gray-600 mb-8">
-            Authentication is working! Canvas implementation is next.
-          </p>
-          <div className="bg-white p-6 rounded-lg shadow-sm border-2 border-dashed border-gray-300">
-            <p className="text-sm text-gray-500">
-              This will be replaced with the Konva canvas in PR #3
-            </p>
-          </div>
-        </div>
+      <Toolbar 
+        selectedTool={selectedTool}
+        onToolChange={handleToolChange}
+      />
+      <div className="flex-1">
+        <Canvas 
+          selectedTool={selectedTool}
+          onToolChange={handleToolChange}
+        />
       </div>
     </div>
   );
@@ -47,7 +51,7 @@ function App() {
               path="/canvas" 
               element={
                 <ProtectedRoute>
-                  <CanvasPlaceholder />
+                  <CanvasPage />
                 </ProtectedRoute>
               } 
             />
