@@ -282,32 +282,38 @@ const Canvas = ({ selectedTool, onToolChange }) => {
       const cornerX = mouseX;
       const cornerY = mouseY;
       
-      // Find the opposite corner based on original rectangle
+      // Find the opposite corner based on CURRENT rectangle position (not original)
+      // This ensures proper coordinate flipping behavior
       let oppositeX, oppositeY;
       
       switch (newHandle) {
         case 'nw':
-          oppositeX = originalRect.x + originalRect.width;
-          oppositeY = originalRect.y + originalRect.height;
+          // NW handle - opposite is SE corner of current rectangle
+          oppositeX = currentRect.x + currentRect.width;
+          oppositeY = currentRect.y + currentRect.height;
           break;
         case 'ne':
-          oppositeX = originalRect.x;
-          oppositeY = originalRect.y + originalRect.height;
+          // NE handle - opposite is SW corner of current rectangle  
+          oppositeX = currentRect.x;
+          oppositeY = currentRect.y + currentRect.height;
           break;
         case 'sw':
-          oppositeX = originalRect.x + originalRect.width;
-          oppositeY = originalRect.y;
+          // SW handle - opposite is NE corner of current rectangle
+          oppositeX = currentRect.x + currentRect.width;
+          oppositeY = currentRect.y;
           break;
         case 'se':
-          oppositeX = originalRect.x;
-          oppositeY = originalRect.y;
+          // SE handle - opposite is NW corner of current rectangle
+          oppositeX = currentRect.x;
+          oppositeY = currentRect.y;
           break;
         default:
-          oppositeX = originalRect.x + originalRect.width;
-          oppositeY = originalRect.y + originalRect.height;
+          oppositeX = currentRect.x + currentRect.width;
+          oppositeY = currentRect.y + currentRect.height;
       }
       
       // Calculate new rectangle ensuring positive dimensions
+      // This creates proper coordinate flipping where corners swap positions
       newRect = {
         x: Math.min(cornerX, oppositeX),
         y: Math.min(cornerY, oppositeY),
@@ -716,9 +722,9 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             }
           }
           
-          // Enforce minimum size
+          // Enforce minimum size FIRST to prevent disappearing rectangles
           if (newRect.width < 2) newRect.width = 2;
-          if (newRect.height < 1) newRect.height = 1;
+          if (newRect.height < 2) newRect.height = 2;
           
           // Enforce boundary constraints
           newRect = clampRectToCanvas(newRect);
