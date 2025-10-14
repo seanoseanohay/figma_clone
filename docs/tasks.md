@@ -316,7 +316,7 @@ collabcanvas-mvp/
 
 ---
 
-## ✅ PR #4: Multiplayer Presence System (CRITICAL) - COMPLETE
+## 🔄 PR #4: Multiplayer Presence System (CRITICAL) - PARTIALLY COMPLETE
 
 **Goal:** Implement real-time cursor tracking and user presence.
 
@@ -337,19 +337,24 @@ collabcanvas-mvp/
   - Subscribe to other users' presence data
   - Return array of connected users with cursor positions
 
-- [x] **4.4** Create UserCursor component for position display
+- [ ] **4.4** Create UserCursor component for position display
   - Files: `src/components/canvas/UserCursor.jsx`
   - Render cursor with username label
   - **POSITION ONLY:** Show cursor position, NOT tool selection of other users
+  - **ISSUE FOUND:** Cursor data exists in Firebase but not displaying on canvas
+  - **REQUIREMENTS:** Simple cursor/pointer, different colors, visible only during active movement, canvas bounds only
 
-- [x] **4.5** Integrate cursor tracking into Canvas
+- [ ] **4.5** Integrate cursor tracking into Canvas
   - Files: `src/components/canvas/Canvas.jsx`
   - Track mouse movement on canvas
   - Render all user cursors
+  - **ISSUE FOUND:** UserCursor components not rendering despite presence data
 
-- [x] **4.6** Create OnlineUsers component
+- [ ] **4.6** Create OnlineUsers component
   - Files: `src/components/presence/OnlineUsers.jsx`
   - Display list of connected users
+  - **ISSUE FOUND:** Only showing current user, not other authenticated users
+  - **REQUIREMENTS:** Top-right position, colored squares with first letter of username, hover for full name
 
 - [x] **4.7** Implement auto-cleanup for stale presence
   - Files: `src/services/presence.service.js`
@@ -582,7 +587,7 @@ collabcanvas-mvp/
 
 ---
 
-## 🔄 PR #8: Object Selection, Movement & Enhanced Resize System - IN PROGRESS
+## ✅ PR #8: Object Selection, Movement & Enhanced Resize System - COMPLETE
 
 **Goal:** Implement Arrow Tool selection, drag-to-move, and advanced resize for rectangles with automatic dimension flipping, boundary constraints, and real-time sync.
 
@@ -601,7 +606,7 @@ collabcanvas-mvp/
     - Blue color (#2563eb) with white border for visibility
     - Handle visibility only when rectangle is selected
 
-- [ ] **8.2** Implement advanced resize behavior with dimension flipping
+- [x] **8.2** Implement advanced resize behavior with dimension flipping
   - Files: `src/components/canvas/CanvasObject.jsx`
   - **Automatic dimension flipping logic:**
     - When user drags past opposite corner, rectangle automatically flips dimensions
@@ -614,6 +619,7 @@ collabcanvas-mvp/
     - NE handle becomes SW when dragged past SW corner  
     - And vice versa for all handles
     - Smooth transition without visual artifacts
+  - **ISSUE TABLED:** Rectangle becomes invisible at crossover instead of maintaining 2x2px minimum and growing in opposite direction
 
 - [x] **8.3** Implement Arrow Tool move operations
   - Files: `src/components/canvas/CanvasObject.jsx`

@@ -37,29 +37,36 @@ const CanvasPage = () => {
           />
         </div>
         
-        {/* Right sidebar with presence info */}
-        <div className="w-80 bg-gray-50 border-l border-gray-200 p-4 space-y-4">
-          <ConnectionStatus />
-          <DatabaseTest />
-          <OnlineUsers />
+        {/* DEBUG: Visible indicator that sidebar should be here */}
+        <div className="w-80 bg-red-100 border-l border-red-500 p-4">
+          <div className="bg-red-200 p-2 mb-4 rounded">
+            <strong>🔍 DEBUG: Sidebar Should Be Here</strong>
+          </div>
           
-          {/* Firebase cost monitoring */}
-          {import.meta.env.DEV && (
-            <FirebaseCostMonitor />
-          )}
-          
-          {/* Development info */}
-          {import.meta.env.DEV && (
-            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <h4 className="text-sm font-medium text-yellow-800 mb-2">
-                🧪 Development Mode
-              </h4>
-              <p className="text-xs text-yellow-700">
-                Open multiple browser windows to test multiplayer functionality.
-                Each user's cursor will appear with a unique color and name label.
-              </p>
-            </div>
-          )}
+          {/* Right sidebar with presence info */}
+          <div className="space-y-4">
+            <ConnectionStatus />
+            <DatabaseTest />
+            <OnlineUsers />
+            
+            {/* Firebase cost monitoring */}
+            {import.meta.env.DEV && (
+              <FirebaseCostMonitor />
+            )}
+            
+            {/* Development info */}
+            {import.meta.env.DEV && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <h4 className="text-sm font-medium text-yellow-800 mb-2">
+                  🧪 Development Mode
+                </h4>
+                <p className="text-xs text-yellow-700">
+                  Open multiple browser windows to test multiplayer functionality.
+                  Each user's cursor will appear with a unique color and name label.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
