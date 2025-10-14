@@ -585,7 +585,7 @@ collabcanvas-mvp/
 
 ---
 
-## ✅ PR #8: Object Selection, Movement & Enhanced Resize System - COMPLETE
+## ✅ PR #8: Object Selection, Movement & Enhanced Resize System - COMPLETE (1 bug fix pending)
 
 **Goal:** Implement Arrow Tool selection, drag-to-move, and advanced resize for rectangles with automatic dimension flipping, boundary constraints, and real-time sync.
 
@@ -667,6 +667,15 @@ collabcanvas-mvp/
     - Rollback local changes if sync fails
     - Display error feedback for failed operations
 
+### Outstanding Issues:
+- [ ] **8.9** Fix resize corner crossing coordinate jumping bug
+  - **Problem:** When dragging corner handle past opposite corner, rectangle jumps back to original position while handle identity changes
+  - **Current Behavior:** Drag NW handle past SE → rectangle snaps back to start position, user suddenly holds SW handle
+  - **Expected Behavior:** Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at current position (becomes line at crossover), resize continues smoothly
+  - **Files:** `src/components/canvas/Canvas.jsx` (crossover detection logic)
+  - **Impact:** Poor UX during resize operations, breaks user expectation of smooth interaction
+  - **Priority:** Required for production version
+
 **Definition of Done:**
 - ✅ Rectangle selection works only with Arrow Tool
 - ✅ Rectangle resize handles are 20px and highly visible
@@ -698,27 +707,27 @@ collabcanvas-mvp/
 
 ---
 
-## PR #9: State Persistence & Recovery
+## ✅ PR #9: State Persistence & Recovery - COMPLETE
 
 **Goal:** Ensure canvas state persists through refresh and reconnection.
 
 ### Tasks:
-- [ ] **9.1** Implement load all objects on mount
+- [x] **9.1** Implement load all objects on mount
   - Files: `src/hooks/useCanvasObjects.js`
   - Query all objects from Firestore on component mount
 
-- [ ] **9.2** Add loading state
+- [x] **9.2** Add loading state
   - Files: `src/components/canvas/Canvas.jsx`
   - Show loading indicator while fetching initial state
 
-- [ ] **9.3** Implement reconnection handling with last action preservation
+- [x] **9.3** Implement reconnection handling with last action preservation
   - Files: `src/services/firebase.js`, `src/components/canvas/Canvas.jsx`
   - Handle Firebase connection state changes
   - **NEW:** Save user's last action before disconnect
   - **NEW:** Preserve last successful action when connection is lost
   - Queue updates during disconnect, replay on reconnect
 
-- [ ] **9.4** Update user lastSeen timestamp
+- [x] **9.4** Update user lastSeen timestamp
   - Files: `src/services/auth.service.js`
   - Update timestamp on user activity
 
