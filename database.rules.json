@@ -2,6 +2,8 @@
   "rules": {
     "globalCanvas": {
       "users": {
+        ".read": "auth != null",
+        ".write": false,
         "$userId": {
           ".read": "auth != null",
           ".write": "auth != null && auth.uid == $userId",
