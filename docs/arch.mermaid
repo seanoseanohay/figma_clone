@@ -1,27 +1,33 @@
 graph TB
     subgraph "Client Application"
         subgraph "Components Layer"
-            Auth[Auth Components<br/>LoginForm, RegisterForm]
-            Canvas[Canvas Component<br/>5000x5000px workspace]
-            Toolbar[Toolbar Component<br/>Hand, Arrow, Rectangle tools]
-            Objects[CanvasObject<br/>Rectangle shapes]
-            Cursors[UserCursor<br/>Real-time cursors]
-            Presence[OnlineUsers<br/>User list display]
+            Auth[Auth Components<br/>LoginForm, RegisterForm<br/>Error handling & retry]
+            Canvas[Canvas Component<br/>5000x5000px workspace<br/>Enhanced cursor management<br/>Tool-specific interactions]
+            Toolbar[Toolbar Component<br/>Hand, Arrow, Rectangle tools<br/>Enhanced visual feedback<br/>Local tool state - not synced]
+            Objects[CanvasObject<br/>Rectangle shapes<br/>20px resize handles<br/>Dimension flipping logic]
+            Cursors[UserCursor<br/>Real-time position-only cursors<br/>Username labels]
+            Presence[OnlineUsers<br/>User list & count display]
             Status[ConnectionStatus<br/>Online/offline indicator]
         end
         
         subgraph "Hooks Layer"
             useAuth[useAuth<br/>Auth state management]
-            usePresence[usePresence<br/>User presence data]
-            useCursor[useCursorTracking<br/>50-100ms throttle]
-            useObjects[useCanvasObjects<br/>Canvas state]
+            usePresence[usePresence<br/>User presence data<br/>Global canvas structure]
+            useCursor[useCursorTracking<br/>50-100ms throttle<br/>2px movement threshold]
+            useObjects[useCanvasObjects<br/>Canvas state<br/>Real-time sync]
         end
         
         subgraph "Services Layer"
-            AuthService[auth.service.js<br/>Sign in/out, register]
-            PresenceService[presence.service.js<br/>Cursor & online status]
-            CanvasService[canvas.service.js<br/>CRUD operations]
-            BoundaryUtils[boundary.utils.js<br/>Validation & snapping]
+            AuthService[auth.service.js<br/>Sign in/out, register<br/>User profile creation]
+            PresenceService[presence.service.js<br/>Position-only cursor sync<br/>Auto-cleanup on disconnect]
+            CanvasService[canvas.service.js<br/>CRUD with conflict resolution<br/>Last-write-wins strategy]
+            BoundaryUtils[boundary.utils.js<br/>Validation & snapping<br/>Dimension flip support]
+        end
+        
+        subgraph "Testing Infrastructure"
+            UnitTests[Unit Tests<br/>Component behavior<br/>Utility functions]
+            IntegrationTests[Integration Tests<br/>Multi-component workflows<br/>User interactions]
+            PerformanceTests[Performance Tests<br/>30+ FPS validation<br/>Load testing]
         end
     end
     
@@ -42,11 +48,23 @@ graph TB
         end
     end
     
-    subgraph "Data Flow"
+    subgraph "Data Flow & Interactions"
         direction LR
-        Client1[User Browser 1]
-        Client2[User Browser 2]
-        Client3[User Browser N]
+        Client1[User Browser 1<br/>Independent tool selection]
+        Client2[User Browser 2<br/>Independent tool selection]  
+        Client3[User Browser N<br/>Independent tool selection]
+        
+        subgraph "Rectangle Resize System"
+            ResizeLogic[Dimension Flipping Logic<br/>Auto handle switching<br/>Visual integrity maintained]
+            HandleSwitching[Handle Role Switching<br/>NW ↔ SE, NE ↔ SW<br/>Seamless transitions]
+            BoundaryEnforcement[Boundary Enforcement<br/>Canvas edge snapping<br/>Minimum size - 2x1px]
+        end
+        
+        subgraph "Cursor State Management"
+            HandCursor[Hand Tool<br/>grab → grabbing]
+            ArrowCursor[Arrow Tool<br/>default → move → resize]
+            RectCursor[Rectangle Tool<br/>crosshair - consistent]
+        end
     end
     
     %% Component connections
@@ -54,9 +72,25 @@ graph TB
     Canvas --> useObjects
     Canvas --> useCursor
     Canvas --> usePresence
+    Canvas --> HandCursor
+    Canvas --> ArrowCursor
+    Canvas --> RectCursor
     Toolbar --> Canvas
     Cursors --> usePresence
     Presence --> usePresence
+    Objects --> ResizeLogic
+    Objects --> HandleSwitching
+    Objects --> BoundaryEnforcement
+    
+    %% Testing connections
+    UnitTests -.->|validates| Canvas
+    UnitTests -.->|validates| Toolbar
+    UnitTests -.->|validates| Objects
+    IntegrationTests -.->|validates| Canvas
+    IntegrationTests -.->|validates| Toolbar
+    IntegrationTests -.->|validates| Objects
+    PerformanceTests -.->|monitors| Canvas
+    PerformanceTests -.->|30+ FPS| useCursor
     
     %% Hook to Service connections
     useAuth --> AuthService
@@ -77,22 +111,29 @@ graph TB
     CanvasService --> BoundaryUtils
     
     %% Real-time sync between clients
-    Client1 -.->|cursor updates<br/>< 50ms| CursorData
-    Client2 -.->|cursor updates<br/>< 50ms| CursorData
-    Client3 -.->|cursor updates<br/>< 50ms| CursorData
+    Client1 -.->|position-only cursor<br/>< 50ms, 2px threshold| CursorData
+    Client2 -.->|position-only cursor<br/>< 50ms, 2px threshold| CursorData
+    Client3 -.->|position-only cursor<br/>< 50ms, 2px threshold| CursorData
     
-    Client1 -.->|object sync<br/>< 100ms| CanvasObjects
-    Client2 -.->|object sync<br/>< 100ms| CanvasObjects
-    Client3 -.->|object sync<br/>< 100ms| CanvasObjects
+    Client1 -.->|object sync + resize<br/>< 100ms, dimension flip| CanvasObjects
+    Client2 -.->|object sync + resize<br/>< 100ms, dimension flip| CanvasObjects
+    Client3 -.->|object sync + resize<br/>< 100ms, dimension flip| CanvasObjects
+    
+    %% Enhanced resize sync
+    ResizeLogic -.->|real-time sync| CanvasObjects
+    HandleSwitching -.->|coordinate swap| BoundaryUtils
+    BoundaryEnforcement -.->|validates flipped| Objects
     
     %% Canvas rendering with toolbar
     Objects --> Canvas
     Cursors --> Canvas
     Toolbar --> Canvas
     
-    %% Tool interactions
-    BoundaryUtils -.->|validates| Objects
-    BoundaryUtils -.->|snaps to<br/>5000x5000| CanvasService
+    %% Tool interactions with enhanced features
+    BoundaryUtils -.->|validates & snaps| Objects
+    BoundaryUtils -.->|enforces 5000x5000<br/>+ dimension flips| CanvasService
+    ResizeLogic -.->|prevents disappearing<br/>rectangles| Objects
+    HandleSwitching -.->|dynamic role change<br/>NW↔SE, NE↔SW| Objects
     
     %% Styling
     classDef firebase fill:#FFA611,stroke:#F57C00,color:#000
@@ -100,9 +141,15 @@ graph TB
     classDef service fill:#66BB6A,stroke:#388E3C,color:#fff
     classDef hook fill:#AB47BC,stroke:#7B1FA2,color:#fff
     classDef client fill:#EC407A,stroke:#C2185B,color:#fff
+    classDef testing fill:#FF7043,stroke:#D84315,color:#fff
+    classDef resize fill:#26C6DA,stroke:#0097A7,color:#000
+    classDef cursor fill:#FFEE58,stroke:#F57F17,color:#000
     
     class GoogleAuth,EmailAuth,Users,CanvasObjects,GlobalCanvas,CursorData firebase
     class Auth,Canvas,Toolbar,Objects,Cursors,Presence,Status component
     class AuthService,PresenceService,CanvasService,BoundaryUtils service
     class useAuth,usePresence,useCursor,useObjects hook
     class Client1,Client2,Client3 client
+    class UnitTests,IntegrationTests,PerformanceTests testing
+    class ResizeLogic,HandleSwitching,BoundaryEnforcement resize
+    class HandCursor,ArrowCursor,RectCursor cursor

@@ -67,11 +67,18 @@ CollabCanvas MVP is a real-time collaborative design tool where multiple users c
   - **Independent per user:** Each user has their own tool selection (not synced between users)
   - **Local state only:** Tool selection stored in local React state, not Firebase
 - **Cursor feedback:**
-  - Hand tool: `grab` cursor (idle), `grabbing` cursor (dragging)
-  - Arrow tool: Default arrow cursor  
-  - Rectangle tool: `crosshair` cursor
-- **Visual tool feedback:** 
-  - Active tool highlighted with different background color
+  - **Hand tool:** `grab` cursor (idle), `grabbing` cursor (dragging)
+  - **Arrow tool:** Default arrow cursor, resize cursors during handle interaction (e.g., `nw-resize`, `se-resize`)
+  - **Rectangle tool:** `crosshair` cursor
+  - **State-specific cursors:** Cursor changes dynamically based on interaction state (hovering, dragging, resizing)
+- **Enhanced visual feedback:** 
+  - **Active tool highlighting:** Selected tool shows blue background (#2563eb) with white text
+  - **Inactive tools:** White background (#ffffff) with gray text (#374151)
+  - **Tool transitions:** Smooth color transitions (150ms) when switching tools
+  - **Rectangle creation feedback:** Semi-transparent preview rectangle (70% opacity) during drag
+  - **Selection feedback:** Selected rectangles show blue border (#2563eb, 2px width) and visible resize handles
+  - **Resize handles:** 20px blue squares (#2563eb) with white border for visibility
+  - **Hover states:** Tools show subtle background color change on hover (#f3f4f6)
   - **Individual per user:** Each user sees their own toolbar highlighting their own selected tool
   - **Not synced:** Tool selection visual state is local to each user
 - Smooth interaction during all operations (targeting 30+ FPS)
@@ -88,22 +95,33 @@ CollabCanvas MVP is a real-time collaborative design tool where multiple users c
   - **Visual feedback:** Show preview/ghost rectangle while dragging (Rectangle Tool only)
   - **Minimum constraints:** Rectangle minimum 2x1px to prevent accidental tiny shapes
   - **Auto tool switch:** Rectangle Tool → Arrow Tool after shape creation completion
+  - **Dimension flipping:** Rectangle maintains visual integrity when dragged in any direction (handles coordinate swapping internally)
 - **Selection and manipulation (Arrow Tool only):**
   - **Click empty canvas:** Deselect all rectangles
   - **Click rectangle body:** Select rectangle, show selection indicator with resize handles
   - **Click rectangle corners:** Begin resize operation  
   - **Drag selected rectangle:** Move operation
-  - **Drag resize handles:** Resize operation
+  - **Drag resize handles:** Resize operation with automatic dimension flipping
+- **Advanced resize behavior:**
+  - **Automatic dimension flipping:** When user drags past opposite corner, rectangle automatically flips dimensions and maintains visual presence
+  - **Handle role switching:** Resize handles dynamically switch roles during flip (e.g., NW becomes SE when dragged past opposite corner)
+  - **Visual integrity:** Rectangle always remains visible and properly oriented during resize operations
+  - **Internal coordinate management:** System handles coordinate swapping transparently to maintain positive width/height values
 - **Shape creation rules:**
   - Shapes can only be created within the 5000x5000px canvas boundary
   - Creation attempts outside boundary are prevented entirely (no shape created)
 - **Basic transformations (Arrow Tool):**
   - Move (drag rectangle body to reposition)
-  - Resize (drag corner handles to adjust width/height)
+  - Resize (drag corner handles to adjust width/height with automatic flipping)
   - **Real-time sync:** Move and resize operations sync across users in real-time (100ms frequency)
   - **Multi-user editing:** Any user can move/resize any rectangle
   - Boundary constraint: Shapes **snap to canvas edges** - no part of any shape can go outside the 5000x5000px boundary
   - When dragging near edges, shape **snaps to boundary** (enforced on both client and server)
+- **Enhanced resize system:**
+  - **Large resize handles:** 20px corner handles for improved usability
+  - **4-corner resize:** NW, NE, SW, SE corner handles for full resize control
+  - **Visual feedback:** Selected rectangles show blue border and visible resize handles
+  - **Constraint enforcement:** Minimum size (2x1px) maintained during all resize operations
 - Selection of rectangles (Arrow Tool: click to select, shows selection indicator with resize handles)
 - **Tool system:** Hand (pan), Arrow (select/move/resize), Rectangle (create) with visual active state
 - **Out of scope:** Delete, copy/paste, multi-select, rotation, borders, shadows, keyboard shortcuts
@@ -661,6 +679,11 @@ The MVP must demonstrate:
 - ✅ Users can resize rectangles using corner/edge handles **NEW FEATURE - Added to MVP**
 - ✅ Resize operations sync in real-time across users (100ms throttle) **NEW FEATURE**
 - ✅ Any authenticated user can resize any rectangle **NEW CAPABILITY**
+- ✅ Rectangle resize handles are large (20px) and highly visible **NEW REQUIREMENT**
+- ✅ Rectangles automatically flip dimensions when dragged past opposite corner **NEW BEHAVIOR**
+- ✅ Resize handles switch roles dynamically during dimension flipping **NEW BEHAVIOR**
+- ✅ Rectangles maintain visual integrity and never disappear during resize **NEW REQUIREMENT**
+- ✅ Enhanced cursor states provide clear feedback for each tool and interaction **NEW UX REQUIREMENT**
 
 **Stretch Goals (if time permits):**
 - Object deletion
