@@ -17,6 +17,9 @@ import DatabaseTest from './components/debug/DatabaseTest.jsx';
 const CanvasPage = () => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
 
+  // DEBUG: Confirm this component is mounting
+  console.log('🏗️ CanvasPage component is mounting/rendering!');
+
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
   };
@@ -28,9 +31,13 @@ const CanvasPage = () => {
         selectedTool={selectedTool}
         onToolChange={handleToolChange}
       />
-      <div className="flex flex-1">
+      <div className="flex flex-1" style={{border: '3px solid green', overflow: 'visible'}}>
+        {/* DEBUG: Log flex container */}
+        {console.log('🔧 Flex container rendering with children')}
+        
         {/* Main canvas area */}
-        <div className="flex-1">
+        <div className="flex-1" style={{border: '3px solid orange', maxWidth: 'calc(100% - 320px)'}}>
+          {console.log('📱 Canvas area div rendering')}
           <Canvas 
             selectedTool={selectedTool}
             onToolChange={handleToolChange}
@@ -38,9 +45,23 @@ const CanvasPage = () => {
         </div>
         
         {/* DEBUG: Visible indicator that sidebar should be here */}
-        <div className="w-80 bg-red-100 border-l border-red-500 p-4">
-          <div className="bg-red-200 p-2 mb-4 rounded">
-            <strong>🔍 DEBUG: Sidebar Should Be Here</strong>
+        <div 
+          className="w-80 bg-red-100 border-l border-red-500 p-4" 
+          style={{
+            minWidth: '320px', 
+            width: '320px',
+            backgroundColor: 'red', 
+            border: '5px solid blue',
+            position: 'relative',
+            zIndex: 9999,
+            flexShrink: 0
+          }}
+        >
+          {console.log('🔴 Sidebar div rendering')}
+          <div className="bg-red-200 p-2 mb-4 rounded" style={{backgroundColor: 'yellow', border: '2px solid purple'}}>
+            <strong style={{color: 'black', fontSize: '16px'}}>🔍 DEBUG: Sidebar Should Be Here</strong>
+            <br />
+            <span style={{color: 'black', fontSize: '14px'}}>Width: 320px, Red background, Blue border</span>
           </div>
           
           {/* Right sidebar with presence info */}

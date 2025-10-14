@@ -102,10 +102,25 @@ export const subscribeToGlobalPresence = (callback) => {
       const presenceData = snapshot.val() || {}
       const currentUserId = auth.currentUser?.uid
       
+      // DEBUG: Log raw Firebase data
+      console.log('🔥 Raw Firebase presence data:', {
+        presenceData,
+        currentUserId,
+        dataKeys: Object.keys(presenceData),
+        dataValues: Object.values(presenceData)
+      })
+      
       // Filter out current user and convert to array
       const otherUsers = Object.values(presenceData).filter(
         user => user.uid !== currentUserId
       )
+      
+      // DEBUG: Log filtered results
+      console.log('👥 Filtered other users:', {
+        otherUsers,
+        count: otherUsers.length,
+        currentUserId
+      })
       
       callback(otherUsers)
     }
