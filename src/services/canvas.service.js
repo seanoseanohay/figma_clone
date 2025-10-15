@@ -9,10 +9,12 @@ import {
   orderBy, 
   serverTimestamp,
   where,
-  getDocs
+  getDocs,
+  getDoc
 } from 'firebase/firestore'
 import { db, auth } from './firebase.js'
 import { FIREBASE_COLLECTIONS, OBJECT_UPDATE_THROTTLE } from '../constants/canvas.constants.js'
+import { canUserAccessProject } from './project.service.js'
 
 // Throttling mechanism for position updates during drag operations
 const pendingUpdates = new Map()
@@ -341,3 +343,286 @@ export const clearAllObjects = async () => {
     throw error
   }
 }
+
+// =======================
+// PROJECT-CANVAS INTEGRATION
+// =======================
+
+/**
+ * Creates a new canvas within a project
+ * @param {string} projectId - Project ID
+ * @param {string} name - Canvas name
+ * @param {string} userId - User ID creating the canvas
+ * @returns {Object} - Result object with success status and canvas data
+ */
+export const createCanvas = async (projectId, name, userId) => {
+  try {
+    // Validate input
+    if (!projectId || typeof projectId !== 'string') {
+      return { success: false, error: 'Project ID is required' };
+    }
+    
+    if (!name || typeof name !== 'string' || name.trim().length === 0) {
+      return { success: false, error: 'Canvas name is required' };
+    }
+    
+    if (!userId || typeof userId !== 'string') {
+      return { success: false, error: 'User ID is required' };
+    }
+
+    // Check if user has access to the project
+    const accessCheck = await canUserAccessProject(projectId, userId);
+    if (!accessCheck.success || !accessCheck.canAccess) {
+      return { success: false, error: 'User does not have access to this project' };
+    }
+
+    // Get project details to include project owner info
+    const projectRef = doc(db, 'projects', projectId);
+    const projectSnap = await getDoc(projectRef);
+    
+    if (!projectSnap.exists()) {
+      return { success: false, error: 'Project not found' };
+    }
+
+    const project = projectSnap.data();
+    const sanitizedName = name.trim().substring(0, 100);
+
+    const canvasData = {
+      projectId,
+      name: sanitizedName,
+      ownerId: userId, // User who created the canvas
+      createdBy: userId, // User who created the canvas  
+      projectOwnerId: project.ownerId, // Owner of the parent project
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    };
+
+    const canvasesCollection = collection(db, 'canvases');
+    const docRef = await addDoc(canvasesCollection, canvasData);
+    
+    return { 
+      success: true, 
+      canvasId: docRef.id, 
+      canvas: { id: docRef.id, ...canvasData }
+    };
+  } catch (error) {
+    console.error('Error creating canvas:', error);
+    return { success: false, error: 'Failed to create canvas' };
+  }
+};
+
+/**
+ * Gets all canvases for a project
+ * @param {string} projectId - Project ID
+ * @param {string} userId - User ID requesting the canvases
+ * @returns {Object} - Result object with success status and canvases array
+ */
+export const getCanvasesForProject = async (projectId, userId) => {
+  try {
+    if (!projectId || !userId) {
+      return { success: false, error: 'Project ID and user ID are required' };
+    }
+
+    // Check if user has access to the project
+    const accessCheck = await canUserAccessProject(projectId, userId);
+    if (!accessCheck.success || !accessCheck.canAccess) {
+      return { success: false, error: 'User does not have access to this project' };
+    }
+
+    const canvasesQuery = query(
+      collection(db, 'canvases'),
+      where('projectId', '==', projectId),
+      orderBy('updatedAt', 'desc')
+    );
+
+    const snapshot = await getDocs(canvasesQuery);
+    const canvases = [];
+    
+    snapshot.forEach((doc) => {
+      canvases.push({ id: doc.id, ...doc.data() });
+    });
+
+    return { success: true, canvases };
+  } catch (error) {
+    console.error('Error getting canvases for project:', error);
+    return { success: false, error: 'Failed to fetch canvases' };
+  }
+};
+
+/**
+ * Gets a single canvas by ID
+ * @param {string} canvasId - Canvas ID
+ * @param {string} userId - User ID requesting the canvas
+ * @returns {Object} - Result object with success status and canvas data
+ */
+export const getCanvas = async (canvasId, userId) => {
+  try {
+    if (!canvasId || !userId) {
+      return { success: false, error: 'Canvas ID and user ID are required' };
+    }
+
+    const canvasRef = doc(db, 'canvases', canvasId);
+    const canvasSnap = await getDoc(canvasRef);
+
+    if (!canvasSnap.exists()) {
+      return { success: false, error: 'Canvas not found' };
+    }
+
+    const canvas = { id: canvasSnap.id, ...canvasSnap.data() };
+
+    // Check if user has access to the canvas's project
+    const accessCheck = await canUserAccessProject(canvas.projectId, userId);
+    if (!accessCheck.success || !accessCheck.canAccess) {
+      return { success: false, error: 'User does not have access to this canvas' };
+    }
+
+    return { success: true, canvas };
+  } catch (error) {
+    console.error('Error getting canvas:', error);
+    return { success: false, error: 'Failed to fetch canvas' };
+  }
+};
+
+/**
+ * Updates canvas details
+ * @param {string} canvasId - Canvas ID
+ * @param {Object} updates - Object containing fields to update
+ * @param {string} userId - User ID making the request
+ * @returns {Object} - Result object with success status
+ */
+export const updateCanvas = async (canvasId, updates, userId) => {
+  try {
+    if (!canvasId || !userId) {
+      return { success: false, error: 'Canvas ID and user ID are required' };
+    }
+
+    // Get canvas to check project access
+    const canvas = await getCanvas(canvasId, userId);
+    if (!canvas.success) {
+      return canvas;
+    }
+
+    // Check if user has access to modify (must have project access)
+    const accessCheck = await canUserAccessProject(canvas.canvas.projectId, userId);
+    if (!accessCheck.success || !accessCheck.canAccess) {
+      return { success: false, error: 'User does not have permission to update this canvas' };
+    }
+
+    // Sanitize updates (only allow certain fields)
+    const allowedFields = ['name'];
+    const sanitizedUpdates = {};
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        if (key === 'name' && value) {
+          sanitizedUpdates.name = String(value).trim().substring(0, 100);
+        }
+      }
+    }
+
+    if (Object.keys(sanitizedUpdates).length === 0) {
+      return { success: false, error: 'No valid fields to update' };
+    }
+
+    sanitizedUpdates.updatedAt = serverTimestamp();
+
+    const canvasRef = doc(db, 'canvases', canvasId);
+    await updateDoc(canvasRef, sanitizedUpdates);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating canvas:', error);
+    return { success: false, error: 'Failed to update canvas' };
+  }
+};
+
+/**
+ * Deletes a canvas and all its objects
+ * @param {string} canvasId - Canvas ID
+ * @param {string} userId - User ID making the request
+ * @returns {Object} - Result object with success status
+ */
+export const deleteCanvas = async (canvasId, userId) => {
+  try {
+    if (!canvasId || !userId) {
+      return { success: false, error: 'Canvas ID and user ID are required' };
+    }
+
+    // Get canvas to check ownership
+    const canvas = await getCanvas(canvasId, userId);
+    if (!canvas.success) {
+      return canvas;
+    }
+
+    // Only canvas owner or project owner can delete canvas
+    if (canvas.canvas.ownerId !== userId && canvas.canvas.projectOwnerId !== userId) {
+      return { success: false, error: 'Only canvas owner or project owner can delete canvas' };
+    }
+
+    // Delete all objects in the canvas first
+    const objectsQuery = query(
+      collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
+      where('canvasId', '==', canvasId)
+    );
+    
+    const objectsSnapshot = await getDocs(objectsQuery);
+    const deleteObjectPromises = [];
+    
+    objectsSnapshot.forEach((doc) => {
+      deleteObjectPromises.push(deleteDoc(doc.ref));
+    });
+    
+    await Promise.all(deleteObjectPromises);
+
+    // Delete the canvas
+    const canvasRef = doc(db, 'canvases', canvasId);
+    await deleteDoc(canvasRef);
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting canvas:', error);
+    return { success: false, error: 'Failed to delete canvas' };
+  }
+};
+
+/**
+ * Subscribe to canvas objects for a specific canvas
+ * @param {string} canvasId - Canvas ID
+ * @param {Function} callback - Called with array of canvas objects when data changes
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeToCanvasObjects = (canvasId, callback) => {
+  try {
+    if (!canvasId) {
+      console.error('Canvas ID is required for subscription');
+      return () => {};
+    }
+
+    const objectsQuery = query(
+      collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
+      where('canvasId', '==', canvasId),
+      orderBy('createdAt', 'asc')
+    );
+
+    const unsubscribe = onSnapshot(objectsQuery, (snapshot) => {
+      const objects = [];
+      snapshot.forEach((doc) => {
+        objects.push({
+          id: doc.id,
+          ...doc.data()
+        });
+      });
+      
+      console.log('Canvas objects updated for canvas:', canvasId, objects.length);
+      callback(objects);
+    }, (error) => {
+      console.error('Error subscribing to canvas objects:', error);
+      callback([]); // Return empty array on error
+    });
+
+    return unsubscribe;
+  } catch (error) {
+    console.error('Error setting up canvas objects subscription:', error);
+    return () => {}; // Return no-op function
+  }
+};

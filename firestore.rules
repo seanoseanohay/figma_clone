@@ -1,32 +1,119 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // Helper function to check if user has access to a project
+    function hasProjectAccess(projectId) {
+      let projectDoc = get(/databases/$(database)/documents/projects/$(projectId));
+      return request.auth.uid == projectDoc.data.ownerId || 
+             request.auth.uid in projectDoc.data.collaborators;
+    }
+    
+    // Helper function to check if user owns a project
+    function ownsProject(projectId) {
+      let projectDoc = get(/databases/$(database)/documents/projects/$(projectId));
+      return request.auth.uid == projectDoc.data.ownerId;
+    }
+    
     // Users can only read and write their own user document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Global canvas document - authenticated users can read and write
+    // Projects - users can manage their own projects and access shared projects
+    match /projects/{projectId} {
+      // Allow create - user becomes owner
+      allow create: if request.auth != null 
+        && request.resource.data.ownerId == request.auth.uid;
+        
+      // Allow read if user has access (owner or collaborator)
+      allow read: if request.auth != null && hasProjectAccess(projectId);
+        
+      // Allow update only by project owner
+      allow update: if request.auth != null && ownsProject(projectId);
+        
+      // Allow delete only by project owner
+      allow delete: if request.auth != null && ownsProject(projectId);
+    }
+    
+    // Canvases - access controlled by project permissions
+    match /canvases/{canvasId} {
+      // Allow create if user has access to the project
+      allow create: if request.auth != null 
+        && hasProjectAccess(request.resource.data.projectId)
+        && request.resource.data.createdBy == request.auth.uid;
+        
+      // Allow read if user has access to the project
+      allow read: if request.auth != null 
+        && hasProjectAccess(resource.data.projectId);
+        
+      // Allow update if user has access to the project
+      allow update: if request.auth != null 
+        && hasProjectAccess(resource.data.projectId);
+        
+      // Allow delete if user is canvas owner or project owner
+      allow delete: if request.auth != null && (
+        request.auth.uid == resource.data.ownerId ||
+        request.auth.uid == resource.data.projectOwnerId
+      );
+    }
+    
+    // Global canvas document - authenticated users can read and write (legacy support)
     match /globalCanvas/{document=**} {
       allow read, write: if request.auth != null;
     }
     
-    // Canvas objects - authenticated users can create, read, update, delete
+    // Canvas objects - access controlled by canvas/project permissions
     match /canvasObjects/{objectId} {
       // Allow create with proper user tracking
       allow create: if request.auth != null 
         && request.resource.data.createdBy == request.auth.uid
-        && request.resource.data.lastModifiedBy == request.auth.uid;
+        && request.resource.data.lastModifiedBy == request.auth.uid
+        // If canvasId is provided, check project access
+        && (
+          !('canvasId' in request.resource.data) ||
+          (
+            'canvasId' in request.resource.data &&
+            exists(/databases/$(database)/documents/canvases/$(request.resource.data.canvasId)) &&
+            hasProjectAccess(get(/databases/$(database)/documents/canvases/$(request.resource.data.canvasId)).data.projectId)
+          )
+        );
         
-      // Allow read for all authenticated users
-      allow read: if request.auth != null;
+      // Allow read for authenticated users
+      // If canvasId is provided, check project access  
+      allow read: if request.auth != null
+        && (
+          !('canvasId' in resource.data) ||
+          (
+            'canvasId' in resource.data &&
+            exists(/databases/$(database)/documents/canvases/$(resource.data.canvasId)) &&
+            hasProjectAccess(get(/databases/$(database)/documents/canvases/$(resource.data.canvasId)).data.projectId)
+          )
+        );
         
       // Allow update with proper user tracking
       allow update: if request.auth != null
-        && request.resource.data.lastModifiedBy == request.auth.uid;
+        && request.resource.data.lastModifiedBy == request.auth.uid
+        // If canvasId is provided, check project access
+        && (
+          !('canvasId' in resource.data) ||
+          (
+            'canvasId' in resource.data &&
+            exists(/databases/$(database)/documents/canvases/$(resource.data.canvasId)) &&
+            hasProjectAccess(get(/databases/$(database)/documents/canvases/$(resource.data.canvasId)).data.projectId)
+          )
+        );
         
-      // Allow delete for authenticated users
-      allow delete: if request.auth != null;
+      // Allow delete for authenticated users with project access
+      allow delete: if request.auth != null
+        && (
+          !('canvasId' in resource.data) ||
+          (
+            'canvasId' in resource.data &&
+            exists(/databases/$(database)/documents/canvases/$(resource.data.canvasId)) &&
+            hasProjectAccess(get(/databases/$(database)/documents/canvases/$(resource.data.canvasId)).data.projectId)
+          )
+        );
     }
     
     // Deny all other access
