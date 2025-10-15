@@ -72,9 +72,9 @@ const Header = () => {
             </span>
           </div>
 
-          {/* Project/Canvas Dropdown - SHOULD BE VISIBLE ON DESKTOP */}
+          {/* Project/Canvas Dropdown - FORCE VISIBLE ON DESKTOP */}
           <div 
-            className="hidden md:flex items-center flex-1 max-w-md mx-6"
+            className="flex items-center flex-1 max-w-md mx-6"
             style={{ border: '2px solid blue' }} // Debug: Blue border to see if visible
           >
             <div className="relative w-full">
@@ -93,9 +93,9 @@ const Header = () => {
           {/* Right Side: User Squares + Current User + Actions */}
           <div className="flex items-center space-x-4">
             
-            {/* User Squares - Max 6 visible - SHOULD BE VISIBLE ON DESKTOP */}
+            {/* User Squares - Max 6 visible - FORCE VISIBLE ON DESKTOP */}
             <div 
-              className="hidden md:flex items-center gap-1"
+              className="flex items-center gap-1"
               style={{ border: '2px solid green' }} // Debug: Green border to see if visible
             >
               {/* Other users first - limit to 6 total squares */}
@@ -153,9 +153,9 @@ const Header = () => {
               </span>
             </div>
 
-            {/* Share Button - Responsive: Icon on medium+, text on large+ - SHOULD BE VISIBLE ON DESKTOP */}
+            {/* Share Button - FORCE VISIBLE ON DESKTOP */}
             <button 
-              className="hidden md:inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               style={{ border: '2px solid orange' }} // Debug: Orange border to see if visible
             >
               <svg className="w-4 h-4 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -183,13 +183,13 @@ const Header = () => {
               )}
             </button>
 
-            {/* Mobile Menu Button (for small screens only) - SHOULD BE HIDDEN ON DESKTOP */}
+            {/* Mobile Menu Button - FORCE HIDDEN ON DESKTOP */}
             <button 
               onClick={() => {
                 console.log('🍔 Hamburger clicked! Screen width:', window.innerWidth);
                 setMobileMenuOpen(true);
               }}
-              className="sm:hidden inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              className="hidden inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               style={{ border: '2px solid red', minWidth: '40px', minHeight: '40px' }} // Debug: Red border and min size
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
