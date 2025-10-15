@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { signOut } from '../../services/auth.service.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { usePresence } from '../../hooks/usePresence.js';
@@ -10,15 +10,7 @@ const Header = () => {
   const [loading, setLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
-  // Debug: Log mobile menu state and screen info
-  console.log('🐛 Mobile menu state:', mobileMenuOpen);
-  console.log('📏 Screen info:', {
-    innerWidth: window.innerWidth,
-    innerHeight: window.innerHeight,
-    screenWidth: window.screen.width,
-    screenHeight: window.screen.height,
-    devicePixelRatio: window.devicePixelRatio
-  });
+  // Mobile menu state management
   
   // Generate consistent color for each user
   const getUserColor = (userId) => {
@@ -59,8 +51,8 @@ const Header = () => {
 
   return (
     <header className="bg-white border-b border-gray-200 shadow-sm">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between py-3">
+      <div className="max-w-6xl mx-auto px-6">
+        <div className="flex items-center justify-between py-4">
           
           {/* Logo */}
           <div className="flex items-center flex-shrink-0">
@@ -72,11 +64,8 @@ const Header = () => {
             </span>
           </div>
 
-          {/* Project/Canvas Dropdown - FORCE VISIBLE ON DESKTOP */}
-          <div 
-            className="flex items-center flex-1 max-w-md mx-6"
-            style={{ border: '2px solid blue' }} // Debug: Blue border to see if visible
-          >
+          {/* Project/Canvas Dropdown - Properly Sized */}
+          <div className="flex items-center flex-shrink-0 w-64 mx-4">
             <div className="relative w-full">
               <button
                 className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
@@ -93,11 +82,8 @@ const Header = () => {
           {/* Right Side: User Squares + Current User + Actions */}
           <div className="flex items-center space-x-4">
             
-            {/* User Squares - Max 6 visible - FORCE VISIBLE ON DESKTOP */}
-            <div 
-              className="flex items-center gap-1"
-              style={{ border: '2px solid green' }} // Debug: Green border to see if visible
-            >
+            {/* User Squares - Max 6 visible */}
+            <div className="flex items-center gap-1">
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
@@ -153,11 +139,8 @@ const Header = () => {
               </span>
             </div>
 
-            {/* Share Button - FORCE VISIBLE ON DESKTOP */}
-            <button 
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              style={{ border: '2px solid orange' }} // Debug: Orange border to see if visible
-            >
+            {/* Share Button */}
+            <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
               <svg className="w-4 h-4 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
               </svg>
@@ -183,14 +166,11 @@ const Header = () => {
               )}
             </button>
 
-            {/* Mobile Menu Button - FORCE HIDDEN ON DESKTOP */}
+            {/* Mobile Menu Button - Hidden on desktop */}
             <button 
-              onClick={() => {
-                console.log('🍔 Hamburger clicked! Screen width:', window.innerWidth);
-                setMobileMenuOpen(true);
-              }}
-              className="hidden inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              style={{ border: '2px solid red', minWidth: '40px', minHeight: '40px' }} // Debug: Red border and min size
+              onClick={() => setMobileMenuOpen(true)}
+              className="inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              style={{ display: 'none' }} // Force hidden on desktop
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
