@@ -458,7 +458,51 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 
 ---
 
-### Task E4: Add Owner-Only Edit Restrictions
+### Task E4: Fix Critical Rectangle Resize Bug
+
+**Objective**: Fix coordinate jumping bug when dragging resize handles past opposite corners
+
+**Files to Modify**:
+- `src/components/canvas/Canvas.jsx` (crossover detection logic)
+- `src/components/canvas/CanvasObject.jsx` (if needed)
+
+**Specific Changes**:
+1. Fix rectangle position jumping when corner handle is dragged past opposite corner
+2. Ensure smooth handle role transition (NW becomes SE when dragged past SE corner)
+3. Maintain rectangle visibility during crossover (minimum 2x2px at crossover point)
+4. Prevent coordinate snapping back to original position during handle transitions
+5. Ensure consistent resize behavior in all directions
+6. Add visual feedback during crossover operations
+7. Test resize operations near canvas boundaries during crossover
+
+**Current Problem**: 
+When dragging NW handle past SE corner, rectangle jumps back to original position while handle identity changes, breaking user expectation of smooth interaction.
+
+**Expected Behavior**: 
+Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at current position (becomes line at crossover), resize continues smoothly.
+
+**Acceptance Criteria**:
+- [ ] Rectangle position remains stable during handle crossover operations
+- [ ] Handle role transitions happen smoothly without position jumping
+- [ ] Rectangle maintains minimum visibility (2x2px) at exact crossover point
+- [ ] Resize continues smoothly after crossover in expected direction
+- [ ] Crossover behavior works consistently for all corner combinations
+- [ ] No visual artifacts or coordinate jumping during transitions
+- [ ] Boundary constraints work properly during crossover operations
+
+**Testing Steps**:
+1. Drag NW handle past SE corner and verify smooth transition
+2. Test all corner handle crossover combinations (NW↔SE, NE↔SW)
+3. Test crossover behavior near canvas boundaries
+4. Verify resize continues smoothly after crossover
+5. Test with multiple users to ensure sync works during crossover
+6. Verify minimum size constraints work during crossover
+
+**Dependencies**: Requires Task C5 (ownership system) to handle collaborative resize conflicts
+
+---
+
+### Task E5: Add Owner-Only Edit Restrictions
 
 **Objective**: Implement visual indicators and restrictions for object ownership in collaborative editing
 
@@ -494,6 +538,81 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 ---
 
 ## ✨ ADVANCED FEATURES TASKS (Polish & Scale)
+
+### Task A0: Performance Optimization & Monitoring
+
+**Objective**: Optimize canvas performance and add comprehensive monitoring for production readiness
+
+**Files to Modify**:
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/components/canvas/CanvasObject.jsx`
+- Update `src/hooks/useCursorTracking.js`
+- Create `src/utils/performanceMonitor.js`
+
+**Specific Changes**:
+1. **Konva Rendering Optimization**:
+   - Enable Konva layer caching for better performance
+   - Optimize redraw regions to minimize full canvas redraws
+   - Implement object pooling for frequently created/destroyed elements
+   - Add performance-conscious rendering for large object counts
+
+2. **Cursor Update Optimization**:
+   - Verify 50-100ms throttling is working effectively
+   - Implement adaptive throttling based on user count
+   - Add cursor update batching for multiple rapid movements
+   - Optimize cursor rendering to avoid unnecessary redraws
+
+3. **Object Position Update Optimization**:
+   - Batch Firestore writes during drag operations
+   - Implement local caching to reduce database reads
+   - Add intelligent update scheduling to prevent write conflicts
+   - Optimize object transformation calculations
+
+4. **Performance Monitoring System**:
+   - Add FPS monitoring and logging
+   - Measure and log cursor sync latency
+   - Track object sync latency and update performance
+   - Add memory usage monitoring for object collections
+   - Implement performance alerts for degraded experience
+
+5. **Load Testing Capabilities**:
+   - Create development tools for generating test objects
+   - Add stress testing utilities for multi-user scenarios
+   - Implement performance regression testing
+
+**Acceptance Criteria**:
+- [ ] Canvas maintains 30+ FPS with 500 objects
+- [ ] Cursor sync latency stays under 50ms
+- [ ] Object sync latency stays under 100ms
+- [ ] Performance monitoring provides real-time metrics
+- [ ] System handles 5+ concurrent users smoothly
+- [ ] Memory usage remains stable during extended use
+- [ ] Performance degrades gracefully under high load
+
+**Testing Steps**:
+1. **Object Load Testing**:
+   - Create 100 objects and verify smooth interaction
+   - Create 500 objects and verify acceptable performance (>20 FPS)
+   - Test performance with mixed object types and sizes
+
+2. **Multi-User Load Testing**:
+   - Test with 5+ concurrent users on different devices
+   - Verify cursor and object sync performance under load
+   - Test rapid simultaneous object creation/modification
+
+3. **Network Performance Testing**:
+   - Test with Chrome DevTools slow 3G throttling
+   - Verify graceful degradation under poor network conditions
+   - Test reconnection behavior after network interruption
+
+4. **Memory Performance Testing**:
+   - Monitor memory usage during extended sessions
+   - Test for memory leaks during object creation/deletion
+   - Verify garbage collection effectiveness
+
+**Dependencies**: Should be completed before Task A2 (Export) and A3 (Toolbar Design) for baseline performance
+
+---
 
 ### Task A1: Implement Canvas Export Functionality
 
@@ -596,6 +715,277 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 3. Test toolbar appearance on different screen sizes
 4. Compare before/after toolbar design for improvement
 5. Get user feedback on toolbar usability
+
+---
+
+## 🛡️ PRODUCTION READY TASKS (Deployment & Reliability)
+
+### Task PR1: UI Polish & Error Handling
+
+**Objective**: Add comprehensive error handling, loading states, and UI polish for production deployment
+
+**Files to Modify**:
+- Create `src/components/layout/ErrorBoundary.jsx`
+- Create `src/components/layout/ErrorNotification.jsx`
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/components/auth/LoginForm.jsx`
+- Update `src/components/presence/ConnectionStatus.jsx`
+- Update `src/components/presence/OnlineUsers.jsx`
+- Update `src/index.css`
+
+**Specific Changes**:
+1. **Error Boundary Implementation**:
+   - Create error boundary component to catch and display React errors gracefully
+   - Add fallback UI for crashed components
+   - Implement error reporting and recovery options
+   - Add error boundary to main app components
+
+2. **Enhanced Loading States**:
+   - Add professional loading spinners and progress indicators
+   - Implement skeleton loading for canvas objects
+   - Add loading states for authentication operations
+   - Show loading feedback during canvas object operations
+
+3. **Error Notification System**:
+   - Create toast-style notification system for errors
+   - Add success/error feedback for user actions
+   - Implement auto-dismissing notifications
+   - Add notification queue for multiple messages
+
+4. **Connection Status Improvements**:
+   - Show clear "Connection Lost" banner when disconnected
+   - Add reconnection progress indicators
+   - Implement automatic retry with user feedback
+   - Show network quality indicators
+
+5. **Keyboard Shortcuts & Accessibility**:
+   - Add ESC key to deselect objects
+   - Implement Delete key for object removal (if deletion system exists)
+   - Add keyboard navigation support
+   - Ensure proper focus management
+
+6. **Mobile Responsiveness**:
+   - Add basic touch support for pan/zoom operations
+   - Optimize UI for mobile screen sizes
+   - Implement touch-friendly object selection
+   - Add mobile-specific user feedback
+
+7. **UI Style Improvements**:
+   - Polish all components with consistent styling
+   - Add hover states and micro-interactions
+   - Improve color scheme and visual hierarchy
+   - Add smooth transitions and animations
+
+8. **User Count & Presence Enhancements**:
+   - Show total number of online users
+   - Add user activity indicators
+   - Improve user avatar display and management
+   - Add user connection status indicators
+
+**Acceptance Criteria**:
+- [ ] Error boundaries prevent app crashes and show helpful messages
+- [ ] Loading states provide clear feedback for all operations
+- [ ] Error notifications inform users of issues with recovery options
+- [ ] Connection status is always visible and accurate
+- [ ] Keyboard shortcuts work correctly and are discoverable
+- [ ] Mobile devices can use basic canvas functionality
+- [ ] UI is polished and professional-looking
+- [ ] User presence information is clear and helpful
+
+**Testing Steps**:
+1. **Error Handling Testing**:
+   - Force component errors and verify error boundary behavior
+   - Test network failures and error notification display
+   - Verify error recovery and retry functionality
+
+2. **Loading State Testing**:
+   - Test loading indicators during slow network conditions
+   - Verify skeleton loading during canvas object loading
+   - Test loading states during authentication operations
+
+3. **Mobile Testing**:
+   - Test touch interactions on tablet/phone devices
+   - Verify responsive layout on different screen sizes
+   - Test mobile-specific user interface elements
+
+4. **Accessibility Testing**:
+   - Test keyboard navigation throughout the app
+   - Verify screen reader compatibility
+   - Test high contrast mode compatibility
+
+**Dependencies**: Should be completed after core functionality (Tasks C1-C5) but before deployment
+
+---
+
+### Task PR2: Firebase Quota Management & Monitoring
+
+**Objective**: Implement Firebase usage monitoring and graceful degradation strategies for production scalability
+
+**Files to Modify**:
+- Update `src/services/firebase.js`
+- Update `src/hooks/useCursorTracking.js`
+- Update `src/services/presence.service.js`
+- Create `src/utils/quotaMonitor.js`
+- Create `src/components/status/QuotaStatus.jsx`
+
+**Specific Changes**:
+1. **Firebase Usage Monitoring**:
+   - Implement tracking for Realtime Database read/write operations
+   - Monitor cursor update frequency and connection counts
+   - Track Firestore document reads/writes for object operations
+   - Add usage analytics and reporting dashboard
+
+2. **Graceful Quota Degradation**:
+   - Detect when approaching Firebase free tier limits
+   - Implement adaptive cursor update frequency (50ms → 100ms → 200ms)
+   - Reduce real-time sync frequency during high load periods
+   - Show "High Traffic - Reduced Performance" message to users
+
+3. **Firebase Alerts Configuration** (External Setup):
+   - Document setup for Firebase Console alerts at 80% of limits
+   - Create monitoring dashboards for usage tracking
+   - Document upgrade path to Firebase Blaze plan
+   - Add usage forecasting based on user growth
+
+4. **Alternative Sync Strategies** (Stretch Goal):
+   - Design WebSocket fallback for cursor updates if RT DB quota exceeded
+   - Implement peer-to-peer cursor sharing for high-traffic scenarios
+   - Keep object sync on Firestore, fallback cursors to alternative method
+   - Add intelligent load balancing between sync methods
+
+5. **User Communication System**:
+   - Add quota status display for administrators
+   - Show performance mode indicators to users
+   - Implement graceful service degradation messages
+   - Add estimated restoration time for full performance
+
+**Acceptance Criteria**:
+- [ ] Firebase usage is accurately monitored and logged
+- [ ] System gracefully degrades performance when approaching quotas
+- [ ] Users receive clear communication about performance changes
+- [ ] Administrators can monitor usage and plan upgrades
+- [ ] Fallback systems activate smoothly without service interruption
+- [ ] Usage forecasting helps predict scaling needs
+
+**Testing Steps**:
+1. **Quota Monitoring Testing**:
+   - Simulate high usage scenarios and verify monitoring accuracy
+   - Test quota warning thresholds and alert systems
+   - Verify usage tracking across different Firebase services
+
+2. **Degradation Testing**:
+   - Test performance reduction during simulated high load
+   - Verify user communication during degraded performance
+   - Test restoration to full performance when load decreases
+
+3. **Scalability Testing**:
+   - Test system behavior near Firebase free tier limits
+   - Verify alternative sync methods if implemented
+   - Test upgrade scenarios to paid Firebase plans
+
+**Dependencies**: Requires basic functionality (Tasks C1-C5) and should be completed before Task PR3 (Deployment)
+
+---
+
+### Task PR3: Final Deployment & Documentation
+
+**Objective**: Deploy production version with comprehensive documentation and final testing
+
+**Files to Modify**:
+- Update `README.md`
+- Create `ARCHITECTURE.md`
+- Update `.env.example`
+- Update `firestore.rules`
+- Update `database.rules.json`
+- Create deployment configuration files
+
+**Specific Changes**:
+1. **Comprehensive Documentation**:
+   - Update README with complete setup instructions
+   - Add architecture overview and system design explanations
+   - Document all environment variables and configuration options
+   - Include troubleshooting guide and common issues
+   - Add API documentation for services and hooks
+
+2. **Architecture Documentation**:
+   - Document data models and Firebase structure
+   - Explain real-time sync strategy and conflict resolution
+   - Detail authentication flow and security considerations
+   - Include performance considerations and scalability notes
+   - Add diagrams for system architecture and data flow
+
+3. **Production Build & Testing**:
+   - Test production build locally with `npm run build`
+   - Verify all features work correctly in production mode
+   - Test with production Firebase configuration
+   - Validate performance in production environment
+
+4. **Firebase Hosting Deployment**:
+   - Configure Firebase Hosting for production deployment
+   - Set up custom domain if required
+   - Configure caching and performance optimization
+   - Test deployed version functionality
+
+5. **Production Security Rules**:
+   - Tighten Firestore security rules for production
+   - Update Realtime Database rules for optimal security
+   - Implement rate limiting and abuse prevention
+   - Add input validation and sanitization
+
+6. **Final Integration Testing**:
+   - Test deployed version with multiple real users
+   - Verify all features work in production environment
+   - Test cross-browser compatibility
+   - Validate mobile device functionality
+
+7. **Launch Preparation**:
+   - Add deployed URL to README with live demo link
+   - Create user onboarding documentation
+   - Prepare monitoring and maintenance procedures
+   - Document rollback procedures for issues
+
+**Acceptance Criteria**:
+- [ ] README provides clear, complete setup instructions
+- [ ] Architecture documentation explains system design clearly
+- [ ] Production build works identically to development version
+- [ ] Deployed version is publicly accessible and functional
+- [ ] Security rules are production-ready and tested
+- [ ] Multi-user testing confirms all features work correctly
+- [ ] Documentation is comprehensive and user-friendly
+- [ ] Monitoring and maintenance procedures are documented
+
+**Testing Steps**:
+1. **Documentation Testing**:
+   - Follow setup instructions on fresh system to verify completeness
+   - Test all documented procedures and configurations
+   - Verify architecture documentation accuracy
+
+2. **Deployment Testing**:
+   - Test production build locally before deployment
+   - Verify deployed version matches local functionality
+   - Test with different browsers and devices
+
+3. **Final Integration Testing**:
+   - Conduct end-to-end testing with multiple users
+   - Test all features: authentication, presence, objects, persistence
+   - Verify performance meets all success criteria
+   - Test error handling and edge cases
+
+4. **Security Testing**:
+   - Verify security rules prevent unauthorized access
+   - Test input validation and sanitization
+   - Check for common security vulnerabilities
+
+**Dependencies**: Requires all previous tasks (C1-C5, A0, PR1, PR2) to be completed and tested
+
+**Final Success Criteria Verification**:
+After completion, verify all original PRD requirements:
+- [ ] 2+ users can connect and see each other's cursors with name labels
+- [ ] Objects sync in real-time across all users
+- [ ] State persists through refresh and reconnect
+- [ ] Performance stays smooth (30+ FPS) with multiple users
+- [ ] Deployed and publicly accessible
+- [ ] All authentication and canvas functionality works as specified
 
 ---
 
@@ -1018,6 +1408,49 @@ const CURSOR_COLORS = {
 ---
 
 ## 🔮 FUTURE OPTIMIZATION TASKS (Long-term Enhancements)
+
+### Task FO0: Performance & Scalability Improvements
+
+**Objective**: Advanced performance optimizations for handling larger user bases and object counts
+
+**Files to Modify**:
+- Update canvas rendering system
+- Optimize database query patterns
+- Implement advanced caching strategies
+
+**Specific Changes**:
+1. **Advanced Canvas Rendering**:
+   - Implement viewport-based object culling (only render visible objects)
+   - Add object-level caching for complex shapes
+   - Implement render batching for multiple object updates
+   - Add progressive loading for large canvases
+
+2. **Database Optimization**:
+   - Implement object pagination for large canvases
+   - Add intelligent prefetching based on user viewport
+   - Optimize query patterns to reduce reads/writes
+   - Implement canvas partitioning for massive scale
+
+3. **Advanced Caching**:
+   - Add Redis caching layer for frequently accessed data
+   - Implement client-side object caching with smart invalidation
+   - Add CDN integration for static assets
+   - Implement edge caching for global user base
+
+4. **Scalability Architecture**:
+   - Design multi-region deployment strategy
+   - Implement horizontal scaling for user presence
+   - Add load balancing for canvas operations
+   - Design database sharding strategy
+
+**Acceptance Criteria**:
+- [ ] System handles 10,000+ objects smoothly
+- [ ] Supports 50+ concurrent users per canvas
+- [ ] Renders only visible objects for performance
+- [ ] Database queries are optimized for scale
+- [ ] Caching reduces server load significantly
+
+---
 
 ### Task FO1: Add Accessibility Features
 
