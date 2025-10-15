@@ -14,11 +14,7 @@ import {
 } from 'firebase/firestore'
 import { db, auth } from './firebase.js'
 import { FIREBASE_COLLECTIONS, OBJECT_UPDATE_THROTTLE } from '../constants/canvas.constants.js'
-// TODO: Re-enable project integration after build issues are resolved
-// import { canUserAccessProject } from './project.service.js'
-
-// Temporary fallback function - allows all access for now
-const canUserAccessProject = async () => ({ success: true, canAccess: true });
+import { canUserAccessProject } from './project.service.js'
 
 // Throttling mechanism for position updates during drag operations
 const pendingUpdates = new Map()
