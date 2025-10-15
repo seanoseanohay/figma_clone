@@ -71,7 +71,7 @@ const MobileMenu = ({ isOpen, onClose, users, currentUser, getUserColor }) => {
             <div className="p-4 border-b border-gray-200">
               <h3 className="text-sm font-medium text-gray-700 mb-3">Project & Canvas</h3>
               <button className="w-full flex items-center justify-between px-4 py-3 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                <span>Select Project > Canvas</span>
+                <span>Select Project &gt; Canvas</span>
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
