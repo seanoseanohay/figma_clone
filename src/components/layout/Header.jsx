@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { signOut } from '../../services/auth.service.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { usePresence } from '../../hooks/usePresence.js';
@@ -9,6 +9,25 @@ const Header = () => {
   const { users, onlineCount } = usePresence();
   const [loading, setLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  
+  // Debug: Log mobile menu state
+  console.log('🐛 Mobile menu state:', mobileMenuOpen);
+  
+  // Auto-close mobile menu on desktop screens
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768 && mobileMenuOpen) {
+        console.log('🔧 Auto-closing mobile menu on desktop screen');
+        setMobileMenuOpen(false);
+      }
+    };
+    
+    // Close immediately if already on desktop
+    handleResize();
+    
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [mobileMenuOpen]);
   
   // Generate consistent color for each user
   const getUserColor = (userId) => {

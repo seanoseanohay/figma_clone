@@ -37,6 +37,9 @@ const MobileMenu = ({ isOpen, onClose, users, currentUser, getUserColor }) => {
     onClose();
   };
 
+  // Debug: Log mobile menu render
+  console.log('📱 MobileMenu render - isOpen:', isOpen);
+  
   // Don't render if not open
   if (!isOpen) return null;
 
@@ -49,7 +52,13 @@ const MobileMenu = ({ isOpen, onClose, users, currentUser, getUserColor }) => {
       />
       
       {/* Mobile Menu - Only show on screens < 768px */}
-      <div className="fixed top-0 right-0 h-full w-80 max-w-full bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out md:hidden">
+      <div 
+        className="fixed top-0 right-0 h-full w-80 max-w-full bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out md:hidden"
+        style={{ 
+          border: '2px solid red', // Debug: Red border to see positioning
+          backgroundColor: 'rgba(255, 255, 255, 0.95)' // Debug: Slight transparency
+        }}
+      >
         <div className="flex flex-col h-full">
           
           {/* Header */}
