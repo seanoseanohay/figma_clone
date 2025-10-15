@@ -37,6 +37,7 @@ const MobileMenu = ({ isOpen, onClose, users, currentUser, getUserColor }) => {
     onClose();
   };
 
+  // Don't render if not open
   if (!isOpen) return null;
 
   return (
@@ -47,7 +48,7 @@ const MobileMenu = ({ isOpen, onClose, users, currentUser, getUserColor }) => {
         onClick={onClose}
       />
       
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Only show on screens < 768px */}
       <div className="fixed top-0 right-0 h-full w-80 max-w-full bg-white shadow-xl z-50 transform transition-transform duration-300 ease-in-out md:hidden">
         <div className="flex flex-col h-full">
           

@@ -81,7 +81,7 @@ const Header = () => {
           <div className="flex items-center space-x-4">
             
             {/* User Squares - Max 6 visible */}
-            <div className="hidden lg:flex items-center gap-1">
+            <div className="hidden md:flex items-center gap-1">
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
@@ -132,17 +132,17 @@ const Header = () => {
                   </span>
                 </div>
               )}
-              <span className="hidden lg:block text-sm font-medium text-gray-700 max-w-32 truncate">
+              <span className="hidden md:block text-sm font-medium text-gray-700 max-w-32 truncate">
                 {currentUser.displayName || 'Anonymous'}
               </span>
             </div>
 
             {/* Share Button - Responsive: Icon on medium+, text on large+ */}
             <button className="hidden md:inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-              <svg className="w-4 h-4 lg:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
               </svg>
-              <span className="hidden lg:inline">Share</span>
+              <span className="hidden md:inline">Share</span>
             </button>
 
             {/* Sign Out Button */}
@@ -157,22 +157,17 @@ const Header = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  <span className="hidden sm:inline">Signing out...</span>
+                  <span className="inline">Signing out...</span>
                 </>
               ) : (
-                <span className="hidden sm:inline">Sign out</span>
+                <span className="inline">Sign out</span>
               )}
-              <span className="sm:hidden">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-              </span>
             </button>
 
-            {/* Mobile Menu Button (for mobile screens only) */}
+            {/* Mobile Menu Button (for small screens only) */}
             <button 
               onClick={() => setMobileMenuOpen(true)}
-              className="sm:hidden inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              className="md:hidden inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
