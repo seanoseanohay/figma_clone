@@ -1,8 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import { Stage, Layer, Rect } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
+import ProjectDashboard from '../dashboard/ProjectDashboard.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
@@ -23,6 +25,9 @@ import {
 } from '../../constants/canvas.constants.js';
 
 const Canvas = ({ selectedTool, onToolChange }) => {
+  // Extract canvas ID from URL parameters (supports both /canvas/:canvasId and /project/:projectId/canvas/:canvasId)
+  const { canvasId } = useParams();
+  
   const stageRef = useRef(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
@@ -34,8 +39,8 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const { updateCursor } = useCursorTracking();
   const { usersWithCursors } = usePresence();
   
-  // Canvas objects hook for real-time sync - start with empty canvas
-  const { objects: canvasObjects, isLoading: objectsLoading } = useCanvasObjects();
+  // Canvas objects hook for real-time sync - now canvas-specific
+  const { objects: canvasObjects, isLoading: objectsLoading, error: objectsError } = useCanvasObjects(canvasId);
   
   // Rectangle creation state (Rectangle tool only)
   const [isDrawing, setIsDrawing] = useState(false);
@@ -810,7 +815,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             
             try {
               // Save rectangle to Firestore
-              await createObject('rectangle', clampedRect, {
+              await createObject('rectangle', clampedRect, canvasId, {
                 fill: '#808080',
                 stroke: '#333333',
                 strokeWidth: 1
@@ -876,6 +881,11 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // Calculate boundary background dimensions (extends beyond canvas bounds)
   const boundarySize = Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) * 3;
   const boundaryOffset = -boundarySize / 2 + Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) / 2;
+
+  // If no canvasId, show project dashboard instead of canvas
+  if (!canvasId) {
+    return <ProjectDashboard />;
+  }
 
   return (
     <div className="canvas-container bg-gray-200 overflow-hidden">

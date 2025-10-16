@@ -28,6 +28,12 @@ service cloud.firestore {
         
       // Allow read if user has access (owner or collaborator)
       allow read: if request.auth != null && hasProjectAccess(projectId);
+      
+      // Allow list/query for projects owned by or shared with the user
+      allow list: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in resource.data.collaborators
+      );
         
       // Allow update only by project owner
       allow update: if request.auth != null && ownsProject(projectId);
@@ -45,6 +51,10 @@ service cloud.firestore {
         
       // Allow read if user has access to the project
       allow read: if request.auth != null 
+        && hasProjectAccess(resource.data.projectId);
+      
+      // Allow list/query for canvases in projects user has access to
+      allow list: if request.auth != null 
         && hasProjectAccess(resource.data.projectId);
         
       // Allow update if user has access to the project
@@ -82,6 +92,17 @@ service cloud.firestore {
       // Allow read for authenticated users
       // If canvasId is provided, check project access  
       allow read: if request.auth != null
+        && (
+          !('canvasId' in resource.data) ||
+          (
+            'canvasId' in resource.data &&
+            exists(/databases/$(database)/documents/canvases/$(resource.data.canvasId)) &&
+            hasProjectAccess(get(/databases/$(database)/documents/canvases/$(resource.data.canvasId)).data.projectId)
+          )
+        );
+      
+      // Allow list/query for canvas objects
+      allow list: if request.auth != null
         && (
           !('canvasId' in resource.data) ||
           (

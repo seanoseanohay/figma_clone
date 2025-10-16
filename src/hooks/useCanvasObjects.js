@@ -4,18 +4,27 @@ import { subscribeToObjects } from '../services/canvas.service.js'
 /**
  * Hook for managing canvas objects with real-time Firestore sync
  * Returns canvas objects array and loading/error states
+ * @param {string} canvasId - The canvas ID to subscribe to (optional for backward compatibility)
  */
-export const useCanvasObjects = () => {
+export const useCanvasObjects = (canvasId = null) => {
   const [objects, setObjects] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
 
   // Subscribe to Firestore changes
   useEffect(() => {
+    // Don't subscribe if no canvasId provided
+    if (!canvasId) {
+      setObjects([])
+      setIsLoading(false)
+      setError(null) // Don't treat missing canvasId as an error during development
+      return
+    }
+
     let unsubscribe
 
     try {
-      unsubscribe = subscribeToObjects((newObjects) => {
+      unsubscribe = subscribeToObjects(canvasId, (newObjects) => {
         // Convert Firestore timestamps to regular dates for easier handling
         const processedObjects = newObjects.map(obj => ({
           ...obj,
@@ -42,7 +51,7 @@ export const useCanvasObjects = () => {
         console.log('Unsubscribed from canvas objects')
       }
     }
-  }, [])
+  }, [canvasId]) // Re-subscribe when canvasId changes
 
   // Get objects by type
   const getObjectsByType = useCallback((type) => {

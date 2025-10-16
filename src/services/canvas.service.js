@@ -29,13 +29,18 @@ const updateTimeouts = new Map()
  * Create a new canvas object
  * @param {string} type - Object type ('rectangle', 'circle', 'text')
  * @param {Object} position - Position and dimensions {x, y, width, height}
+ * @param {string} canvasId - Canvas ID to associate the object with
  * @param {Object} properties - Additional properties (fill, stroke, etc.)
  * @returns {Promise<string>} Document ID of created object
  */
-export const createObject = async (type, position, properties = {}) => {
+export const createObject = async (type, position, canvasId, properties = {}) => {
   try {
     if (!auth.currentUser) {
       throw new Error('User must be authenticated to create objects')
+    }
+
+    if (!canvasId) {
+      throw new Error('Canvas ID is required to create objects')
     }
 
     // Validate position is within canvas bounds
@@ -47,6 +52,7 @@ export const createObject = async (type, position, properties = {}) => {
 
     const objectData = {
       type,
+      canvasId,
       ...position,
       ...properties,
       createdBy: auth.currentUser.uid,
@@ -257,14 +263,22 @@ export const deleteObject = async (objectId) => {
 }
 
 /**
- * Subscribe to canvas objects changes
+ * Subscribe to canvas objects changes for a specific canvas
+ * @param {string} canvasId - Canvas ID to filter objects by
  * @param {Function} callback - Called with array of canvas objects when data changes
  * @returns {Function} Unsubscribe function
  */
-export const subscribeToObjects = (callback) => {
+export const subscribeToObjects = (canvasId, callback) => {
   try {
+    if (!canvasId) {
+      console.error('Canvas ID is required for subscribeToObjects')
+      callback([])
+      return () => {} // Return empty unsubscribe function
+    }
+
     const objectsQuery = query(
       collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
+      where('canvasId', '==', canvasId),
       orderBy('createdAt', 'asc')
     )
 

@@ -79,18 +79,18 @@ export const getProjectsForUser = async (userId) => {
       return { success: false, error: 'User ID is required' };
     }
 
-    // Get projects owned by user
+    // Get projects owned by user (temporarily remove orderBy for testing)
     const ownedQuery = query(
       projectsCollection,
-      where('ownerId', '==', userId),
-      orderBy('updatedAt', 'desc')
+      where('ownerId', '==', userId)
+      // orderBy('updatedAt', 'desc') // Temporarily commented out until indexes are ready
     );
     
-    // Get projects where user is collaborator
+    // Get projects where user is collaborator (temporarily remove orderBy for testing)
     const collaboratorQuery = query(
       projectsCollection,
-      where('collaborators', 'array-contains', userId),
-      orderBy('updatedAt', 'desc')
+      where('collaborators', 'array-contains', userId)
+      // orderBy('updatedAt', 'desc') // Temporarily commented out until indexes are ready
     );
 
     const [ownedSnapshot, collaboratorSnapshot] = await Promise.all([

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './components/auth/AuthProvider.jsx';
 import LoginForm from './components/auth/LoginForm.jsx';
 import RegisterForm from './components/auth/RegisterForm.jsx';
@@ -15,6 +15,7 @@ const BYPASS_AUTH = false;
 // Canvas page component with Toolbar and Canvas
 const CanvasPage = () => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
+  const { canvasId } = useParams();
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
@@ -23,10 +24,13 @@ const CanvasPage = () => {
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
       <Header />
-      <Toolbar 
-        selectedTool={selectedTool}
-        onToolChange={handleToolChange}
-      />
+      {/* Only show toolbar when there's a specific canvas selected */}
+      {canvasId && (
+        <Toolbar 
+          selectedTool={selectedTool}
+          onToolChange={handleToolChange}
+        />
+      )}
       <div className="flex flex-1">
         {/* Main canvas area - now takes full width */}
         <div className="flex-1">
@@ -62,7 +66,7 @@ function App() {
                 <Route path="/login" element={<LoginForm />} />
                 <Route path="/register" element={<RegisterForm />} />
                 
-                {/* Protected canvas route */}
+                {/* Default canvas route - redirect to dashboard */}
                 <Route 
                   path="/canvas" 
                   element={
@@ -72,8 +76,26 @@ function App() {
                   } 
                 />
                 
-                {/* Catch all - redirect to login */}
-                <Route path="*" element={<Navigate to="/login" replace />} />
+                {/* Protected canvas routes - support both old and new URL formats */}
+                <Route 
+                  path="/canvas/:canvasId" 
+                  element={
+                    <ProtectedRoute>
+                      <CanvasPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/project/:projectId/canvas/:canvasId" 
+                  element={
+                    <ProtectedRoute>
+                      <CanvasPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Catch all - redirect to canvas dashboard */}
+                <Route path="*" element={<Navigate to="/canvas" replace />} />
               </>
             )}
           </Routes>
