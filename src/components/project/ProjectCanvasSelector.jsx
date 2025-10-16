@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useProjects } from '../../hooks/useProjects.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
@@ -8,13 +8,14 @@ import CreateCanvasModal from './CreateCanvasModal.jsx';
 /**
  * ProjectCanvasSelector - A comprehensive dropdown for project and canvas management
  * Features: hierarchical display, creation modals, search, keyboard nav, extensible design
+ * Enhanced with robust error handling, loading states, and visual feedback
  */
 const ProjectCanvasSelector = ({ className = '' }) => {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Project management
+  // Project management with enhanced error logging
   const {
     projects,
     isLoading,
@@ -28,6 +29,18 @@ const ProjectCanvasSelector = ({ className = '' }) => {
     findProjectCanvas
   } = useProjects(currentUser?.uid);
 
+  // Enhanced error logging
+  useEffect(() => {
+    if (error) {
+      console.error('ProjectCanvasSelector - useProjects hook error:', {
+        error,
+        userId: currentUser?.uid,
+        timestamp: new Date().toISOString(),
+        location: location.pathname
+      });
+    }
+  }, [error, currentUser?.uid, location.pathname]);
+
   // UI State
   const [isOpen, setIsOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState(null);
@@ -40,55 +53,70 @@ const ProjectCanvasSelector = ({ className = '' }) => {
   const searchInputRef = useRef(null);
   const buttonRef = useRef(null);
 
+  // Create stable dependency for useEffect to prevent infinite loops
+  const projectsKey = useMemo(() => {
+    return projects.map(p => `${p.id}:${p.canvases.map(c => `${c.id}:${c.name}`).join(',')}`).join('|');
+  }, [projects]);
+
   /**
-   * Detect current project/canvas from URL
+   * Enhanced URL parsing to detect current project/canvas from route patterns
+   * Supports: /project/{projectId}/canvas/{canvasId} and /canvas/{canvasId}
    */
   useEffect(() => {
-    // Don't run if projects haven't loaded yet
-    if (!projects.length) {
-      setCurrentProjectCanvas(null);
-      return;
-    }
-
-    // Support both /canvas/{id} and /project/{projId}/canvas/{canvasId} formats
-    const canvasMatch = location.pathname.match(/\/canvas\/([^/]+)/);
-    const projectCanvasMatch = location.pathname.match(/\/project\/([^/]+)\/canvas\/([^/]+)/);
-    
-    if (projectCanvasMatch) {
-      const [, projectId, canvasId] = projectCanvasMatch;
-      const project = projects.find(p => p.id === projectId);
-      const canvas = project?.canvases.find(c => c.id === canvasId);
-      
-      if (project && canvas) {
-        setCurrentProjectCanvas({
-          projectId: project.id,
-          projectName: project.name,
-          canvasId: canvas.id,
-          canvasName: canvas.name
-        });
+    try {
+      // Don't run if projects haven't loaded yet or are loading
+      if (isLoading || (!projects.length && !error)) {
+        setCurrentProjectCanvas(null);
         return;
       }
-    }
-    
-    if (canvasMatch) {
-      const canvasId = canvasMatch[1];
-      // Find canvas across all projects without using findProjectCanvas callback
-      for (const project of projects) {
-        const canvas = project.canvases.find(c => c.id === canvasId);
-        if (canvas) {
-          setCurrentProjectCanvas({
+
+
+      // Primary route pattern: /project/{projectId}/canvas/{canvasId}
+      const projectCanvasMatch = location.pathname.match(/\/project\/([^/]+)\/canvas\/([^/]+)/);
+      
+      if (projectCanvasMatch) {
+        const [, projectId, canvasId] = projectCanvasMatch;
+        const project = projects.find(p => p.id === projectId);
+        const canvas = project?.canvases.find(c => c.id === canvasId);
+        
+        if (project && canvas) {
+          const selection = {
             projectId: project.id,
             projectName: project.name,
             canvasId: canvas.id,
             canvasName: canvas.name
-          });
+          };
+          setCurrentProjectCanvas(selection);
           return;
         }
       }
+      
+      // Fallback route pattern: /canvas/{canvasId} (legacy support)
+      const canvasMatch = location.pathname.match(/\/canvas\/([^/]+)/);
+      if (canvasMatch) {
+        const canvasId = canvasMatch[1];
+        
+        for (const project of projects) {
+          const canvas = project.canvases.find(c => c.id === canvasId);
+          if (canvas) {
+            const selection = {
+              projectId: project.id,
+              projectName: project.name,
+              canvasId: canvas.id,
+              canvasName: canvas.name
+            };
+            setCurrentProjectCanvas(selection);
+            return;
+          }
+        }
+      }
+      
+      // Clear selection if no valid route found
+      setCurrentProjectCanvas(null);
+    } catch (urlError) {
+      setCurrentProjectCanvas(null);
     }
-    
-    setCurrentProjectCanvas(null);
-  }, [location.pathname, projects]); // Remove findProjectCanvas dependency
+  }, [location.pathname, projectsKey, isLoading, error]);
 
   /**
    * Handle outside clicks to close dropdown
@@ -199,20 +227,52 @@ const ProjectCanvasSelector = ({ className = '' }) => {
   const filteredProjects = getFilteredData();
 
   /**
-   * Get display text for the selector button
+   * Get display text for the selector button with enhanced state handling
    */
   const getDisplayText = () => {
-    if (isLoading) return 'Loading...';
-    
-    if (currentProjectCanvas) {
-      return `${currentProjectCanvas.projectName} > ${currentProjectCanvas.canvasName}`;
+    // Loading state
+    if (isLoading) {
+      return 'Loading projects...';
     }
     
+    // Error state
+    if (error) {
+      return 'Failed to load projects';
+    }
+    
+    // Current selection display with enhanced formatting
+    if (currentProjectCanvas) {
+      return `${currentProjectCanvas.projectName} › ${currentProjectCanvas.canvasName}`;
+    }
+    
+    // Empty state
     if (stats.isEmpty) {
       return 'Create your first project';
     }
     
-    return 'Select Project > Canvas';
+    // Default state
+    return 'Select Project › Canvas';
+  };
+
+  /**
+   * Get button styling based on current state
+   */
+  const getButtonStyling = () => {
+    const baseClasses = "inline-flex items-center px-2 py-1.5 border shadow-sm text-xs font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
+    
+    if (isLoading) {
+      return `${baseClasses} border-gray-300 text-gray-500 bg-gray-50 cursor-wait`;
+    }
+    
+    if (error) {
+      return `${baseClasses} border-red-300 text-red-700 bg-red-50 hover:bg-red-100`;
+    }
+    
+    if (currentProjectCanvas) {
+      return `${baseClasses} border-blue-300 text-blue-900 bg-blue-50 hover:bg-blue-100 font-semibold`;
+    }
+    
+    return `${baseClasses} border-gray-300 text-gray-700 bg-white hover:bg-gray-50`;
   };
 
   return (
@@ -220,11 +280,18 @@ const ProjectCanvasSelector = ({ className = '' }) => {
       {/* Selector Button */}
       <button
         ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => {
+          if (error) {
+            refresh();
+          } else {
+            setIsOpen(!isOpen);
+          }
+        }}
         disabled={isLoading}
-        className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors min-w-[200px]"
+        className={`${getButtonStyling()} ${isLoading ? 'disabled:cursor-wait' : ''} ${error ? 'disabled:cursor-pointer' : 'disabled:cursor-not-allowed'}`}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
+        title={error ? 'Click to retry loading projects' : ''}
       >
         <span className="truncate">
           {getDisplayText()}
@@ -251,7 +318,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
       {isOpen && (
         <div 
           ref={dropdownRef}
-          className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 max-h-[500px] overflow-hidden min-w-[350px] max-w-[500px]"
+          className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 max-h-[400px] overflow-hidden w-64"
           onKeyDown={handleKeyDown}
         >
           {/* Search Header */}
@@ -289,15 +356,21 @@ const ProjectCanvasSelector = ({ className = '' }) => {
           {/* Content Area */}
           <div className="max-h-[400px] overflow-y-auto">
             {error && (
-              <div className="p-3 bg-red-50 border-b border-red-200">
-                <div className="text-sm text-red-600 flex items-center">
-                  <svg className="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="p-4 bg-red-50 border-b border-red-200">
+                <div className="text-sm text-red-700 flex items-start space-x-3">
+                  <svg className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  {error}
-                  <button onClick={refresh} className="ml-2 text-blue-600 hover:text-blue-800 underline">
-                    Retry
-                  </button>
+                  <div className="flex-1">
+                    <p className="font-medium mb-1">Failed to load projects</p>
+                    <p className="text-xs text-red-600 mb-2">Check console for details: {error}</p>
+                    <button 
+                      onClick={refresh} 
+                      className="text-xs font-medium text-white bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors"
+                    >
+                      Try Again
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -305,19 +378,21 @@ const ProjectCanvasSelector = ({ className = '' }) => {
             {isLoading ? (
               <div className="p-6 text-center">
                 <div className="inline-flex items-center text-gray-500">
-                  <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                  <svg className="animate-spin h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                   </svg>
-                  Loading projects...
+                  <span className="text-sm">Loading projects...</span>
                 </div>
+                <p className="text-xs text-gray-400 mt-2">Fetching your projects and canvases</p>
               </div>
-            ) : stats.isEmpty ? (
+            ) : !error && stats.isEmpty ? (
               <div className="p-6 text-center">
                 <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                 </svg>
-                <p className="text-gray-500 text-sm mb-3">No projects yet</p>
+                <p className="text-gray-500 text-sm mb-1">No projects found</p>
+                <p className="text-gray-400 text-xs mb-4">Create your first project to get started</p>
                 <button
                   onClick={() => {
                     setIsOpen(false);
@@ -331,11 +406,19 @@ const ProjectCanvasSelector = ({ className = '' }) => {
                   Create your first project
                 </button>
               </div>
-            ) : filteredProjects.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 text-sm">
-                No matches found for "{searchTerm}"
+            ) : !error && filteredProjects.length === 0 ? (
+              <div className="p-4 text-center">
+                <div className="text-gray-500 text-sm mb-2">
+                  No matches found for "{searchTerm}"
+                </div>
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="text-xs text-blue-600 hover:text-blue-800 underline"
+                >
+                  Clear search
+                </button>
               </div>
-            ) : (
+            ) : !error && (
               <>
                 {/* Project/Canvas List */}
                 {filteredProjects.map((project) => (
@@ -378,17 +461,30 @@ const ProjectCanvasSelector = ({ className = '' }) => {
                             <button
                               key={canvas.id}
                               onClick={() => handleCanvasSelect(project, canvas)}
-                              className={`w-full text-left px-6 py-3 text-sm hover:bg-blue-50 transition-colors flex items-center justify-between group ${
+                              className={`w-full text-left px-6 py-3 text-sm transition-colors flex items-center justify-between group ${
                                 isCurrentCanvas 
-                                  ? 'bg-blue-100 font-medium text-blue-900' 
-                                  : 'text-gray-700'
+                                  ? 'bg-blue-100 font-semibold text-blue-900 border-l-4 border-blue-500' 
+                                  : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                               }`}
                             >
-                              <span className="truncate">
-                                {project.name} <span className="text-gray-400">›</span> {canvas.name}
+                              <span className="truncate flex items-center">
+                                {isCurrentCanvas && (
+                                  <svg className="h-3 w-3 text-blue-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                  </svg>
+                                )}
+                                <span className={isCurrentCanvas ? 'font-semibold' : ''}>
+                                  {project.name}
+                                </span>
+                                <span className="text-gray-400 mx-2">›</span>
+                                <span className={isCurrentCanvas ? 'font-semibold' : ''}>
+                                  {canvas.name}
+                                </span>
                               </span>
                               {isCurrentCanvas && (
-                                <span className="text-xs text-blue-600 font-medium">Current</span>
+                                <span className="text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded">
+                                  Current
+                                </span>
                               )}
                             </button>
                           );

@@ -12,10 +12,9 @@ import Canvas from './components/canvas/Canvas.jsx';
 // This should match the BYPASS_AUTH flag in AuthProvider.jsx
 const BYPASS_AUTH = false;
 
-// Canvas page component with Toolbar and Canvas
-const CanvasPage = () => {
+// Layout wrapper for all logged-in pages with persistent header and toolbar
+const LoggedInLayout = ({ children }) => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
-  const { canvasId } = useParams();
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
@@ -23,24 +22,32 @@ const CanvasPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
+      {/* Persistent Header for all logged-in pages */}
       <Header />
-      {/* Only show toolbar when there's a specific canvas selected */}
-      {canvasId && (
-        <Toolbar 
-          selectedTool={selectedTool}
-          onToolChange={handleToolChange}
-        />
-      )}
+      
+      {/* Persistent Toolbar for all logged-in pages */}
+      <Toolbar 
+        selectedTool={selectedTool}
+        onToolChange={handleToolChange}
+      />
+      
+      {/* Main content area */}
       <div className="flex flex-1">
-        {/* Main canvas area - now takes full width */}
         <div className="flex-1">
-          <Canvas 
-            selectedTool={selectedTool}
-            onToolChange={handleToolChange}
-          />
+          {children({ selectedTool, onToolChange: handleToolChange })}
         </div>
       </div>
     </div>
+  );
+};
+
+// Canvas page component - now just renders Canvas
+const CanvasPage = ({ selectedTool, onToolChange }) => {
+  return (
+    <Canvas 
+      selectedTool={selectedTool}
+      onToolChange={onToolChange}
+    />
   );
 };
 
@@ -54,7 +61,19 @@ function App() {
             {BYPASS_AUTH ? (
               <>
                 <Route path="/" element={<Navigate to="/canvas" replace />} />
-                <Route path="/canvas" element={<CanvasPage />} />
+                <Route 
+                  path="/canvas" 
+                  element={
+                    <LoggedInLayout>
+                      {({ selectedTool, onToolChange }) => (
+                        <CanvasPage 
+                          selectedTool={selectedTool} 
+                          onToolChange={onToolChange} 
+                        />
+                      )}
+                    </LoggedInLayout>
+                  } 
+                />
                 <Route path="*" element={<Navigate to="/canvas" replace />} />
               </>
             ) : (
@@ -71,7 +90,14 @@ function App() {
                   path="/canvas" 
                   element={
                     <ProtectedRoute>
-                      <CanvasPage />
+                      <LoggedInLayout>
+                        {({ selectedTool, onToolChange }) => (
+                          <CanvasPage 
+                            selectedTool={selectedTool} 
+                            onToolChange={onToolChange} 
+                          />
+                        )}
+                      </LoggedInLayout>
                     </ProtectedRoute>
                   } 
                 />
@@ -81,7 +107,14 @@ function App() {
                   path="/canvas/:canvasId" 
                   element={
                     <ProtectedRoute>
-                      <CanvasPage />
+                      <LoggedInLayout>
+                        {({ selectedTool, onToolChange }) => (
+                          <CanvasPage 
+                            selectedTool={selectedTool} 
+                            onToolChange={onToolChange} 
+                          />
+                        )}
+                      </LoggedInLayout>
                     </ProtectedRoute>
                   } 
                 />
@@ -89,7 +122,14 @@ function App() {
                   path="/project/:projectId/canvas/:canvasId" 
                   element={
                     <ProtectedRoute>
-                      <CanvasPage />
+                      <LoggedInLayout>
+                        {({ selectedTool, onToolChange }) => (
+                          <CanvasPage 
+                            selectedTool={selectedTool} 
+                            onToolChange={onToolChange} 
+                          />
+                        )}
+                      </LoggedInLayout>
                     </ProtectedRoute>
                   } 
                 />

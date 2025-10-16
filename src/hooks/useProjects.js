@@ -243,7 +243,7 @@ export const useProjects = (userId) => {
    */
   const refresh = useCallback(() => {
     return fetchProjects(false);
-  }, [fetchProjects]); // Add fetchProjects dependency back
+  }, []); // Remove fetchProjects dependency to prevent infinite loop
 
   // Initial fetch and setup auto-refresh
   useEffect(() => {
@@ -261,7 +261,7 @@ export const useProjects = (userId) => {
         clearInterval(refreshInterval.current);
       }
     };
-  }, [userId, fetchProjects]); // Add fetchProjects dependency for correct behavior
+  }, [userId]); // Remove fetchProjects dependency to prevent infinite loop
 
   // Computed values
   const stats = {

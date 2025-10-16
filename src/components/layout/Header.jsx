@@ -64,7 +64,9 @@ const Header = () => {
           </div>
 
           {/* Project/Canvas Selector */}
-          <ProjectCanvasSelector className="hidden sm:block" />
+          <div className="hidden sm:block">
+            <ProjectCanvasSelector />
+          </div>
 
           {/* Right Side: User Squares + Current User + Actions */}
           <div className="flex items-center">

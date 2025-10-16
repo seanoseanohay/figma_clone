@@ -276,10 +276,10 @@ export const subscribeToObjects = (canvasId, callback) => {
       return () => {} // Return empty unsubscribe function
     }
 
+    // TODO: Add orderBy('createdAt', 'asc') after creating Firestore composite index for canvasObjects (canvasId ASC, createdAt ASC)
     const objectsQuery = query(
       collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
-      where('canvasId', '==', canvasId),
-      orderBy('createdAt', 'asc')
+      where('canvasId', '==', canvasId)
     )
 
     const unsubscribe = onSnapshot(objectsQuery, (snapshot) => {
@@ -443,10 +443,10 @@ export const getCanvasesForProject = async (projectId, userId) => {
       return { success: false, error: 'User does not have access to this project' };
     }
 
+    // TODO: Add orderBy('updatedAt', 'desc') after creating Firestore composite index for canvases (projectId ASC, updatedAt DESC)
     const canvasesQuery = query(
       collection(db, 'canvases'),
-      where('projectId', '==', projectId),
-      orderBy('updatedAt', 'desc')
+      where('projectId', '==', projectId)
     );
 
     const snapshot = await getDocs(canvasesQuery);
@@ -612,10 +612,10 @@ export const subscribeToCanvasObjects = (canvasId, callback) => {
       return () => {};
     }
 
+    // TODO: Add orderBy('createdAt', 'asc') after creating Firestore composite index for canvasObjects (canvasId ASC, createdAt ASC)
     const objectsQuery = query(
       collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
-      where('canvasId', '==', canvasId),
-      orderBy('createdAt', 'asc')
+      where('canvasId', '==', canvasId)
     );
 
     const unsubscribe = onSnapshot(objectsQuery, (snapshot) => {
