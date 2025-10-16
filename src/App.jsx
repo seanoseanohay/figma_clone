@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from './components/auth/AuthProvider.jsx';
 import { CanvasProvider } from './contexts/CanvasContext.jsx';
 import LoginForm from './components/auth/LoginForm.jsx';
@@ -56,12 +58,30 @@ const CanvasPage = ({ selectedTool, onToolChange }) => {
   );
 };
 
+// Redirect component for legacy project routes
+const RedirectToCanvas = () => {
+  const { canvasId } = useParams();
+  return <Navigate to={`/canvas/${canvasId}`} replace />;
+};
+
 function App() {
   return (
     <AuthProvider>
       <Router>
         <CanvasProvider>
           <div className="App">
+            <ToastContainer
+              position="top-right"
+              autoClose={3000}
+              hideProgressBar={false}
+              newestOnTop
+              closeOnClick
+              rtl={false}
+              pauseOnFocusLoss
+              draggable
+              pauseOnHover
+              theme="light"
+            />
             <Routes>
             {/* TEMPORARY: When bypass is enabled, redirect to canvas directly */}
             {BYPASS_AUTH ? (
@@ -108,7 +128,7 @@ function App() {
                   } 
                 />
                 
-                {/* Protected canvas routes - support both old and new URL formats */}
+                {/* Protected canvas routes */}
                 <Route 
                   path="/canvas/:canvasId" 
                   element={
@@ -124,20 +144,11 @@ function App() {
                     </ProtectedRoute>
                   } 
                 />
+                
+                {/* Legacy route - redirect to new format */}
                 <Route 
                   path="/project/:projectId/canvas/:canvasId" 
-                  element={
-                    <ProtectedRoute>
-                      <LoggedInLayout>
-                        {({ selectedTool, onToolChange }) => (
-                          <CanvasPage 
-                            selectedTool={selectedTool} 
-                            onToolChange={onToolChange} 
-                          />
-                        )}
-                      </LoggedInLayout>
-                    </ProtectedRoute>
-                  } 
+                  element={<RedirectToCanvas />} 
                 />
                 
                 {/* Catch all - redirect to canvas dashboard */}

@@ -5,9 +5,11 @@ import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
 import ProjectDashboard from '../dashboard/ProjectDashboard.jsx';
+import { EmptyState } from './EmptyState.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
+import { useCanvas } from '../../hooks/useCanvas.js';
 import { 
   createObject, 
   updateObjectPosition, 
@@ -25,8 +27,13 @@ import {
 } from '../../constants/canvas.constants.js';
 
 const Canvas = ({ selectedTool, onToolChange }) => {
-  // Extract canvas ID from URL parameters (supports both /canvas/:canvasId and /project/:projectId/canvas/:canvasId)
-  const { canvasId } = useParams();
+  // Get canvas ID from context
+  const { canvasId } = useCanvas();
+  
+  // Show empty state if no canvas selected
+  if (!canvasId) {
+    return <EmptyState />;
+  }
   
   const stageRef = useRef(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });

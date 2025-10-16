@@ -8,7 +8,7 @@ import {
   onAuthStateChanged,
   updateProfile
 } from 'firebase/auth';
-import { doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, getDoc, serverTimestamp, collection, query, where, getDocs, deleteDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { auth, googleProvider, db } from './firebase.js';
 import { FIREBASE_COLLECTIONS } from '../constants/canvas.constants.js';
 
@@ -192,9 +192,19 @@ const createUserDocument = async (user, additionalData = {}) => {
       
       await setDoc(userDocRef, userData);
       console.log('User document created successfully');
+      
+      // Process any pending invites for this user
+      if (user.email) {
+        await processPendingInvites(user.email, user.uid);
+      }
     } else {
       // Update existing user's lastSeen
       await updateUserLastSeen(user.uid);
+      
+      // Process pending invites on every login
+      if (user.email) {
+        await processPendingInvites(user.email, user.uid);
+      }
     }
   } catch (error) {
     console.error('Error creating/updating user document:', error);
@@ -211,6 +221,63 @@ const updateUserLastSeen = async (userId) => {
     }, { merge: true });
   } catch (error) {
     console.error('Error updating lastSeen:', error);
+  }
+};
+
+// Process pending invites for a user
+export const processPendingInvites = async (userEmail, userId) => {
+  try {
+    if (!userEmail || !userId) {
+      console.error('Email and user ID required to process pending invites');
+      return;
+    }
+
+    // Query for pending invites matching the user's email
+    const invitesQuery = query(
+      collection(db, 'pendingInvites'),
+      where('inviteeEmail', '==', userEmail.toLowerCase())
+    );
+
+    const invitesSnapshot = await getDocs(invitesQuery);
+
+    if (invitesSnapshot.empty) {
+      console.log('No pending invites found for:', userEmail);
+      return;
+    }
+
+    console.log('Processing', invitesSnapshot.size, 'pending invites for:', userEmail);
+
+    // Process each invite
+    const processPromises = [];
+
+    invitesSnapshot.forEach((inviteDoc) => {
+      const invite = inviteDoc.data();
+      
+      // Add user to canvas collaborators
+      const canvasRef = doc(db, 'canvases', invite.canvasId);
+      const canvasPromise = updateDoc(canvasRef, {
+        collaborators: arrayUnion(userId),
+        updatedAt: serverTimestamp()
+      });
+      processPromises.push(canvasPromise);
+
+      // Add user to project collaborators (projectId = canvasId)
+      const projectRef = doc(db, 'projects', invite.canvasId);
+      const projectPromise = updateDoc(projectRef, {
+        collaborators: arrayUnion(userId),
+        updatedAt: serverTimestamp()
+      });
+      processPromises.push(projectPromise);
+
+      // Delete the processed invite
+      processPromises.push(deleteDoc(inviteDoc.ref));
+    });
+
+    await Promise.all(processPromises);
+
+    console.log('Successfully processed pending invites for:', userEmail);
+  } catch (error) {
+    console.error('Error processing pending invites:', error);
   }
 };
 

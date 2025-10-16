@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { signOut } from '../../services/auth.service.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { usePresence } from '../../hooks/usePresence.js';
-import ProjectCanvasSelector from '../project/ProjectCanvasSelector.jsx';
+import { CanvasSelector } from '../canvas/CanvasSelector.jsx';
 import MobileMenu from './MobileMenu.jsx';
-import InviteCanvasModal from '../canvas/InviteCanvasModal.jsx';
+import { InviteModal } from '../canvas/InviteModal.jsx';
 
 const Header = () => {
   const { currentUser, setAuthError } = useAuth();
@@ -74,9 +74,9 @@ const Header = () => {
               </span>
             </div>
 
-            {/* Project/Canvas Selector - Reduced width to half - 16px left margin */}
-            <div style={{ marginLeft: '16px', maxWidth: '180px' }}>
-              <ProjectCanvasSelector />
+            {/* Canvas Selector - 16px left margin */}
+            <div style={{ marginLeft: '16px' }}>
+              <CanvasSelector />
             </div>
           </div>
 
@@ -162,8 +162,8 @@ const Header = () => {
         getUserColor={getUserColor}
       />
 
-      {/* Invite Canvas Modal */}
-      <InviteCanvasModal
+      {/* Invite Modal */}
+      <InviteModal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
       />

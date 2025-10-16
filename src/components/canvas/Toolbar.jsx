@@ -1,3 +1,5 @@
+import { InviteButton } from './InviteButton';
+
 // Tool constants - 4 distinct tools for clean separation
 export const TOOLS = {
   PAN: 'pan',
@@ -41,9 +43,10 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.MOVE }) => {
 
   return (
     <div className="w-full flex justify-center" style={{ width: '100%' }}>
-      <div className="bg-white shadow-lg rounded-lg" style={{ maxWidth: '600px', width: 'auto' }}>
-        {/* Tool Icons */}
+      <div className="bg-white shadow-lg rounded-lg" style={{ maxWidth: '800px', width: 'auto' }}>
+        {/* Tool Icons and Invite Button */}
         <div className="flex items-center justify-center space-x-1 px-6 py-3">
+          {/* Tool Buttons */}
           {Object.entries(TOOL_CONFIG).map(([toolKey, config]) => {
             const isSelected = selectedTool === toolKey;
             
@@ -69,6 +72,12 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.MOVE }) => {
               </button>
             );
           })}
+          
+          {/* Vertical Divider */}
+          <div className="h-8 w-px bg-gray-300 mx-4"></div>
+          
+          {/* Invite Button */}
+          <InviteButton />
         </div>
         
         {/* Tool hint - centered within toolbar */}

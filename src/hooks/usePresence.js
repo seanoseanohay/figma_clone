@@ -6,10 +6,10 @@ import { useCanvas } from './useCanvas.js'
  * Hook for subscribing to canvas-scoped presence data
  * Returns array of connected users on the CURRENT canvas with their cursor positions
  * 
- * CANVAS-SCOPED: Only shows users who are on the same project+canvas
+ * CANVAS-SCOPED: Only shows users who are on the same canvas
  */
 export const usePresence = () => {
-  const { projectId, canvasId } = useCanvas()
+  const { canvasId } = useCanvas()
   const [users, setUsers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -17,7 +17,7 @@ export const usePresence = () => {
   // Subscribe to canvas-scoped presence updates
   useEffect(() => {
     // Don't subscribe if we don't have a canvas yet
-    if (!projectId || !canvasId) {
+    if (!canvasId) {
       console.log('Presence hook waiting for canvas context...')
       setUsers([])
       setIsLoading(true)
@@ -27,7 +27,7 @@ export const usePresence = () => {
     let unsubscribe
 
     try {
-      unsubscribe = subscribeToCanvasPresence(projectId, canvasId, (presenceData) => {
+      unsubscribe = subscribeToCanvasPresence(canvasId, (presenceData) => {
         // Sort users by connection time (most recent first)
         const sortedUsers = presenceData.sort((a, b) => 
           (b.connectedAt || 0) - (a.connectedAt || 0)
@@ -38,7 +38,7 @@ export const usePresence = () => {
         setError(null)
       })
 
-      console.log(`Subscribed to canvas presence: ${projectId}/${canvasId}`)
+      console.log(`Subscribed to canvas presence: ${canvasId}`)
     } catch (err) {
       console.error('Failed to subscribe to canvas presence:', err)
       setError(err.message)
@@ -49,10 +49,10 @@ export const usePresence = () => {
     return () => {
       if (unsubscribe) {
         unsubscribe()
-        console.log(`Unsubscribed from canvas presence: ${projectId}/${canvasId}`)
+        console.log(`Unsubscribed from canvas presence: ${canvasId}`)
       }
     }
-  }, [projectId, canvasId]) // Re-subscribe when canvas changes
+  }, [canvasId]) // Re-subscribe when canvas changes
 
   // Calculate online users count
   const onlineCount = users.length > 0 ? getOnlineUserCount(users) : 0

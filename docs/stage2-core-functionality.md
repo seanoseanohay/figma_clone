@@ -13,71 +13,84 @@ Primary features that extend the platform with project management, sharing, conn
 
 ---
 
-## Task C1: Build Project/Canvas Management System ✅ COMPLETE
+## Task C1: Build Canvas Management System ✅ COMPLETE
 
-**Objective**: Implement full project and canvas management with dropdown functionality
+**Objective**: Implement canvas-only management with simplified dropdown functionality
 
 **Files Created**:
+- `src/components/canvas/CanvasSelector.jsx`
+- `src/hooks/useCanvases.js`
+
+**Files Deleted**:
 - `src/components/project/ProjectCanvasSelector.jsx`
 - `src/hooks/useProjects.js`
 
 **Files Modified**:
 - `src/components/layout/Header.jsx`
+- `src/contexts/CanvasContext.jsx`
 
 **Features Implemented**:
-1. Project/canvas selector dropdown with nested format
-2. useProjects hook to fetch accessible projects
-3. "Create new project" and "Create new canvas" options
-4. Project/canvas selection and navigation
+1. Canvas selector dropdown showing current canvas name
+2. useCanvases hook to fetch accessible canvases (owned + collaborated)
+3. "Create canvas" functionality within dropdown
+4. Canvas selection and navigation
 5. Loading states during operations
-6. Alphabetical sorting for lists
+6. Alphabetical sorting for canvas list
 7. Error handling for failures
-8. Modal dialogs for naming
+8. Projects remain in backend (invisible) with projectId = canvasId
 
 **Status**: ✅ Complete
 
 ---
 
-## Task C2: Implement Canvas Sharing (Simplified)
+## Task C2: Implement Canvas Invitation System ✅ COMPLETE
 
-**Objective**: Build simplified canvas sharing system where all collaborators have equal edit permissions
+**Objective**: Build canvas invitation system with pending invite support for non-registered users
 
 **Dependencies**: 
 - Requires Task F4 ✅ Complete
 - Requires Task C1 ✅ Complete
 
-**Files to Modify**:
-- Update `src/services/project.service.js`
-- Update `src/services/canvas.service.js`
-- Create `src/components/sharing/ShareCanvasModal.jsx`
+**Files Created**:
+- `src/components/canvas/InviteButton.jsx`
+- `src/components/canvas/InviteModal.jsx`
+- `src/components/canvas/EmptyState.jsx`
 
-**Specific Changes**:
-1. Create share modal with simple email input (no role selection needed)
-2. Implement shareCanvas function in project.service.js
-3. Add recipient as collaborator to project with full edit permissions
-4. Generate shareable links with format `/project/{projectId}/canvas/{canvasId}`
-5. Add share button to header (already specified in F2)
-6. Handle edge cases: sharing with self, re-sharing, invalid emails
-7. Implement proper success/error feedback for sharing operations
-8. Send email notification to recipient (optional enhancement)
+**Files Modified**:
+- `src/services/canvas.service.js` (added addCollaboratorToCanvas)
+- `src/services/auth.service.js` (added processPendingInvites)
+- `src/components/canvas/Toolbar.jsx` (added InviteButton)
+- Firestore rules for pendingInvites collection
+
+**Features Implemented**:
+1. InviteButton component in toolbar with UserPlus icon
+2. InviteModal with email validation and canvas name display
+3. addCollaboratorToCanvas function with user lookup
+4. Pending invite system for non-registered users
+5. processPendingInvites function called on login
+6. Toast notifications for success/error feedback
+7. Edge case handling (empty email, invalid format, self-invite)
+8. Collaborators array on canvas documents
+9. EmptyState component for when no canvas selected
 
 **Acceptance Criteria**:
-- [ ] Share modal has simple, clean interface with email input only
-- [ ] All shared collaborators get full edit permissions (no role selection)
-- [ ] Recipients can access shared canvas immediately after being added
-- [ ] Shareable links work correctly and navigate to proper canvas
-- [ ] Share modal provides clear user feedback
-- [ ] Edge cases handled gracefully (duplicate shares, invalid emails)
-- [ ] Users can only share canvases they have access to
+- [x] Invite modal has clean interface with email input
+- [x] All collaborators get full edit permissions
+- [x] Registered users added immediately to collaborators array
+- [x] Non-registered users receive pending invites
+- [x] Pending invites processed automatically on user login
+- [x] Toast notifications provide clear feedback
+- [x] Edge cases handled gracefully
+- [x] Users can only invite to canvases they own or collaborate on
 
 **Testing Steps**:
-1. Share a canvas via email and verify recipient gets access
-2. Test shareable link functionality
-3. Verify recipient can edit canvas (has full permissions)
-4. Test edge cases (sharing with self, duplicate shares, invalid emails)
-5. Verify only users with canvas access can share it
+1. Invite registered user and verify immediate access
+2. Invite non-registered user and verify pending invite created
+3. New user registers and verify pending invite processed
+4. Test edge cases (self-invite, invalid emails, duplicate invites)
+5. Verify only users with canvas access can send invites
 
-**Status**: ⏸️ NEXT PRIORITY
+**Status**: ✅ Complete
 
 ---
 
@@ -220,8 +233,8 @@ Primary features that extend the platform with project management, sharing, conn
 - `database.rules.json`
 
 **Features Implemented**:
-1. CanvasContext for current project+canvas tracking
-2. Updated presence data structure to `/projects/{projectId}/canvases/{canvasId}/presence/{userId}`
+1. CanvasContext for current canvas tracking (projectId removed from UI)
+2. Updated presence data structure to `/canvases/{canvasId}/presence/{userId}`
 3. Canvas-scoped presence service functions
 4. Updated cursor tracking to use canvas context
 5. Updated presence subscription to be canvas-scoped
@@ -229,6 +242,7 @@ Primary features that extend the platform with project management, sharing, conn
 7. Firebase Realtime Database security rules
 8. Removed MVP global canvas code
 9. Canvas navigation handling with localStorage persistence
+10. Simplified architecture with projects invisible in backend
 
 **Status**: ✅ COMPLETE - See CANVAS_SCOPED_PRESENCE_DEPLOYMENT.md
 
@@ -446,10 +460,11 @@ GET    /api/canvases/{id}/snapshot
 
 ## Next Steps
 
-1. **Immediate Priority**: Complete Task C2 (Canvas Sharing)
-2. **Then**: Complete remaining C3 work (edit prevention, retry queue)
-3. **Consider**: Tasks C4-C5 for better code organization
-4. **Future**: REST API infrastructure (C7-C9) for AI agent access
+1. **Immediate Priority**: Complete remaining C3 work (edit prevention, retry queue)
+2. **Consider**: Tasks C4-C5 for better code organization
+3. **Future**: REST API infrastructure (C7-C9) for AI agent access
+
+**Note**: C1, C2, and C6 are complete with new canvas-only architecture.
 
 After completing Stage 2, proceed to **Stage 3: Enhanced Tools & Advanced Features**.
 

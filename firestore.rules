@@ -2,7 +2,20 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // Helper function to check if user has access to a project
+    // Helper function to check if user has access to a canvas
+    function hasCanvasAccess(canvasId) {
+      let canvasDoc = get(/databases/$(database)/documents/canvases/$(canvasId));
+      return request.auth.uid == canvasDoc.data.ownerId || 
+             request.auth.uid in canvasDoc.data.collaborators;
+    }
+    
+    // Helper function to check if user is canvas owner
+    function isCanvasOwner(canvasId) {
+      let canvasDoc = get(/databases/$(database)/documents/canvases/$(canvasId));
+      return request.auth.uid == canvasDoc.data.ownerId;
+    }
+    
+    // Helper function to check if user has access to a project (for backward compatibility)
     function hasProjectAccess(projectId) {
       let projectDoc = get(/databases/$(database)/documents/projects/$(projectId));
       return request.auth.uid == projectDoc.data.ownerId || 
@@ -42,11 +55,27 @@ service cloud.firestore {
       allow delete: if request.auth != null && ownsProject(projectId);
     }
     
-    // Canvases - TEMPORARY simplified rules to fix permission issues
-    // TODO: Restore complex project-based rules after debugging
+    // Canvases - canvas-based access control
     match /canvases/{canvasId} {
-      // TEMPORARY: Allow authenticated users full access
-      allow read, write, create, update, delete, list: if request.auth != null;
+      // Allow create - user becomes owner and must initialize collaborators array
+      allow create: if request.auth != null 
+        && request.resource.data.ownerId == request.auth.uid
+        && request.resource.data.collaborators is list;
+        
+      // Allow read if user has access (owner or collaborator)
+      allow read: if request.auth != null && hasCanvasAccess(canvasId);
+      
+      // Allow list/query for canvases owned by or shared with the user
+      allow list: if request.auth != null && (
+        resource.data.ownerId == request.auth.uid ||
+        request.auth.uid in resource.data.collaborators
+      );
+        
+      // Allow update if user has access (owner or collaborator)
+      allow update: if request.auth != null && hasCanvasAccess(canvasId);
+        
+      // Allow delete only by canvas owner
+      allow delete: if request.auth != null && isCanvasOwner(canvasId);
     }
     
     // Global canvas document - authenticated users can read and write (legacy support)
@@ -54,11 +83,44 @@ service cloud.firestore {
       allow read, write: if request.auth != null;
     }
     
-    // Canvas objects - TEMPORARY simplified rules to fix permission issues
-    // TODO: Restore complex project-based rules after debugging
+    // Canvas objects - require canvas access
     match /canvasObjects/{objectId} {
-      // TEMPORARY: Allow authenticated users full access
-      allow read, write, create, update, delete, list: if request.auth != null;
+      // Allow create if user has access to the canvas
+      allow create: if request.auth != null 
+        && hasCanvasAccess(request.resource.data.canvasId);
+        
+      // Allow read if user has access to the canvas
+      allow read: if request.auth != null 
+        && hasCanvasAccess(resource.data.canvasId);
+      
+      // Allow list/query if authenticated (will be filtered by canvasId in queries)
+      allow list: if request.auth != null;
+        
+      // Allow update if user has access to the canvas
+      allow update: if request.auth != null 
+        && hasCanvasAccess(resource.data.canvasId);
+        
+      // Allow delete if user has access to the canvas
+      allow delete: if request.auth != null 
+        && hasCanvasAccess(resource.data.canvasId);
+    }
+    
+    // Pending invites collection
+    match /pendingInvites/{inviteId} {
+      // Allow read if authenticated
+      allow read: if request.auth != null;
+      
+      // Allow list if authenticated
+      allow list: if request.auth != null;
+      
+      // Allow create if authenticated
+      allow create: if request.auth != null;
+      
+      // Allow delete if user is inviter or invitee
+      allow delete: if request.auth != null && (
+        resource.data.invitedBy == request.auth.uid ||
+        resource.data.inviteeEmail == request.auth.token.email
+      );
     }
     
     // Deny all other access
