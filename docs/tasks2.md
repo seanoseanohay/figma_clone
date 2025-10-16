@@ -32,12 +32,12 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 7. Ensure error handling for Google OAuth still works correctly
 
 **Acceptance Criteria**:
-- [ ] Login page shows only Google sign-in button
-- [ ] Email/password form is completely removed
-- [ ] Google OAuth flow works correctly
-- [ ] Error handling displays for Google sign-in failures
-- [ ] Button is visually centered and prominent
-- [ ] Page layout looks clean without form elements
+- [x] Login page shows only Google sign-in button
+- [x] Email/password form is completely removed
+- [x] Google OAuth flow works correctly
+- [x] Error handling displays for Google sign-in failures
+- [x] Button is visually centered and prominent
+- [x] Page layout looks clean without form elements
 
 **Testing Steps**:
 1. Navigate to `/login` route
@@ -83,41 +83,6 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 
 ---
 
-### Task F3: Implement Responsive Navigation with Hamburger Menu
-
-**Objective**: Add mobile-responsive navigation with hamburger menu for screens <768px
-
-**Files to Modify**:
-- `src/components/layout/Header.jsx`
-- Create `src/components/layout/MobileMenu.jsx`
-
-**Specific Changes**:
-1. Add hamburger menu icon (☰) that appears only on screens <768px
-2. Create slide-out mobile menu component with vertical layout
-3. Include in mobile menu: Project/Canvas selector, User list (vertical), Share canvas, Sign out
-4. Add CSS transitions for smooth menu open/close animation
-5. Implement click-outside-to-close and escape-key-to-close functionality
-6. Ensure mobile menu overlays content properly with correct z-index
-7. Add proper touch handling for mobile interactions
-
-**Acceptance Criteria**:
-- [ ] Hamburger menu icon appears only on screens <768px
-- [ ] Mobile menu slides out smoothly with animation
-- [ ] All header functionality available in mobile menu
-- [ ] Menu closes when clicking outside or pressing escape
-- [ ] Touch interactions work properly on mobile devices
-- [ ] Menu has proper z-index and doesn't break layout
-
-**Testing Steps**:
-1. Resize browser to <768px width
-2. Verify hamburger menu icon appears
-3. Click icon and verify menu slides out
-4. Test all menu items function correctly
-5. Test close behavior (outside click, escape key)
-6. Test on actual mobile device if possible
-
----
-
 ### Task F4: Set Up Project/Canvas Data Models
 
 **Objective**: Create Firebase data structure for projects and canvases with proper relationships
@@ -138,12 +103,12 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 6. Create helper functions for permission checking (canUserAccessProject, isProjectCollaborator)
 
 **Acceptance Criteria**:
-- [ ] Firestore collections created with correct schema
-- [ ] Project service functions work correctly
-- [ ] Canvas service updated with project relationships
-- [ ] Firebase security rules prevent unauthorized access  
-- [ ] Data validation works for all operations
-- [ ] Permission helper functions return correct results
+- [x] Firestore collections created with correct schema
+- [x] Project service functions work correctly
+- [x] Canvas service updated with project relationships
+- [x] Firebase security rules prevent unauthorized access  
+- [x] Data validation works for all operations
+- [x] Permission helper functions return correct results
 
 **Testing Steps**:
 1. Create a new project and verify Firestore document structure
@@ -991,7 +956,42 @@ After completion, verify all original PRD requirements:
 
 ## 🚀 FUTURE ENHANCEMENTS TASKS (Post-MVP)
 
-### Task FE1: Add Recently Used Sorting
+### Task FE1: Implement Responsive Navigation with Hamburger Menu
+
+**Objective**: Add mobile-responsive navigation with hamburger menu for screens <768px
+
+**Files to Modify**:
+- `src/components/layout/Header.jsx`
+- Create `src/components/layout/MobileMenu.jsx`
+
+**Specific Changes**:
+1. Add hamburger menu icon (☰) that appears only on screens <768px
+2. Create slide-out mobile menu component with vertical layout
+3. Include in mobile menu: Project/Canvas selector, User list (vertical), Share canvas, Sign out
+4. Add CSS transitions for smooth menu open/close animation
+5. Implement click-outside-to-close and escape-key-to-close functionality
+6. Ensure mobile menu overlays content properly with correct z-index
+7. Add proper touch handling for mobile interactions
+
+**Acceptance Criteria**:
+- [ ] Hamburger menu icon appears only on screens <768px
+- [ ] Mobile menu slides out smoothly with animation
+- [ ] All header functionality available in mobile menu
+- [ ] Menu closes when clicking outside or pressing escape
+- [ ] Touch interactions work properly on mobile devices
+- [ ] Menu has proper z-index and doesn't break layout
+
+**Testing Steps**:
+1. Resize browser to <768px width
+2. Verify hamburger menu icon appears
+3. Click icon and verify menu slides out
+4. Test all menu items function correctly
+5. Test close behavior (outside click, escape key)
+6. Test on actual mobile device if possible
+
+---
+
+### Task FE2: Add Recently Used Sorting
 
 **Objective**: Implement recently used sorting for project/canvas dropdown with user activity tracking
 

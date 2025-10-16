@@ -72,7 +72,7 @@ const LoginForm = () => {
         
         {/* TEMPORARY: Simple Email/Password Form */}
         <div className="bg-yellow-50 p-4 border border-yellow-200 rounded">
-          <h3 className="text-sm font-medium text-yellow-800 mb-2">Temporary Login (Testing)</h3>
+                <h3 className="text-sm font-medium text-yellow-800 mb-2 text-center">Login</h3>
           <form onSubmit={handleEmailSubmit} className="space-y-2">
             <input
               type="email"
