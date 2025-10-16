@@ -1,6 +1,10 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { onAuthChange } from '../../services/auth.service.js';
 
+// TEMPORARY: Set to true to bypass authentication and auto-login as "bob"
+// Set back to false to re-enable normal authentication
+const BYPASS_AUTH = true;
+
 // Create auth context
 const AuthContext = createContext({});
 
@@ -20,6 +24,20 @@ export const AuthProvider = ({ children }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    // TEMPORARY: Auto-login as "bob" when bypass is enabled
+    if (BYPASS_AUTH) {
+      setCurrentUser({
+        uid: 'temp-bob-uid',
+        email: 'bob@example.com',
+        displayName: 'Bob',
+        photoURL: null,
+        emailVerified: true
+      });
+      setLoading(false);
+      return () => {}; // No cleanup needed for mock user
+    }
+
+    // Normal auth flow when bypass is disabled
     // Set up auth state listener
     const unsubscribe = onAuthChange((user) => {
       if (user) {

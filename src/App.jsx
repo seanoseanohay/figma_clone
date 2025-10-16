@@ -8,6 +8,10 @@ import Header from './components/layout/Header.jsx';
 import Toolbar, { TOOLS } from './components/canvas/Toolbar.jsx';
 import Canvas from './components/canvas/Canvas.jsx';
 
+// TEMPORARY: Set to true to bypass authentication and go directly to canvas
+// This should match the BYPASS_AUTH flag in AuthProvider.jsx
+const BYPASS_AUTH = true;
+
 // Canvas page component with Toolbar and Canvas
 const CanvasPage = () => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
@@ -42,25 +46,36 @@ function App() {
       <Router>
         <div className="App">
           <Routes>
-            {/* Redirect root to login */}
-            <Route path="/" element={<Navigate to="/login" replace />} />
-            
-            {/* Auth routes */}
-            <Route path="/login" element={<LoginForm />} />
-            <Route path="/register" element={<RegisterForm />} />
-            
-            {/* Protected canvas route */}
-            <Route 
-              path="/canvas" 
-              element={
-                <ProtectedRoute>
-                  <CanvasPage />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Catch all - redirect to login */}
-            <Route path="*" element={<Navigate to="/login" replace />} />
+            {/* TEMPORARY: When bypass is enabled, redirect to canvas directly */}
+            {BYPASS_AUTH ? (
+              <>
+                <Route path="/" element={<Navigate to="/canvas" replace />} />
+                <Route path="/canvas" element={<CanvasPage />} />
+                <Route path="*" element={<Navigate to="/canvas" replace />} />
+              </>
+            ) : (
+              <>
+                {/* Normal auth flow when bypass is disabled */}
+                <Route path="/" element={<Navigate to="/login" replace />} />
+                
+                {/* Auth routes */}
+                <Route path="/login" element={<LoginForm />} />
+                <Route path="/register" element={<RegisterForm />} />
+                
+                {/* Protected canvas route */}
+                <Route 
+                  path="/canvas" 
+                  element={
+                    <ProtectedRoute>
+                      <CanvasPage />
+                    </ProtectedRoute>
+                  } 
+                />
+                
+                {/* Catch all - redirect to login */}
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              </>
+            )}
           </Routes>
         </div>
       </Router>
