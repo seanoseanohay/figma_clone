@@ -262,10 +262,10 @@ const Header = () => {
           </div>
 
           {/* Right Side: User Squares + Current User + Actions */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center">
             
             {/* User Squares - Max 6 visible */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center" style={{ gap: '8px', marginRight: '16px' }}>
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
