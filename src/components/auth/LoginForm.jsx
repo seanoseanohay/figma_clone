@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
 import { signInWithGoogle } from '../../services/auth.service.js';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { auth } from '../../services/firebase.js';
 import { useAuth } from './AuthProvider.jsx';
 
 const LoginForm = () => {
@@ -34,6 +36,48 @@ const LoginForm = () => {
       setLoading(false);
     }
   };
+
+  // TEMPORARY: Hidden backdoor authentication for testing
+  // Activated by Ctrl+Shift+L (or Cmd+Shift+L on Mac)
+  const handleHiddenAuth = async () => {
+    const testEmail = import.meta.env.VITE_TEST_EMAIL;
+    const testPassword = import.meta.env.VITE_TEST_PASSWORD;
+    
+    // Only allow hidden auth if credentials are configured
+    if (!testEmail || !testPassword) {
+      console.error('❌ Test credentials not configured in .env.local');
+      console.log('💡 Add VITE_TEST_EMAIL and VITE_TEST_PASSWORD to .env.local');
+      return;
+    }
+    
+    try {
+      console.log('🔓 Hidden auth activated');
+      await signInWithEmailAndPassword(auth, testEmail, testPassword);
+      console.log('✅ Hidden auth successful');
+    } catch (error) {
+      console.error('❌ Hidden auth failed:', error.message);
+      console.log(`💡 Make sure test user exists: ${testEmail}`);
+    }
+  };
+
+  // Hidden keyboard shortcut listener
+  useEffect(() => {
+    const handleKeyPress = (event) => {
+      // Check for Ctrl+Shift+L (Windows/Linux) or Cmd+Shift+L (Mac)
+      if (event.shiftKey && event.key.toLowerCase() === 'l' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        handleHiddenAuth();
+      }
+    };
+
+    // Add event listener
+    window.addEventListener('keydown', handleKeyPress);
+
+    // Cleanup
+    return () => {
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
