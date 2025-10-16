@@ -50,8 +50,8 @@ const Header = () => {
 
   return (
     <header className="bg-white shadow-lg w-full">
-      <div className="w-full px-6">
-        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto">
+      <div className="w-full px-4">
+        <div className="flex items-center justify-between py-4">
           
           {/* Left Side: Logo + Project Dropdown */}
           <div className="flex items-center">
@@ -65,8 +65,8 @@ const Header = () => {
               </span>
             </div>
 
-            {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names - 16px left margin */}
-            <div className="w-80" style={{ marginLeft: '16px' }}>
+            {/* Project/Canvas Selector - Reduced width to half - 16px left margin */}
+            <div style={{ marginLeft: '16px', maxWidth: '180px' }}>
               <ProjectCanvasSelector />
             </div>
           </div>

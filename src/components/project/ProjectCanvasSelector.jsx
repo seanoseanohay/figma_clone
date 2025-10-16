@@ -290,12 +290,12 @@ const ProjectCanvasSelector = ({ className = '' }) => {
         }}
         disabled={isLoading}
         className={`${getButtonStyling()} ${isLoading ? 'disabled:cursor-wait' : ''} ${error ? 'disabled:cursor-pointer' : 'disabled:cursor-not-allowed'}`}
-        style={{ height: 'auto' }}
+        style={{ height: 'auto', maxHeight: '36px', lineHeight: '1', width: '100%' }}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
-        title={error ? 'Click to retry loading projects' : ''}
+        title={error ? 'Click to retry loading projects' : getDisplayText()}
       >
-        <span className="truncate">
+        <span className="truncate" style={{ minWidth: 0 }}>
           {getDisplayText()}
         </span>
         
@@ -306,7 +306,8 @@ const ProjectCanvasSelector = ({ className = '' }) => {
           </svg>
         ) : (
           <svg 
-            className={`w-4 h-4 ml-2 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+            className={`ml-2 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            style={{ width: '12px', height: '12px', flexShrink: 0 }}
             fill="none" 
             stroke="currentColor" 
             viewBox="0 0 24 24"

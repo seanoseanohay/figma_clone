@@ -1,7 +1,9 @@
 # CollabCanvas MVP Enhancement Tasks
 
 ## Overview
-This document contains detailed implementation tasks for enhancing the CollabCanvas MVP with improved UI, project management, canvas refactoring, and new tools. Tasks are organized by priority for a 4-day development sprint.
+This document contains detailed implementation tasks for enhancing the CollabCanvas MVP with improved UI, project management, canvas refactoring, and **REST API for AI agent access**. Tasks are organized by priority for a 4-day development sprint.
+
+**New in this version**: REST API infrastructure (Tasks C7-C9) enables AI agents and external applications to programmatically manipulate canvases via HTTP endpoints with token-based authentication.
 
 ## Task Priority Structure
 - **🔥 Foundation**: Must complete first - core UI and infrastructure improvements
@@ -9,6 +11,69 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 - **🛠️ Enhanced Tools**: New capabilities and tools
 - **✨ Advanced Features**: Polish and scaling features
 - **🚀 Future Enhancements**: Post-MVP improvements
+
+---
+
+## 🔔 Important Implementation Notes
+
+### MVP vs Production
+- **MVP tasks (PR #1-9) are COMPLETE** - Do not modify completed MVP code
+- **Production tasks build ON TOP of MVP** - New functionality extends existing system
+- **Completed MVP provides working foundation** - Authentication, canvas, tools, presence all functional
+
+### REST API for AI Agents
+- **Primary use case**: AI agents (Claude, GPT-4, etc.) manipulating canvases programmatically
+- **Authentication**: Canvas-scoped access tokens with granular permissions
+- **Architecture**: Firebase Cloud Functions providing REST API wrapper around Firestore
+- **Rate limiting**: 200 reads/min, 50 writes/min per token to prevent abuse
+- **Batch operations**: Optimized for AI creating multiple objects efficiently
+
+### Simplified Permission Model
+- **No Viewer role**: All collaborators have equal edit permissions
+- **Canvas-scoped access**: Users only see/access canvases they're invited to
+- **Token-based API access**: External apps and AI use tokens, not user accounts
+- **Share button**: Simple email-based sharing with no role selection needed
+
+### Task Sequencing Critical Path
+1. **Foundation (F1-F4)** → Must complete first for UI and data models
+2. **Core C1** → Project/Canvas management system
+3. **Core C2** → Canvas sharing (simplified, no roles)
+4. **Core C3-C5** → Connection monitoring, tool refactoring, ownership
+5. **Core C6** → Canvas-scoped presence (replaces MVP global canvas)
+6. **Core C7-C9** → REST API infrastructure for AI agents
+
+Do not skip ahead - tasks have dependencies that must be completed first.
+
+---
+
+## 🔄 MVP to Production Migration Notes
+
+### Global Canvas (MVP ONLY - Now Deprecated)
+The MVP implementation (PR #4) used a global canvas structure at `/globalCanvas/users/{userId}` where ALL authenticated users appeared together regardless of which canvas they were viewing. This was acceptable for MVP testing but is NOT suitable for production.
+
+**Why Global Canvas Was MVP Only:**
+- Simplified initial implementation for testing multiplayer features
+- Allowed quick validation of cursor sync and presence
+- No project/canvas management needed initially
+- All users could immediately see each other for testing
+
+### Canvas-Scoped Presence (Production)
+Production uses canvas-scoped presence at `/projects/{projectId}/canvases/{canvasId}/presence/{userId}` where users ONLY see others on the same specific canvas.
+
+**Why Canvas-Scoped Is Required for Production:**
+- Users working on different canvases should not see each other
+- Presence must respect project and canvas boundaries
+- Prevents confusion and clutter in user lists
+- Enables proper multi-canvas collaboration
+- Supports privacy and focused work environments
+
+### Migration Path
+- Task C6 implements canvas-scoped presence system
+- Old global canvas code is removed completely
+- No data migration needed (MVP was testing only)
+- New structure is the foundation for all production features
+
+**Important**: Any references to "global canvas" in completed MVP tasks (PR #4) should be considered deprecated and replaced by canvas-scoped presence in production implementation.
 
 ---
 
@@ -57,6 +122,9 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 
 **Specific Changes**:
 1. Replace current header layout with new structure: `[Logo] [Project>Canvas ▼] [User Squares] [Current User] [Share] [Sign Out]`
+   
+   Note: Share button in header is already specified in layout. Share functionality is implemented in Task C2.
+
 2. Create nested dropdown component showing format "ProjectName > CanvasName"
 3. Add placeholder dropdown that shows "Select Project > Canvas" when nothing selected
 4. Limit user squares to maximum 6 visible users plus "+N more" indicator
@@ -70,6 +138,9 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 - [ ] Dropdown shows "Select Project > Canvas" placeholder
 - [ ] User squares are 32x32px with user initials only
 - [ ] Maximum 6 user squares visible with "+N" for overflow
+- [ ] User squares show ONLY users currently active on the same canvas (not all project collaborators)
+- [ ] User list updates in real-time as users join/leave the canvas
+- [ ] Share button is visible and accessible in header
 - [ ] Responsive design works at all breakpoints
 - [ ] User avatar colors are consistent per user
 - [ ] All existing functionality (sign out, user info) still works
@@ -101,6 +172,11 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 4. Implement Firebase security rules for project-based access control
 5. Add data validation for required fields and proper types
 6. Create helper functions for permission checking (canUserAccessProject, isProjectCollaborator)
+7. Define presence data structure for real-time collaboration:
+   - Path: `/projects/{projectId}/canvases/{canvasId}/presence/{userId}`
+   - Contains: userId, displayName, email, cursorColor, cursorX, cursorY, lastActive, connectedAt
+   - Tool selection is LOCAL only and never stored in presence
+   - Presence is canvas-scoped - users only see others on same canvas
 
 **Acceptance Criteria**:
 - [x] Firestore collections created with correct schema
@@ -157,9 +233,13 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 
 ---
 
-### Task C2: Implement Canvas Sharing with Auto-Project Creation
+### Task C2: Implement Canvas Sharing (Simplified)
 
-**Objective**: Build canvas sharing system that creates isolated shared projects for privacy
+**Objective**: Build simplified canvas sharing system where all collaborators have equal edit permissions
+
+**Dependencies**: 
+- Requires Task F4 (Project/Canvas Data Models) ✅ Complete
+- Requires Task C1 (Project/Canvas Management) - Must complete first
 
 **Files to Modify**:
 - Update `src/services/project.service.js`
@@ -167,29 +247,30 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 - Create `src/components/sharing/ShareCanvasModal.jsx`
 
 **Specific Changes**:
-1. Implement shareCanvas function that creates new "Shared: [CanvasName]" project
-2. Move canvas from original project to new shared project
-3. Add recipient as collaborator to shared project
-4. Create share modal with email input and permission selection
-5. Generate shareable links with format `/project/{projectId}/canvas/{canvasId}`
-6. Handle edge cases: sharing already shared canvas, sharing with existing collaborators
-7. Add share button to header and canvas context menu
-8. Implement proper success/error feedback for sharing operations
+1. Create share modal with simple email input (no role selection needed)
+2. Implement shareCanvas function in project.service.js
+3. Add recipient as collaborator to project with full edit permissions
+4. Generate shareable links with format `/project/{projectId}/canvas/{canvasId}`
+5. Add share button to header (already specified in F2)
+6. Handle edge cases: sharing with self, re-sharing, invalid emails
+7. Implement proper success/error feedback for sharing operations
+8. Send email notification to recipient (optional enhancement)
 
 **Acceptance Criteria**:
-- [ ] Sharing creates isolated project with "Shared: [Name]" format
-- [ ] Canvas moves to shared project correctly
-- [ ] Recipients get appropriate access permissions
-- [ ] Shareable links work correctly
+- [ ] Share modal has simple, clean interface with email input only
+- [ ] All shared collaborators get full edit permissions (no role selection)
+- [ ] Recipients can access shared canvas immediately after being added
+- [ ] Shareable links work correctly and navigate to proper canvas
 - [ ] Share modal provides clear user feedback
-- [ ] Edge cases are handled gracefully
+- [ ] Edge cases handled gracefully (duplicate shares, invalid emails)
+- [ ] Users can only share canvases they have access to
 
 **Testing Steps**:
-1. Share a canvas and verify new project creation
-2. Check recipient can access shared canvas but not original project
-3. Test shareable link functionality
-4. Verify original owner retains access to shared canvas
-5. Test edge cases (sharing with self, re-sharing, etc.)
+1. Share a canvas via email and verify recipient gets access
+2. Test shareable link functionality
+3. Verify recipient can edit canvas (has full permissions)
+4. Test edge cases (sharing with self, duplicate shares, invalid emails)
+5. Verify only users with canvas access can share it
 
 ---
 
@@ -301,6 +382,904 @@ This document contains detailed implementation tasks for enhancing the CollabCan
 4. Test multiple users trying to claim same object simultaneously
 5. Test ownership release on connection loss/page refresh
 6. Performance test with many objects and multiple users
+
+---
+
+### Task C6: Implement Canvas-Scoped Presence System
+
+**Objective**: Replace MVP global canvas with production canvas-scoped presence so users only see cursors and user lists for others on the same project+canvas
+
+**Dependencies**: 
+- Requires Task F4 (Project/Canvas Data Models) ✅ Complete
+- Requires Task C1 (Project/Canvas Management System) - Must complete first
+- Requires Task C2 (Canvas Sharing System) - Must complete first for proper access control
+
+**Files to Create**:
+- Create `src/contexts/CanvasContext.jsx`
+- Create `src/hooks/useCanvas.js`
+
+**Files to Modify**:
+- Update `src/services/presence.service.js`
+- Update `src/hooks/useCursorTracking.js`
+- Update `src/hooks/usePresence.js`
+- Update `src/components/canvas/UserCursor.jsx`
+- Update `src/components/presence/OnlineUsers.jsx`
+- Update `src/App.jsx`
+- Update `database.rules.json`
+
+**Specific Changes**:
+
+1. **Create CanvasContext for current project+canvas tracking**:
+   - Create context that stores current projectId and canvasId
+   - Provide at App level (after authentication)
+   - Updates when user navigates via dropdown OR URL
+   - Persists to localStorage so refresh keeps user on same canvas
+   - Provides helper methods: setCurrentCanvas(projectId, canvasId), getCurrentCanvas()
+   - Create useCanvas() hook to access context
+
+2. **Update presence data structure**:
+   - OLD MVP path: `/globalCanvas/users/{userId}`
+   - NEW production path: `/projects/{projectId}/canvases/{canvasId}/presence/{userId}`
+   - Each presence entry contains:
+```javascript
+     {
+       userId: string,
+       displayName: string,
+       email: string,
+       cursorColor: string,  // From 24-color palette (Task P3)
+       cursorX: number,
+       cursorY: number,
+       lastActive: timestamp,
+       connectedAt: timestamp
+     }
+```
+   - Tool selection stays LOCAL (not in presence data)
+
+3. **Update presence.service.js for canvas scoping**:
+   - Add projectId and canvasId parameters to all presence functions
+   - updateCursorPosition(projectId, canvasId, x, y)
+   - setUserOnline(projectId, canvasId, userData)
+   - setUserOffline(projectId, canvasId)
+   - subscribeToCanvasPresence(projectId, canvasId, callback)
+   - Use canvas-scoped paths for all Realtime Database operations
+   - Implement immediate presence removal on disconnect (onDisconnect())
+
+4. **Update useCursorTracking.js to use canvas context**:
+   - Import and use useCanvas() hook to get current projectId/canvasId
+   - Only track and broadcast cursor when user is on a canvas
+   - Stop tracking when user navigates away from canvas
+   - Clean up presence on unmount
+
+5. **Update usePresence.js to subscribe to scoped presence**:
+   - Import and use useCanvas() hook to get current projectId/canvasId
+   - Subscribe to presence for current canvas only
+   - Unsubscribe and resubscribe when canvas changes
+   - Return only users present on current canvas
+   - Handle empty canvas state gracefully
+
+6. **Update UserCursor.jsx and OnlineUsers.jsx**:
+   - Work with canvas-scoped presence data
+   - Show only users on same canvas
+   - Handle canvas switching gracefully (cursors disappear/appear)
+   - Use cursor colors from presence data
+
+7. **Update Firebase Realtime Database security rules**:
+   - Rules at `/projects/{projectId}/canvases/{canvasId}/presence/{userId}`
+   - Users can only read/write presence for canvases they have access to
+   - Verify user has access to project before allowing presence operations
+   - Cross-reference with Firestore project collaborators
+
+8. **Remove MVP global canvas code**:
+   - Remove any references to `/globalCanvas` path
+   - Remove global canvas subscriptions
+   - Clean up old presence service functions that used global path
+   - Document what was removed in code comments
+
+9. **Handle canvas navigation**:
+   - User switches canvas → presence removed from old canvas, added to new canvas
+   - User closes tab → presence removed immediately via onDisconnect()
+   - User refreshes → presence persists on same canvas via localStorage
+   - Multiple tabs → each tab has separate presence entry (edge case, acceptable)
+
+**Acceptance Criteria**:
+- [ ] Users only see cursors for others on the same project+canvas
+- [ ] User list in header shows only users on current canvas
+- [ ] Switching canvases updates presence correctly (disappear from old, appear on new)
+- [ ] Presence persists through refresh on same canvas
+- [ ] Presence cleans up immediately when user navigates away
+- [ ] Canvas context updates from both dropdown selection AND URL navigation
+- [ ] Firebase security rules enforce canvas-scoped access
+- [ ] All old global canvas code is removed
+- [ ] No presence data leaks between different canvases
+
+**Testing Steps**:
+1. **Canvas Scoping Test**:
+   - Open two browsers with different users
+   - User A on Canvas 1, User B on Canvas 2
+   - Verify User A does NOT see User B's cursor or in user list
+   - Verify User B does NOT see User A's cursor or in user list
+
+2. **Same Canvas Test**:
+   - Both users navigate to same canvas
+   - Verify both users see each other's cursors
+   - Verify both users appear in each other's user lists
+
+3. **Canvas Switching Test**:
+   - User A on Canvas 1, User B on Canvas 2
+   - User B switches to Canvas 1
+   - Verify User A immediately sees User B appear
+   - Verify User B sees User A
+
+4. **Presence Cleanup Test**:
+   - User A on Canvas 1
+   - User A switches to Canvas 2
+   - Verify User A's presence removed from Canvas 1
+   - Verify User A's presence added to Canvas 2
+
+5. **Refresh Persistence Test**:
+   - User on Canvas 1
+   - Refresh browser
+   - Verify user returns to Canvas 1 (not redirected)
+   - Verify presence remains on Canvas 1
+
+6. **URL Navigation Test**:
+   - User navigates via shareable link to specific canvas
+   - Verify CanvasContext updates correctly
+   - Verify presence added to correct canvas
+
+**Dependencies**: Requires Task C1 (Project/Canvas Management) to be completed first for project+canvas selection functionality
+
+---
+
+### Task C7: Implement REST API Infrastructure for AI/External Access
+
+**Objective**: Create REST API using Firebase Cloud Functions to enable AI agents and external applications to interact with canvases programmatically
+
+**Dependencies**: 
+- Requires Task F4 (Project/Canvas Data Models) ✅ Complete
+- Requires Task C1 (Project/Canvas Management System) - Must complete first
+- Requires Task C6 (Canvas-Scoped Presence) - Must complete first
+- Requires Task C8 (API Token System) - Should implement together
+
+**Files to Create**:
+- Create `functions/` directory for Firebase Cloud Functions
+- Create `functions/src/api/projects.js`
+- Create `functions/src/api/canvases.js`
+- Create `functions/src/api/objects.js`
+- Create `functions/src/middleware/auth.js`
+- Create `functions/src/middleware/rateLimit.js`
+- Create `functions/src/utils/tokenValidator.js`
+
+**Files to Modify**:
+- Update `firebase.json` (add Cloud Functions configuration)
+- Update `package.json` (add Cloud Functions dependencies)
+
+**API Endpoints Structure**:
+```
+Authentication & Tokens:
+POST   /api/tokens/generate          # Generate canvas access token
+DELETE /api/tokens/{tokenId}         # Revoke token
+
+Projects:
+GET    /api/projects                 # List user's projects
+POST   /api/projects                 # Create new project
+GET    /api/projects/{id}            # Get project details
+PUT    /api/projects/{id}            # Update project
+DELETE /api/projects/{id}            # Delete project
+
+Canvases:
+GET    /api/projects/{pid}/canvases  # List canvases in project
+POST   /api/projects/{pid}/canvases  # Create canvas in project
+GET    /api/canvases/{id}            # Get canvas details
+PUT    /api/canvases/{id}            # Update canvas
+DELETE /api/canvases/{id}            # Delete canvas
+
+Canvas Objects (Primary AI Usage):
+GET    /api/canvases/{id}/objects           # Get all objects in canvas
+POST   /api/canvases/{id}/objects           # Create single object
+GET    /api/canvases/{id}/objects/{oid}     # Get specific object
+PUT    /api/canvases/{id}/objects/{oid}     # Update object (move/resize)
+PATCH  /api/canvases/{id}/objects/{oid}     # Partial object update
+DELETE /api/canvases/{id}/objects/{oid}     # Delete object
+
+Batch Operations (AI Efficiency):
+POST   /api/canvases/{id}/objects/batch     # Create multiple objects at once
+PUT    /api/canvases/{id}/objects/batch     # Update multiple objects at once
+DELETE /api/canvases/{id}/objects/batch     # Delete multiple objects at once
+
+Canvas State:
+GET    /api/canvases/{id}/snapshot          # Get complete canvas state (all objects)
+```
+
+**Specific Changes**:
+
+1. **Set up Firebase Cloud Functions**:
+   - Initialize Cloud Functions in Firebase project
+   - Configure CORS for API access from external applications
+   - Set up Express.js routing for REST endpoints
+   - Configure proper error handling and logging
+
+2. **Implement authentication middleware**:
+   - Validate canvas access tokens on every request
+   - Check token permissions (read/write/delete)
+   - Verify token hasn't expired
+   - Return 401 Unauthorized for invalid tokens
+   - Return 403 Forbidden for insufficient permissions
+
+3. **Implement rate limiting middleware**:
+   - Track requests per token per minute
+   - Read operations: 200 requests/min per token
+   - Write operations: 50 requests/min per token
+   - Project/canvas creation: 10 requests/min per user
+   - Return 429 Too Many Requests when limits exceeded
+   - Include rate limit headers in responses
+
+4. **Create project endpoints**:
+   - List projects user has access to (via token's user ID)
+   - Create new projects with proper ownership
+   - Get project details including collaborators list
+   - Update project name/settings
+   - Delete projects (cascade delete all canvases)
+
+5. **Create canvas endpoints**:
+   - List canvases within a project
+   - Create new canvas within project
+   - Get canvas details and metadata
+   - Update canvas properties
+   - Delete canvas and all objects
+
+6. **Create object manipulation endpoints**:
+   - CRUD operations for individual objects
+   - Validate object properties (position, size, type)
+   - Enforce canvas boundaries using existing boundary.utils.js
+   - Apply minimum size constraints (2x1px for rectangles)
+   - Sync object changes to Firestore with proper timestamps
+
+7. **Implement batch operations for AI efficiency**:
+   - Accept array of objects for batch creation:
+```json
+     POST /api/canvases/{id}/objects/batch
+     {
+       "objects": [
+         { "type": "rectangle", "x": 100, "y": 100, "width": 200, "height": 100, "fill": "#808080" },
+         { "type": "rectangle", "x": 100, "y": 250, "width": 200, "height": 100, "fill": "#808080" }
+       ]
+     }
+```
+   - Validate all objects before creating any (atomic operation)
+   - Return array of created object IDs
+   - Handle partial failures gracefully with clear error messages
+
+8. **Implement canvas snapshot endpoint**:
+   - Return complete canvas state in single response
+   - Include all objects with full properties
+   - Include canvas metadata (size, name, collaborators)
+   - Optimize for AI agents reading entire canvas state
+
+9. **Add comprehensive error handling**:
+   - Consistent error response format across all endpoints
+   - Detailed error messages for debugging
+   - Proper HTTP status codes (400, 401, 403, 404, 429, 500)
+   - Log all errors to Firebase for monitoring
+
+10. **Implement request/response logging**:
+    - Log all API requests with token ID, endpoint, method
+    - Track API usage per token for analytics
+    - Monitor performance and latency
+    - Alert on unusual activity or errors
+
+**API Response Format Standards**:
+```javascript
+// Success Response
+{
+  "success": true,
+  "data": { /* response data */ },
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+
+// Error Response
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_TOKEN",
+    "message": "Token has expired",
+    "details": { /* additional context */ }
+  },
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+
+// Batch Operation Response
+{
+  "success": true,
+  "data": {
+    "created": ["obj1", "obj2", "obj3"],
+    "failed": [
+      {
+        "index": 4,
+        "error": "Object position out of canvas bounds"
+      }
+    ]
+  },
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+**Acceptance Criteria**:
+- [ ] All API endpoints respond with consistent JSON format
+- [ ] Token authentication works correctly for all endpoints
+- [ ] Rate limiting prevents abuse (200 reads/min, 50 writes/min)
+- [ ] Batch operations handle 10+ objects efficiently
+- [ ] Canvas snapshot returns complete state in <2 seconds
+- [ ] All operations enforce canvas boundaries and constraints
+- [ ] Error responses provide clear, actionable messages
+- [ ] API handles concurrent requests without data corruption
+- [ ] Request logging captures all API activity
+- [ ] CORS configured properly for external access
+
+**Testing Steps**:
+
+1. **Authentication Testing**:
+   - Test with valid token → should succeed
+   - Test with invalid token → should return 401
+   - Test with expired token → should return 401
+   - Test token without required permissions → should return 403
+
+2. **Rate Limiting Testing**:
+   - Make 201 read requests in 1 minute → last should return 429
+   - Make 51 write requests in 1 minute → last should return 429
+   - Verify rate limit headers are present in responses
+
+3. **Object Operations Testing**:
+   - Create object with valid properties → should succeed
+   - Create object outside canvas bounds → should fail with clear error
+   - Update object position → should sync to Firestore
+   - Delete object → should remove from Firestore
+
+4. **Batch Operations Testing**:
+   - Create 10 objects in single request → should succeed
+   - Create batch with 1 invalid object → should fail entire batch
+   - Verify batch performance is better than individual requests
+
+5. **Canvas Snapshot Testing**:
+   - Get snapshot with 100 objects → should return all in <2 seconds
+   - Verify snapshot includes all object properties
+   - Test snapshot with empty canvas → should return empty array
+
+6. **Error Handling Testing**:
+   - Test all error scenarios (invalid input, missing fields, etc.)
+   - Verify error responses follow consistent format
+   - Check that errors are logged properly
+
+7. **Integration Testing with AI**:
+   - Use Postman or similar to simulate AI agent requests
+   - Test complete workflow: authenticate → create objects → update → delete
+   - Verify changes appear in real-time in web app
+
+**Dependencies**: Must complete Task C8 (API Token System) before full implementation can be tested
+
+---
+
+### Task C8: Create API Token Management System
+
+**Objective**: Implement canvas-scoped access token generation and management for AI agents and external applications
+
+**Dependencies**: 
+- Requires Task F4 (Project/Canvas Data Models) ✅ Complete
+- Requires Task C1 (Project/Canvas Management System) - Must complete first
+- Should be implemented alongside Task C7 (REST API Infrastructure)
+
+**Files to Create**:
+- Create `src/services/apiToken.service.js`
+- Create `src/components/settings/ApiTokenManager.jsx`
+- Create `src/hooks/useApiTokens.js`
+
+**Files to Modify**:
+- Update `firestore.rules` (add security rules for tokens collection)
+- Update `src/components/layout/Header.jsx` (add link to token management)
+- Create new route for token management page
+
+**Token Data Structure**:
+```javascript
+// Firestore: /users/{userId}/apiTokens/{tokenId}
+{
+  tokenId: string,              // Unique token identifier
+  token: string,                // Actual access token (hashed)
+  name: string,                 // User-friendly name ("AI Agent - Canvas Editor")
+  canvasId: string,             // Canvas this token can access
+  canvasName: string,           // Cached canvas name for display
+  projectId: string,            // Project containing the canvas
+  permissions: string[],        // ["read", "create_objects", "update_objects", "delete_objects"]
+  rateLimit: {
+    read: number,               // Requests per minute (default: 200)
+    write: number               // Requests per minute (default: 50)
+  },
+  createdAt: timestamp,
+  expiresAt: timestamp,         // Token expiration (default: 90 days)
+  lastUsedAt: timestamp,        // Track when token was last used
+  usageCount: number,           // Total requests made with this token
+  isRevoked: boolean,           // Manual revocation flag
+  createdBy: string             // User ID who created token
+}
+```
+
+**Specific Changes**:
+
+1. **Create token service with core functions**:
+   - `generateToken(userId, canvasId, permissions, expiresInDays)` - Creates new token
+   - `validateToken(token)` - Checks if token is valid and not expired
+   - `revokeToken(userId, tokenId)` - Marks token as revoked
+   - `getUserTokens(userId)` - Lists all tokens for user
+   - `getCanvasTokens(canvasId)` - Lists all tokens for specific canvas
+   - `updateTokenUsage(tokenId)` - Updates lastUsedAt and usageCount
+   - `cleanupExpiredTokens()` - Background job to remove expired tokens
+
+2. **Implement secure token generation**:
+   - Generate cryptographically secure random tokens (64 characters)
+   - Store hashed version in Firestore (never store plaintext)
+   - Return plaintext token to user only once during creation
+   - Use Firebase Auth to verify user creating token has canvas access
+
+3. **Create token validation logic**:
+   - Check token exists in Firestore (hash and lookup)
+   - Verify token hasn't expired (expiresAt > now)
+   - Check token isn't revoked (isRevoked === false)
+   - Verify requested operation is in permissions array
+   - Return canvas/project IDs for authorization checks
+
+4. **Implement permission system**:
+   - Four permission levels: "read", "create_objects", "update_objects", "delete_objects"
+   - Permission presets:
+     - Read-only: ["read"]
+     - Editor: ["read", "create_objects", "update_objects", "delete_objects"]
+     - Creator: ["read", "create_objects"]
+   - API endpoints check permissions before allowing operations
+
+5. **Build token management UI component**:
+   - Create ApiTokenManager.jsx component for settings page
+   - Display list of user's tokens in table format
+   - Show token details: name, canvas, permissions, created date, expiration, usage count
+   - "Generate New Token" button opens modal with configuration options
+   - "Revoke" button for each token with confirmation dialog
+   - "Copy Token" button (only shown at creation, token not retrievable later)
+
+6. **Create token generation modal**:
+   - Dropdown to select canvas (list user's accessible canvases)
+   - Input field for token name/description
+   - Checkboxes for permissions (read, create, update, delete)
+   - Expiration selector (30 days, 90 days, 180 days, 1 year, never)
+   - Rate limit customization (optional, defaults to standard limits)
+   - Generate button creates token and displays it once
+
+7. **Add token display and copy functionality**:
+   - After generation, show token in large, readable format
+   - "Copy to Clipboard" button with visual confirmation
+   - Warning message: "Save this token now. You won't be able to see it again."
+   - Security best practices guidance (don't commit to git, rotate regularly)
+
+8. **Implement token revocation**:
+   - Immediate revocation (sets isRevoked = true)
+   - Confirmation dialog: "This will immediately invalidate the token. Continue?"
+   - Update UI to show token as "Revoked" with red indicator
+   - API requests with revoked tokens return 401 Unauthorized
+
+9. **Add token usage tracking**:
+   - Update lastUsedAt timestamp on every API request
+   - Increment usageCount counter on every request
+   - Display usage statistics in token management UI
+   - Optional: Usage analytics chart (requests over time)
+
+10. **Create Firebase security rules for tokens**:
+    - Users can only read/write their own tokens
+    - Token documents are only accessible to owner
+    - API endpoints can read tokens for validation (via Admin SDK)
+    - Prevent token enumeration or unauthorized access
+
+11. **Add token management link to header**:
+    - Add "API Tokens" or "Developer Settings" link to user menu
+    - Navigate to `/settings/api-tokens` route
+    - Only show for authenticated users
+
+12. **Implement background cleanup job**:
+    - Cloud Function scheduled to run daily
+    - Delete tokens where expiresAt < now and isRevoked = true
+    - Keep revoked tokens for 30 days for audit purposes
+    - Log cleanup activities
+
+**Token Generation Modal UI**:
+```
+╔════════════════════════════════════════╗
+║     Generate API Token                  ║
+╠════════════════════════════════════════╣
+║                                         ║
+║ Token Name:                             ║
+║ [AI Agent for Flowchart Generator     ] ║
+║                                         ║
+║ Canvas:                                 ║
+║ [My Project > Design Canvas         ▼] ║
+║                                         ║
+║ Permissions:                            ║
+║ ☑ Read canvas and objects               ║
+║ ☑ Create objects                        ║
+║ ☑ Update objects                        ║
+║ ☑ Delete objects                        ║
+║                                         ║
+║ Expires:                                ║
+║ ⚪ 30 days  ⚪ 90 days                   ║
+║ ⚫ 180 days ⚪ 1 year  ⚪ Never          ║
+║                                         ║
+║        [Cancel]  [Generate Token]       ║
+╚════════════════════════════════════════╝
+```
+
+**Token Display After Generation**:
+```
+╔════════════════════════════════════════╗
+║     Token Created Successfully          ║
+╠════════════════════════════════════════╣
+║                                         ║
+║ ⚠️  Save this token now. You won't be  ║
+║    able to see it again.                ║
+║                                         ║
+║ Token:                                  ║
+║ ┌────────────────────────────────────┐ ║
+║ │ canvas_abc123def456ghi789jkl012mno│ ║
+║ │ pqr345stu678vwx901yz234abc567def8 │ ║
+║ └────────────────────────────────────┘ ║
+║                                         ║
+║          [📋 Copy to Clipboard]         ║
+║                                         ║
+║ Security Best Practices:                ║
+║ • Don't commit tokens to version control║
+║ • Rotate tokens regularly               ║
+║ • Revoke unused tokens                  ║
+║ • Use separate tokens for each app      ║
+║                                         ║
+║                  [Done]                  ║
+╚════════════════════════════════════════╝
+```
+
+**Acceptance Criteria**:
+- [ ] Users can generate tokens for any canvas they have access to
+- [ ] Tokens are cryptographically secure (64+ character random strings)
+- [ ] Token plaintext only shown once at creation
+- [ ] Token validation works correctly in API endpoints
+- [ ] Permission system enforces read/write/delete restrictions
+- [ ] Token management UI displays all tokens with relevant info
+- [ ] Token revocation works immediately (API rejects revoked tokens)
+- [ ] Usage tracking updates correctly on every API request
+- [ ] Expired tokens are automatically cleaned up
+- [ ] Firebase security rules prevent unauthorized token access
+- [ ] Copy to clipboard works reliably
+- [ ] UI provides clear guidance on token security best practices
+
+**Testing Steps**:
+
+1. **Token Generation Testing**:
+   - Create token with all permissions → should succeed
+   - Create token with read-only permission → should succeed
+   - Verify token is 64+ characters and cryptographically random
+   - Verify token shown only once at creation
+   - Test token displayed correctly with copy button
+
+2. **Token Validation Testing**:
+   - Use valid token in API request → should succeed
+   - Use expired token → should return 401
+   - Use revoked token → should return 401
+   - Use token without permission for operation → should return 403
+
+3. **Permission Testing**:
+   - Read-only token tries to create object → should return 403
+   - Editor token creates/updates/deletes → should succeed
+   - Verify permission checks work for all endpoints
+
+4. **Token Management UI Testing**:
+   - List all tokens → should display correctly
+   - Revoke token → should update status immediately
+   - Delete token → should remove from list
+   - Filter/search tokens (if implemented)
+
+5. **Usage Tracking Testing**:
+   - Make API request with token → verify lastUsedAt updates
+   - Make multiple requests → verify usageCount increments
+   - Check usage statistics display correctly in UI
+
+6. **Expiration Testing**:
+   - Create token with 1-minute expiration (for testing)
+   - Wait for expiration → verify token no longer works
+   - Verify cleanup job removes expired tokens
+
+7. **Security Testing**:
+   - Try to access another user's tokens → should fail
+   - Try to enumerate tokens → should fail
+   - Verify hashed tokens in Firestore (never plaintext)
+
+**Dependencies**: Task C7 (REST API) needs this for authentication to work
+
+---
+
+### Task C9: Create Comprehensive API Documentation with OpenAPI/Swagger
+
+**Objective**: Create detailed, interactive API documentation for developers and AI agents using OpenAPI 3.0 specification
+
+**Dependencies**: 
+- Requires Task C7 (REST API Infrastructure) - Must complete first
+- Requires Task C8 (API Token System) - Must complete first
+
+**Files to Create**:
+- Create `docs/api/openapi.yaml` (OpenAPI 3.0 specification)
+- Create `docs/api/getting-started.md` (Quick start guide)
+- Create `docs/api/authentication.md` (Auth guide)
+- Create `docs/api/examples.md` (Code examples)
+- Create `docs/api/rate-limits.md` (Rate limiting details)
+- Create `functions/src/swagger.js` (Swagger UI hosting)
+
+**Files to Modify**:
+- Update `README.md` (add API documentation section)
+- Update Cloud Functions to serve Swagger UI at `/api/docs`
+
+**Specific Changes**:
+
+1. **Create OpenAPI 3.0 specification**:
+   - Define all API endpoints with complete details
+   - Include request/response schemas for every endpoint
+   - Document all error codes and responses
+   - Add authentication requirements (Bearer token)
+   - Include rate limiting information in headers
+   - Provide example requests and responses for each endpoint
+
+2. **Document authentication flow**:
+   - Step-by-step guide to generate API token
+   - How to use Bearer token in requests
+   - Token permissions and scopes explanation
+   - Security best practices
+   - Token rotation recommendations
+
+3. **Create getting started guide**:
+   - Quick start tutorial (5 minutes to first API call)
+   - Prerequisites (Firebase project, canvas access)
+   - Generate token walkthrough with screenshots
+   - First API call example (fetch canvas objects)
+   - Common use cases (AI agent drawing diagrams)
+
+4. **Add code examples in multiple languages**:
+   - JavaScript/Node.js examples using fetch/axios
+   - Python examples using requests library
+   - cURL examples for command line testing
+   - Examples for common workflows:
+     - Authenticate and list canvases
+     - Create multiple objects (batch operation)
+     - Get canvas snapshot and analyze
+     - Update object positions programmatically
+
+5. **Document all object types and properties**:
+   - Rectangle object schema (position, size, fill, border)
+   - Circle object schema (center, radius, fill)
+   - Text object schema (position, content, style)
+   - Object validation rules and constraints
+   - Canvas boundaries and coordinate system
+
+6. **Create interactive Swagger UI**:
+   - Host Swagger UI at `/api/docs` endpoint
+   - Load OpenAPI spec dynamically
+   - Enable "Try it out" functionality for testing
+   - Add custom styling matching app branding
+   - Include authentication flow in Swagger UI
+
+7. **Document rate limiting in detail**:
+   - Rate limit tiers (read vs write operations)
+   - Headers returned with rate limit info
+   - How to handle 429 Too Many Requests
+   - Strategies for staying under limits
+   - Exponential backoff recommendations
+
+8. **Add error handling guide**:
+   - Complete list of error codes
+   - Error response format with examples
+   - Common errors and solutions
+   - Debugging tips and tools
+   - When to contact support
+
+9. **Create AI agent integration guide**:
+   - Specific guidance for AI agents (Claude, GPT-4, etc.)
+   - How to structure prompts for canvas manipulation
+   - Example AI agent workflows
+   - Best practices for batch operations
+   - Error recovery strategies for AI agents
+
+10. **Add webhook documentation** (optional future feature):
+    - How to register webhooks for canvas changes
+    - Webhook payload format
+    - Security considerations (signature verification)
+    - Retry logic and error handling
+
+11. **Include versioning strategy**:
+    - API version in URL path (`/api/v1/...`)
+    - Deprecation policy and timeline
+    - Changelog for API updates
+    - How to stay informed about changes
+
+12. **Add troubleshooting section**:
+    - Common issues and solutions
+    - FAQ for API usage
+    - Performance optimization tips
+    - Contact information for support
+
+**OpenAPI Specification Example (Partial)**:
+```yaml
+openapi: 3.0.0
+info:
+  title: CollabCanvas API
+  version: 1.0.0
+  description: REST API for programmatic canvas manipulation
+  
+servers:
+  - url: https://us-central1-collabcanvas.cloudfunctions.net/api
+    description: Production API
+    
+security:
+  - BearerAuth: []
+  
+paths:
+  /canvases/{canvasId}/objects:
+    get:
+      summary: Get all objects in canvas
+      parameters:
+        - name: canvasId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CanvasObject'
+    post:
+      summary: Create a new object
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObjectRequest'
+      responses:
+        '201':
+          description: Object created successfully
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+        '403':
+          description: Insufficient permissions
+        '429':
+          description: Rate limit exceeded
+          
+components:
+  schemas:
+    CanvasObject:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [rectangle, circle, text]
+        x:
+          type: number
+        y:
+          type: number
+        width:
+          type: number
+        height:
+          type: number
+        fill:
+          type: string
+          
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+```
+
+**Getting Started Guide Example**:
+```markdown
+# Getting Started with CollabCanvas API
+
+## Prerequisites
+- CollabCanvas account
+- Access to at least one canvas
+- Basic understanding of REST APIs
+
+## Step 1: Generate API Token
+
+1. Log in to CollabCanvas
+2. Navigate to Settings > API Tokens
+3. Click "Generate New Token"
+4. Select your canvas and permissions
+5. Copy the token (you won't see it again!)
+
+## Step 2: Your First API Call
+```bash
+curl -X GET \
+  "https://us-central1-collabcanvas.cloudfunctions.net/api/canvases/{canvasId}/objects" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+```
+
+## Step 3: Create Your First Object
+```bash
+curl -X POST \
+  "https://us-central1-collabcanvas.cloudfunctions.net/api/canvases/{canvasId}/objects" \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "type": "rectangle",
+    "x": 100,
+    "y": 100,
+    "width": 200,
+    "height": 100,
+    "fill": "#808080"
+  }'
+```
+
+That's it! You've created your first object programmatically.
+```
+
+**Acceptance Criteria**:
+- [ ] OpenAPI 3.0 spec is complete and valid
+- [ ] Swagger UI is accessible at `/api/docs`
+- [ ] All endpoints documented with request/response examples
+- [ ] Getting started guide enables first API call in 5 minutes
+- [ ] Code examples provided in JavaScript, Python, and cURL
+- [ ] Authentication flow clearly explained with examples
+- [ ] Rate limiting documented with strategies to handle
+- [ ] Error codes documented with troubleshooting guidance
+- [ ] AI agent integration guide with specific examples
+- [ ] Documentation is searchable and easy to navigate
+
+**Testing Steps**:
+
+1. **OpenAPI Spec Validation**:
+   - Validate spec with OpenAPI validator tools
+   - Verify no errors or warnings
+   - Test spec renders correctly in Swagger UI
+
+2. **Documentation Completeness**:
+   - Verify all endpoints from C7 are documented
+   - Check all error codes are explained
+   - Ensure examples are accurate and working
+
+3. **Getting Started Guide**:
+   - Follow guide from scratch as new developer
+   - Verify all steps work as documented
+   - Time the process (should be <5 minutes)
+
+4. **Code Examples**:
+   - Test all JavaScript examples in Node.js
+   - Test all Python examples
+   - Test all cURL examples
+   - Verify examples produce expected results
+
+5. **Swagger UI**:
+   - Access Swagger UI at `/api/docs`
+   - Test "Try it out" functionality
+   - Verify authentication works in Swagger
+   - Test various endpoints through UI
+
+6. **AI Agent Guide**:
+   - Have AI agent (Claude/GPT-4) follow guide
+   - Verify AI can successfully use API
+   - Check AI-specific examples work correctly
+
+**Dependencies**: Requires Tasks C7 and C8 to be complete before documentation can be finalized
 
 ---
 
@@ -1090,45 +2069,6 @@ After completion, verify all original PRD requirements:
 
 ## 🎯 POST-MVP PHASE 1 TASKS (Advanced Collaboration Features)
 
-### Task P1: Implement Role-Based Permission System
-
-**Objective**: Add Admin/Editor/Viewer role system with admin-only role management
-
-**Files to Modify**:
-- Create `src/contexts/RoleContext.js`
-- Create `src/services/role.service.js`
-- Create `src/components/roles/RoleManager.jsx`
-- Update `src/components/presence/OnlineUsers.jsx`
-
-**Specific Changes**:
-1. Create role context that manages user permissions across the app
-2. Implement role service functions: assignRole, getUserRole, checkPermission
-3. Add role assignment to user sidebar (Admin-only feature)
-4. Update Firebase security rules to enforce role-based access
-5. Store roles permanently in Firestore `/canvases/{canvasId}/roles` collection
-6. Add role caching with 5-minute refresh and immediate updates on changes
-7. Prevent admins from demoting themselves (last admin protection)
-8. First user on canvas automatically becomes Admin
-
-**Acceptance Criteria**:
-- [ ] Three roles work correctly: Admin (full access), Editor (create/edit), Viewer (read-only)
-- [ ] Only Admins can see and modify user roles
-- [ ] Roles persist permanently in database
-- [ ] First user on canvas becomes Admin automatically
-- [ ] Admins cannot demote themselves
-- [ ] Role changes update immediately for all users
-- [ ] Firebase security rules enforce role permissions
-
-**Testing Steps**:
-1. Create canvas and verify first user becomes Admin
-2. Add users and assign different roles
-3. Test that Viewers cannot edit anything (cursor shows but no interactions work)
-4. Verify Editors can create and edit objects
-5. Test Admin-only role management visibility
-6. Test role persistence across browser sessions
-
----
-
 ### Task P2: Build Advanced Selection Ownership System
 
 **Objective**: Implement selection-based ownership with 30-second timeout and expandable architecture
@@ -1262,7 +2202,7 @@ const CURSOR_COLORS = {
 
 ### Task P5: Enhanced User Feedback System
 
-**Objective**: Add comprehensive visual feedback for viewer restrictions and ownership conflicts
+**Objective**: Add comprehensive visual feedback for ownership conflicts and user interactions
 
 **Files to Modify**:
 - Create `src/components/feedback/ToastSystem.jsx`
@@ -1270,29 +2210,23 @@ const CURSOR_COLORS = {
 - Update CSS for cursor states
 
 **Specific Changes**:
-1. Add cursor state changes: `not-allowed` cursor when Viewer hovers over objects
-2. Implement toast notification system for user feedback
-3. Show "Viewer mode - read only access" toast when Viewer tries to interact
-4. Add "Object currently selected by [User Name]" tooltip for owned objects
-5. Create smooth 150ms transitions for all visual state changes
-6. Add 2-second auto-dismiss for informational toasts
-7. Ensure feedback is non-intrusive and doesn't block workflow
+1. Implement toast notification system for user feedback
+2. Add "Object currently selected by [User Name]" tooltip for owned objects
+3. Create smooth 150ms transitions for all visual state changes
+4. Add 2-second auto-dismiss for informational toasts
+5. Ensure feedback is non-intrusive and doesn't block workflow
 
 **Acceptance Criteria**:
-- [ ] Viewer cursor changes to `not-allowed` when hovering over objects
-- [ ] Toast appears when Viewer attempts to interact with objects
 - [ ] Tooltips show owner information for selected objects
 - [ ] All visual transitions are smooth and polished
 - [ ] Toasts auto-dismiss and don't accumulate
 - [ ] Feedback system doesn't impact canvas performance
 
 **Testing Steps**:
-1. Login as Viewer and hover over objects (verify cursor change)
-2. Try to click object as Viewer (verify toast appears)
-3. Hover over objects selected by other users (verify owner tooltip)
-4. Test toast auto-dismiss functionality
-5. Verify smooth visual transitions
-6. Performance test feedback system with many users
+1. Hover over objects selected by other users (verify owner tooltip)
+2. Test toast auto-dismiss functionality
+3. Verify smooth visual transitions
+4. Performance test feedback system with many users
 
 ---
 
