@@ -37,7 +37,7 @@ export const AuthProvider = ({ children }) => {
       return () => {}; // No cleanup needed for mock user
     }
 
-    // Check for redirect result first (for Google OAuth redirect)
+    // Check for redirect result after component mounts (non-blocking)
     const checkRedirectResult = async () => {
       try {
         const result = await handleGoogleRedirectResult();
@@ -49,7 +49,10 @@ export const AuthProvider = ({ children }) => {
       }
     };
 
-    checkRedirectResult();
+    // Delay the redirect check to avoid hydration issues
+    setTimeout(() => {
+      checkRedirectResult();
+    }, 100);
 
     // Normal auth flow when bypass is disabled
     // Set up auth state listener

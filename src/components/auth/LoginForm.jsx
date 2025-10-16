@@ -78,8 +78,11 @@ const LoginForm = () => {
     }
   };
 
-  // Hidden keyboard shortcut listener
+  // Hidden keyboard shortcut listener (client-side only)
   useEffect(() => {
+    // Only add listeners after component mounts (avoid SSR issues)
+    if (typeof window === 'undefined') return;
+    
     const handleKeyPress = (event) => {
       // Check for Ctrl+Shift+L (Windows/Linux) or Cmd+Shift+L (Mac)
       if (event.shiftKey && event.key.toLowerCase() === 'l' && (event.ctrlKey || event.metaKey)) {
