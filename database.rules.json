@@ -1,13 +1,19 @@
 {
   "rules": {
-    "globalCanvas": {
-      "users": {
-        ".read": "auth != null",
-        ".write": false,
-        "$userId": {
-          ".read": "auth != null",
-          ".write": "auth != null && auth.uid == $userId",
-          ".validate": "auth != null"
+    "projects": {
+      "$projectId": {
+        "canvases": {
+          "$canvasId": {
+            "presence": {
+              ".read": "auth != null",
+              ".write": false,
+              "$userId": {
+                ".read": "auth != null",
+                ".write": "auth != null && auth.uid == $userId",
+                ".validate": "auth != null && newData.child('userId').val() == auth.uid"
+              }
+            }
+          }
         }
       }
     },

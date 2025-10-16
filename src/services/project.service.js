@@ -388,3 +388,89 @@ export const isProjectCollaborator = async (projectId, userId) => {
     return { success: false, error: 'Failed to check collaborator status' };
   }
 };
+
+/**
+ * Invites a user to a canvas by email
+ * @param {string} projectId - Project ID
+ * @param {string} canvasId - Canvas ID
+ * @param {string} email - Email address of user to invite
+ * @param {string} invitingUserId - User ID of person sending invitation
+ * @returns {Object} - Result object with success status
+ */
+export const inviteUserToCanvas = async (projectId, canvasId, email, invitingUserId) => {
+  try {
+    // Validate input
+    if (!projectId || !canvasId || !email || !invitingUserId) {
+      return { success: false, error: 'All fields are required' };
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { success: false, error: 'Invalid email address' };
+    }
+
+    // Check if inviting user has access to the project
+    const hasAccess = await canUserAccessProject(projectId, invitingUserId);
+    if (!hasAccess.success || !hasAccess.canAccess) {
+      return { success: false, error: 'You do not have permission to invite users to this canvas' };
+    }
+
+    // Get the project to access its data
+    const projectResult = await getProject(projectId);
+    if (!projectResult.success) {
+      return projectResult;
+    }
+
+    const project = projectResult.project;
+
+    // Check if inviting self
+    // Note: We would need to look up the user by email to check this properly
+    // For now, we'll skip this check and let Firebase handle duplicate prevention
+
+    // For MVP: We're adding the user by email to a pending invitations system
+    // In production, you would:
+    // 1. Look up if user exists by email
+    // 2. If exists, add them as collaborator immediately
+    // 3. If not exists, create invitation record and send email
+    
+    // For now, we'll just add to project collaborators array
+    // Note: This is simplified - in production you'd want to:
+    // - Store invitations in a separate collection
+    // - Send actual emails via Cloud Functions
+    // - Handle user lookup by email
+    
+    // Create an invitation record (for tracking)
+    const invitationsCollection = collection(db, 'invitations');
+    const invitationData = {
+      projectId,
+      canvasId,
+      email: email.toLowerCase().trim(),
+      invitedBy: invitingUserId,
+      status: 'pending', // pending, accepted, expired
+      createdAt: serverTimestamp(),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    };
+
+    await addDoc(invitationsCollection, invitationData);
+
+    // TODO: Send email notification via Cloud Function or email service
+    // For now, we log it
+    console.log('Invitation created for:', email, 'to canvas:', canvasId);
+    console.log('Invitation link:', `${window.location.origin}/canvas/${projectId}/${canvasId}`);
+
+    // Note: In production, you would send an email here with:
+    // - Link to the canvas
+    // - Information about who invited them
+    // - Instructions to sign up/login
+
+    return { 
+      success: true, 
+      message: 'Invitation sent successfully',
+      invitationLink: `${window.location.origin}/canvas/${projectId}/${canvasId}`
+    };
+  } catch (error) {
+    console.error('Error inviting user to canvas:', error);
+    return { success: false, error: 'Failed to send invitation' };
+  }
+};

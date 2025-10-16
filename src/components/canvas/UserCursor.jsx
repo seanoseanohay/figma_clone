@@ -5,14 +5,22 @@ import { Group, Circle, Text } from 'react-konva'
  * UserCursor Component
  * Renders another user's cursor with username label
  * Only shows position - tool selection is local to each user
+ * 
+ * CANVAS-SCOPED: Now uses canvas-scoped presence data (cursorX/cursorY, userId, cursorColor)
  */
 const UserCursor = ({ user, stageScale = 1 }) => {
-  if (!user || !user.cursorPosition) {
+  // Check for valid cursor position (canvas-scoped data)
+  if (!user || user.cursorX === null || user.cursorY === null) {
     return null
   }
 
-  const { cursorPosition, displayName = 'Anonymous User', uid } = user
-  const { x, y } = cursorPosition
+  const { 
+    cursorX, 
+    cursorY, 
+    displayName = 'Anonymous User', 
+    userId,
+    cursorColor // Color is now provided by presence service
+  } = user
 
   // Scale cursor elements based on stage zoom level
   // Cursors should remain consistent size regardless of zoom
@@ -21,37 +29,15 @@ const UserCursor = ({ user, stageScale = 1 }) => {
   const labelOffset = 8 / stageScale
   const labelPadding = 4 / stageScale
 
-  // Generate consistent color for each user based on their ID
-  const getUserColor = (userId) => {
-    const colors = [
-      '#3b82f6', // Blue
-      '#ef4444', // Red  
-      '#10b981', // Green
-      '#f59e0b', // Yellow
-      '#8b5cf6', // Purple
-      '#06b6d4', // Cyan
-      '#f97316', // Orange
-      '#84cc16', // Lime
-      '#ec4899', // Pink
-      '#6b7280'  // Gray
-    ]
-    
-    // Simple hash function to get consistent color
-    let hash = 0
-    for (let i = 0; i < userId.length; i++) {
-      hash = ((hash << 5) - hash + userId.charCodeAt(i)) & 0xffffffff
-    }
-    return colors[Math.abs(hash) % colors.length]
-  }
-
-  const userColor = getUserColor(uid)
+  // Use cursor color from presence data (consistent per user)
+  const userColor = cursorColor || '#6b7280' // Fallback to gray if no color
   const displayNameShort = displayName.length > 20 ? 
     displayName.substring(0, 17) + '...' : displayName
 
   return (
     <Group
-      x={x}
-      y={y}
+      x={cursorX}
+      y={cursorY}
       listening={false} // Don't interfere with mouse events
     >
       {/* Cursor dot */}

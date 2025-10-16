@@ -1,12 +1,28 @@
 import React from 'react'
 import { usePresence } from '../../hooks/usePresence.js'
+import { useCanvas } from '../../hooks/useCanvas.js'
 
 /**
  * OnlineUsers Component
- * Displays list of connected users with status indicators
+ * Displays list of connected users on the CURRENT canvas with status indicators
+ * 
+ * CANVAS-SCOPED: Only shows users who are on the same project+canvas
  */
 const OnlineUsers = ({ className = "" }) => {
+  const { projectId, canvasId } = useCanvas()
   const { users, onlineCount, isLoading, error, getSummary } = usePresence()
+
+  // Show waiting state if no canvas selected
+  if (!projectId || !canvasId) {
+    return (
+      <div className={`${className} bg-white border border-gray-200 rounded-lg shadow-sm p-3`}>
+        <div className="flex items-center space-x-2">
+          <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+          <span className="text-sm text-gray-600">No canvas selected</span>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (
@@ -53,28 +69,28 @@ const OnlineUsers = ({ className = "" }) => {
         <div className="flex items-center space-x-2 mb-2">
           <div className="w-2 h-2 bg-green-500 rounded-full"></div>
           <span className="text-sm text-gray-900 font-medium">You</span>
-          <span className="text-xs text-gray-500">(current user)</span>
+          <span className="text-xs text-gray-500">(on this canvas)</span>
         </div>
 
-        {/* Other users */}
+        {/* Other users on this canvas */}
         {users.length === 0 ? (
           <div className="text-sm text-gray-500 italic">
-            No other users online
+            No other users on this canvas
           </div>
         ) : (
           <div className="space-y-2">
             {users.map((user) => {
-              const isActive = user.lastSeen > Date.now() - 30000 // Active within 30 seconds
-              const statusColor = user.isOnline && isActive ? 'bg-green-500' : 'bg-gray-400'
+              const isActive = user.lastActive > Date.now() - 30000 // Active within 30 seconds
+              const statusColor = isActive ? 'bg-green-500' : 'bg-gray-400'
               const displayName = user.displayName || 'Anonymous User'
               
               return (
-                <div key={user.uid} className="flex items-center space-x-2">
+                <div key={user.userId} className="flex items-center space-x-2">
                   <div className={`w-2 h-2 ${statusColor} rounded-full`}></div>
                   <span className="text-sm text-gray-700">
                     {displayName.length > 25 ? `${displayName.substring(0, 22)}...` : displayName}
                   </span>
-                  {user.cursorPosition && (
+                  {user.cursorX !== null && user.cursorY !== null && (
                     <span className="text-xs text-green-600">●</span>
                   )}
                 </div>
@@ -87,6 +103,7 @@ const OnlineUsers = ({ className = "" }) => {
         {import.meta.env.DEV && (
           <div className="mt-3 pt-3 border-t border-gray-100">
             <div className="text-xs text-gray-400 space-y-1">
+              <div>Canvas: {canvasId?.substring(0, 8)}...</div>
               <div>Total: {summary.totalUsers}</div>
               <div>With cursors: {summary.usersWithCursors}</div>
               <div>Active: {summary.activeUsers}</div>
@@ -100,9 +117,20 @@ const OnlineUsers = ({ className = "" }) => {
 
 /**
  * Compact version for header/toolbar use
+ * CANVAS-SCOPED: Shows user count for current canvas only
  */
 export const OnlineUsersCount = ({ className = "" }) => {
+  const { projectId, canvasId } = useCanvas()
   const { onlineCount, isLoading } = usePresence()
+
+  if (!projectId || !canvasId) {
+    return (
+      <div className={`${className} flex items-center space-x-1`}>
+        <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+        <span className="text-sm text-gray-600">No canvas</span>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

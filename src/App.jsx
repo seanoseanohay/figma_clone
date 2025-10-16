@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider } from './components/auth/AuthProvider.jsx';
+import { CanvasProvider } from './contexts/CanvasContext.jsx';
 import LoginForm from './components/auth/LoginForm.jsx';
 import RegisterForm from './components/auth/RegisterForm.jsx';
 import ProtectedRoute from './components/layout/ProtectedRoute.jsx';
@@ -59,8 +60,9 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <div className="App">
-          <Routes>
+        <CanvasProvider>
+          <div className="App">
+            <Routes>
             {/* TEMPORARY: When bypass is enabled, redirect to canvas directly */}
             {BYPASS_AUTH ? (
               <>
@@ -142,8 +144,9 @@ function App() {
                 <Route path="*" element={<Navigate to="/canvas" replace />} />
               </>
             )}
-          </Routes>
-        </div>
+            </Routes>
+          </div>
+        </CanvasProvider>
       </Router>
     </AuthProvider>
   );

@@ -58,10 +58,14 @@ export const FUTURE_SHAPE_TYPES = {
 export const FIREBASE_COLLECTIONS = {
   USERS: 'users',
   CANVAS_OBJECTS: 'canvasObjects',
-  GLOBAL_CANVAS: 'globalCanvas'
+  PROJECTS: 'projects'
 };
 
 // Realtime Database paths
+// NOTE: Canvas-scoped presence paths are now generated dynamically
+// Path format: /projects/{projectId}/canvases/{canvasId}/presence/{userId}
+// See presence.service.js for implementation
 export const REALTIME_PATHS = {
-  GLOBAL_PRESENCE: '/globalCanvas/users'
+  // DEPRECATED: Global presence system was MVP-only
+  // Use canvas-scoped presence via presence.service.js instead
 };
