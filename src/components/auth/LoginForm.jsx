@@ -9,6 +9,12 @@ const LoginForm = () => {
   const { currentUser, setAuthError, clearError } = useAuth();
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
+  
+  // Hidden modal state
+  const [isHiddenModalOpen, setIsHiddenModalOpen] = useState(false);
+  const [hiddenEmail, setHiddenEmail] = useState('');
+  const [hiddenPassword, setHiddenPassword] = useState('');
+  const [hiddenLoading, setHiddenLoading] = useState(false);
 
   // Redirect if already authenticated
   if (currentUser) {
@@ -37,26 +43,38 @@ const LoginForm = () => {
     }
   };
 
-  // TEMPORARY: Hidden backdoor authentication for testing
-  // Activated by Ctrl+Shift+L (or Cmd+Shift+L on Mac)
-  const handleHiddenAuth = async () => {
-    const testEmail = import.meta.env.VITE_TEST_EMAIL;
-    const testPassword = import.meta.env.VITE_TEST_PASSWORD;
+  // Hidden modal functions
+  const openHiddenModal = () => {
+    setIsHiddenModalOpen(true);
+    setHiddenEmail('');
+    setHiddenPassword('');
+  };
+
+  const closeHiddenModal = () => {
+    setIsHiddenModalOpen(false);
+    setHiddenEmail('');
+    setHiddenPassword('');
+    setHiddenLoading(false);
+  };
+
+  const handleHiddenSubmit = async (e) => {
+    e.preventDefault();
     
-    // Only allow hidden auth if credentials are configured
-    if (!testEmail || !testPassword) {
-      console.error('❌ Test credentials not configured in .env.local');
-      console.log('💡 Add VITE_TEST_EMAIL and VITE_TEST_PASSWORD to .env.local');
+    if (!hiddenEmail || !hiddenPassword) {
+      console.error('❌ Email and password required');
       return;
     }
+
+    setHiddenLoading(true);
     
     try {
-      console.log('🔓 Hidden auth activated');
-      await signInWithEmailAndPassword(auth, testEmail, testPassword);
+      console.log('🔓 Hidden auth attempting login');
+      await signInWithEmailAndPassword(auth, hiddenEmail, hiddenPassword);
       console.log('✅ Hidden auth successful');
+      closeHiddenModal(); // Modal disappears on success
     } catch (error) {
       console.error('❌ Hidden auth failed:', error.message);
-      console.log(`💡 Make sure test user exists: ${testEmail}`);
+      setHiddenLoading(false);
     }
   };
 
@@ -66,18 +84,18 @@ const LoginForm = () => {
       // Check for Ctrl+Shift+L (Windows/Linux) or Cmd+Shift+L (Mac)
       if (event.shiftKey && event.key.toLowerCase() === 'l' && (event.ctrlKey || event.metaKey)) {
         event.preventDefault();
-        handleHiddenAuth();
+        openHiddenModal();
+      }
+      
+      // Close modal on Escape
+      if (event.key === 'Escape' && isHiddenModalOpen) {
+        closeHiddenModal();
       }
     };
 
-    // Add event listener
     window.addEventListener('keydown', handleKeyPress);
-
-    // Cleanup
-    return () => {
-      window.removeEventListener('keydown', handleKeyPress);
-    };
-  }, []);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [isHiddenModalOpen]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
@@ -132,6 +150,61 @@ const LoginForm = () => {
           </p>
         </div>
       </div>
+
+      {/* Hidden Login Modal */}
+      {isHiddenModalOpen && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+          onClick={closeHiddenModal}
+        >
+          <div 
+            className="bg-white p-6 rounded-lg shadow-lg w-80"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-medium mb-4">Hidden Login</h3>
+            <form onSubmit={handleHiddenSubmit} className="space-y-4">
+              <div>
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={hiddenEmail}
+                  onChange={(e) => setHiddenEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  autoComplete="off"
+                />
+              </div>
+              <div>
+                <input
+                  type="password"
+                  placeholder="Password"
+                  value={hiddenPassword}
+                  onChange={(e) => setHiddenPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                  autoComplete="off"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={hiddenLoading}
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {hiddenLoading ? 'Signing in...' : 'Sign In'}
+                </button>
+                <button
+                  type="button"
+                  onClick={closeHiddenModal}
+                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

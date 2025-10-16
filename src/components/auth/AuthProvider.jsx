@@ -3,7 +3,7 @@ import { onAuthChange } from '../../services/auth.service.js';
 
 // TEMPORARY: Set to true to bypass authentication and auto-login as "bob"
 // Set back to false to re-enable normal authentication
-const BYPASS_AUTH = true;
+const BYPASS_AUTH = false;
 
 // Create auth context
 const AuthContext = createContext({});

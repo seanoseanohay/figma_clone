@@ -10,7 +10,7 @@ import Canvas from './components/canvas/Canvas.jsx';
 
 // TEMPORARY: Set to true to bypass authentication and go directly to canvas
 // This should match the BYPASS_AUTH flag in AuthProvider.jsx
-const BYPASS_AUTH = true;
+const BYPASS_AUTH = false;
 
 // Canvas page component with Toolbar and Canvas
 const CanvasPage = () => {
