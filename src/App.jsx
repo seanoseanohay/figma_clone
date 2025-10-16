@@ -28,7 +28,7 @@ const LoggedInLayout = ({ children }) => {
       </div>
       
       {/* Fixed Toolbar - Below header with proper spacing */}
-      <div className="fixed left-0 right-0 z-50 bg-white" style={{ top: 'calc(5rem + 0.5rem)' }}>
+      <div className="fixed left-0 right-0 z-50 bg-white" style={{ top: 'calc(5rem + 0.5rem)', width: '100%' }}>
         <Toolbar 
           selectedTool={selectedTool}
           onToolChange={handleToolChange}

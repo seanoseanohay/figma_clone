@@ -49,12 +49,12 @@ const Header = () => {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 shadow-lg">
-      <div className="max-w-6xl mx-auto px-6">
-        <div className="flex items-center justify-between py-4">
+    <header className="bg-white shadow-lg w-full">
+      <div className="w-full px-6">
+        <div className="flex items-center justify-between py-4 max-w-7xl mx-auto">
           
           {/* Left Side: Logo + Project Dropdown */}
-          <div className="flex items-center space-x-6">
+          <div className="flex items-center">
             {/* Logo */}
             <div className="flex items-center flex-shrink-0">
               <h1 className="text-xl font-bold text-gray-900">
@@ -65,17 +65,17 @@ const Header = () => {
               </span>
             </div>
 
-            {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names */}
-            <div className="w-80">
+            {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names - 16px left margin */}
+            <div className="w-80" style={{ marginLeft: '16px' }}>
               <ProjectCanvasSelector />
             </div>
           </div>
 
           {/* Right Side: User Squares + Current User + Actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center">
             
             {/* User Squares - Max 6 visible */}
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center" style={{ marginRight: '16px' }}>
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
@@ -84,7 +84,7 @@ const Header = () => {
                   <div
                     key={user.uid}
                     className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white cursor-pointer hover:scale-105 transition-transform"
-                    style={{ backgroundColor: getUserColor(user.uid) }}
+                    style={{ backgroundColor: getUserColor(user.uid), marginRight: '8px' }}
                   >
                     {(user.displayName?.charAt(0) || 'U').toUpperCase()}
                   </div>
@@ -93,7 +93,7 @@ const Header = () => {
               {/* Current user square */}
               <div 
                 className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white ring-2 ring-gray-800 cursor-pointer hover:scale-105 transition-transform"
-                style={{ backgroundColor: getUserColor(currentUser.uid) }}
+                style={{ backgroundColor: getUserColor(currentUser.uid), marginRight: '8px' }}
               >
                 {(currentUser.displayName?.charAt(0) || 'U').toUpperCase()}
               </div>
@@ -102,6 +102,7 @@ const Header = () => {
               {users.filter(user => user && user.uid).length > 5 && (
                 <div 
                   className="w-8 h-8 rounded-sm flex items-center justify-center bg-gray-400 text-white text-xs font-bold shadow-sm border border-white" 
+                  style={{ marginRight: '8px' }}
                 >
                   +{users.filter(user => user && user.uid).length - 5}
                 </div>

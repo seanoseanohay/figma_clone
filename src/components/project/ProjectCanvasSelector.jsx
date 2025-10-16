@@ -259,7 +259,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
    */
   const getButtonStyling = () => {
     // Match sign out button exactly: px-3 py-2 text-sm leading-4
-    const baseClasses = "inline-flex items-center w-full justify-between px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
+    const baseClasses = "inline-flex items-center justify-between px-3 py-2 border shadow-sm text-sm leading-4 font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
     
     if (isLoading) {
       return `${baseClasses} border-gray-300 text-gray-500 bg-gray-50 cursor-wait`;
@@ -290,6 +290,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
         }}
         disabled={isLoading}
         className={`${getButtonStyling()} ${isLoading ? 'disabled:cursor-wait' : ''} ${error ? 'disabled:cursor-pointer' : 'disabled:cursor-not-allowed'}`}
+        style={{ height: 'auto' }}
         aria-expanded={isOpen}
         aria-haspopup="listbox"
         title={error ? 'Click to retry loading projects' : ''}
@@ -456,7 +457,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
                               onClick={() => handleCanvasSelect(project, canvas)}
                               className={`w-full text-left px-6 py-3 text-sm transition-colors flex items-center group ${
                                 isCurrentCanvas 
-                                  ? 'bg-blue-200 font-semibold text-blue-900' 
+                                  ? 'bg-blue-300 font-semibold text-blue-900 border-l-4 border-blue-600' 
                                   : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                               }`}
                             >

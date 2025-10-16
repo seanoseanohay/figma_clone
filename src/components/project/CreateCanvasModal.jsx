@@ -226,3 +226,4 @@ const CreateCanvasModal = ({ isOpen, onClose, onCreate, projectName }) => {
 
 export default CreateCanvasModal;
 
+

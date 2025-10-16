@@ -40,8 +40,8 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.MOVE }) => {
   };
 
   return (
-    <div className="bg-white border-b border-gray-300 shadow-lg">
-      <div className="flex items-center space-x-1 px-4 py-2">
+    <div className="bg-white shadow-lg w-full" style={{ width: '100%' }}>
+      <div className="flex items-center justify-center space-x-1 px-4 py-2">
         {Object.entries(TOOL_CONFIG).map(([toolKey, config]) => {
           const isSelected = selectedTool === toolKey;
           
