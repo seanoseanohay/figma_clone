@@ -2,6 +2,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile
@@ -81,6 +83,7 @@ export const signInWithEmail = async (email, password) => {
 // Sign in with Google
 export const signInWithGoogle = async () => {
   try {
+    // Try popup first, fallback to redirect if blocked
     const userCredential = await signInWithPopup(auth, googleProvider);
     const user = userCredential.user;
 
@@ -98,6 +101,49 @@ export const signInWithGoogle = async () => {
     };
   } catch (error) {
     console.error('Error signing in with Google:', error);
+    
+    // If popup is blocked, try redirect method
+    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+      try {
+        await signInWithRedirect(auth, googleProvider);
+        return { success: true, redirect: true };
+      } catch (redirectError) {
+        console.error('Redirect also failed:', redirectError);
+        return {
+          success: false,
+          error: getAuthErrorMessage(redirectError.code)
+        };
+      }
+    }
+    
+    return {
+      success: false,
+      error: getAuthErrorMessage(error.code)
+    };
+  }
+};
+
+// Handle redirect result after Google sign-in redirect
+export const handleGoogleRedirectResult = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const user = result.user;
+      // Create or update user document
+      await createUserDocument(user);
+      return {
+        success: true,
+        user: {
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL
+        }
+      };
+    }
+    return { success: true, noResult: true };
+  } catch (error) {
+    console.error('Error handling redirect result:', error);
     return {
       success: false,
       error: getAuthErrorMessage(error.code)
@@ -193,6 +239,12 @@ const getAuthErrorMessage = (errorCode) => {
       return 'Too many failed attempts. Please wait a moment and try again.';
     case 'auth/network-request-failed':
       return 'Network error. Please check your connection and try again.';
+    case 'auth/cors-unsupported':
+      return 'Your browser is blocking the authentication popup. Please try the hidden login form (Ctrl+Shift+L).';
+    case 'auth/web-storage-unsupported':
+      return 'Your browser does not support authentication. Please enable cookies and try again.';
+    case 'auth/operation-not-supported-in-this-environment':
+      return 'This authentication method is not supported in your current browser environment.';
     default:
       return 'An error occurred during authentication. Please try again.';
   }

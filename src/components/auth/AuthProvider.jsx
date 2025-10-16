@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { onAuthChange } from '../../services/auth.service.js';
+import { onAuthChange, handleGoogleRedirectResult } from '../../services/auth.service.js';
 
 // TEMPORARY: Set to true to bypass authentication and auto-login as "bob"
 // Set back to false to re-enable normal authentication
@@ -36,6 +36,20 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return () => {}; // No cleanup needed for mock user
     }
+
+    // Check for redirect result first (for Google OAuth redirect)
+    const checkRedirectResult = async () => {
+      try {
+        const result = await handleGoogleRedirectResult();
+        if (result.success && !result.noResult) {
+          console.log('✅ Google redirect auth successful');
+        }
+      } catch (error) {
+        console.error('Error checking redirect result:', error);
+      }
+    };
+
+    checkRedirectResult();
 
     // Normal auth flow when bypass is disabled
     // Set up auth state listener
