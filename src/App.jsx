@@ -22,13 +22,13 @@ const LoggedInLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-100">
-      {/* Sticky Header - Fixed at top */}
-      <div className="fixed top-0 left-0 right-0 z-40">
+      {/* Fixed Header - Always at top */}
+      <div className="fixed top-0 left-0 right-0 z-40 bg-white">
         <Header />
       </div>
       
-      {/* Sticky Toolbar - Fixed below header */}
-      <div className="fixed top-16 left-0 right-0 z-30">
+      {/* Fixed Toolbar - Below header with proper spacing */}
+      <div className="fixed left-0 right-0 z-50 bg-white" style={{ top: 'calc(5rem + 0.5rem)' }}>
         <Toolbar 
           selectedTool={selectedTool}
           onToolChange={handleToolChange}
@@ -36,8 +36,8 @@ const LoggedInLayout = ({ children }) => {
       </div>
       
       {/* Main content area with top padding to account for fixed header/toolbar */}
-      <div className="pt-32">
-        <div className="flex-1">
+      <div className="relative" style={{ paddingTop: 'calc(5rem + 6rem + 1rem)' }}>
+        <div className="flex-1 overflow-hidden">
           {children({ selectedTool, onToolChange: handleToolChange })}
         </div>
       </div>

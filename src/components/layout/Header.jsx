@@ -49,30 +49,33 @@ const Header = () => {
   }
 
   return (
-    <header className="bg-white border-b border-gray-200 shadow-sm">
+    <header className="bg-white border-b border-gray-200 shadow-lg">
       <div className="max-w-6xl mx-auto px-6">
         <div className="flex items-center justify-between py-4">
           
-          {/* Logo */}
-          <div className="flex items-center flex-shrink-0 mr-8">
-            <h1 className="text-xl font-bold text-gray-900">
-              CollabCanvas
-            </h1>
-            <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-              MVP
-            </span>
-          </div>
+          {/* Left Side: Logo + Project Dropdown */}
+          <div className="flex items-center space-x-6">
+            {/* Logo */}
+            <div className="flex items-center flex-shrink-0">
+              <h1 className="text-xl font-bold text-gray-900">
+                CollabCanvas
+              </h1>
+              <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                MVP
+              </span>
+            </div>
 
-          {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names */}
-          <div className="w-80 mx-6">
-            <ProjectCanvasSelector />
+            {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names */}
+            <div className="w-80">
+              <ProjectCanvasSelector />
+            </div>
           </div>
 
           {/* Right Side: User Squares + Current User + Actions */}
-          <div className="flex items-center">
+          <div className="flex items-center space-x-4">
             
             {/* User Squares - Max 6 visible */}
-            <div className="flex items-center" style={{ gap: '8px', marginRight: '16px' }}>
+            <div className="flex items-center space-x-3">
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
@@ -104,8 +107,6 @@ const Header = () => {
                 </div>
               )}
             </div>
-
-
 
             {/* Sign Out Button */}
             <button
