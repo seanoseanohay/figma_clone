@@ -21,18 +21,22 @@ const LoggedInLayout = ({ children }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
-      {/* Persistent Header for all logged-in pages */}
-      <Header />
+    <div className="min-h-screen bg-gray-100">
+      {/* Sticky Header - Fixed at top */}
+      <div className="fixed top-0 left-0 right-0 z-40">
+        <Header />
+      </div>
       
-      {/* Persistent Toolbar for all logged-in pages */}
-      <Toolbar 
-        selectedTool={selectedTool}
-        onToolChange={handleToolChange}
-      />
+      {/* Sticky Toolbar - Fixed below header */}
+      <div className="fixed top-16 left-0 right-0 z-30">
+        <Toolbar 
+          selectedTool={selectedTool}
+          onToolChange={handleToolChange}
+        />
+      </div>
       
-      {/* Main content area */}
-      <div className="flex flex-1">
+      {/* Main content area with top padding to account for fixed header/toolbar */}
+      <div className="pt-32">
         <div className="flex-1">
           {children({ selectedTool, onToolChange: handleToolChange })}
         </div>

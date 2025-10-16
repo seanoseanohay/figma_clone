@@ -54,7 +54,7 @@ const Header = () => {
         <div className="flex items-center justify-between py-4">
           
           {/* Logo */}
-          <div className="flex items-center flex-shrink-0">
+          <div className="flex items-center flex-shrink-0 mr-8">
             <h1 className="text-xl font-bold text-gray-900">
               CollabCanvas
             </h1>
@@ -63,8 +63,8 @@ const Header = () => {
             </span>
           </div>
 
-          {/* Project/Canvas Selector - Always visible and more prominent */}
-          <div className="flex-1 max-w-md mx-4">
+          {/* Project/Canvas Selector - Fixed width for reasonable project/canvas names */}
+          <div className="w-80 mx-6">
             <ProjectCanvasSelector />
           </div>
 

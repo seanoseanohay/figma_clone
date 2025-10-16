@@ -318,7 +318,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
       {isOpen && (
         <div 
           ref={dropdownRef}
-          className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-xl z-50 max-h-[400px] overflow-hidden w-64"
+          className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-300 rounded-lg shadow-xl z-50 overflow-hidden"
           onKeyDown={handleKeyDown}
         >
           {/* Search Header */}
@@ -354,7 +354,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
           </div>
 
           {/* Content Area */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {error && (
               <div className="p-4 bg-red-50 border-b border-red-200">
                 <div className="text-sm text-red-700 flex items-start space-x-3">
@@ -423,10 +423,10 @@ const ProjectCanvasSelector = ({ className = '' }) => {
                 {/* Project/Canvas List */}
                 {filteredProjects.map((project) => (
                   <div key={project.id} className="border-b border-gray-100 last:border-b-0">
-                    {/* Project Header */}
-                    <div className="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                    {/* Project Header - Simplified */}
+                    <div className="px-4 py-2 bg-gray-50 flex items-center justify-between">
                       <div className="flex items-center">
-                        <h3 className="text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                        <h3 className="text-sm font-medium text-gray-800">
                           {project.name}
                         </h3>
                         {project._searchMatch === 'project' && (
@@ -441,7 +441,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
                           setShowCreateCanvas(true);
                           setIsOpen(false);
                         }}
-                        className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded"
+                        className="text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
                         title="Add canvas to this project"
                       >
                         + Canvas
