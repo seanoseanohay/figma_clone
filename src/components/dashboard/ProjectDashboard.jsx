@@ -168,14 +168,12 @@ const ProjectDashboard = () => {
                     <button
                       key={canvas.id}
                       onClick={() => handleNavigateToCanvas(project, canvas)}
-                      className="w-full text-left px-3 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                      className="inline-flex items-center justify-between px-4 py-2 rounded-md hover:bg-gray-50 transition-colors border border-gray-200 hover:border-gray-300 min-w-0 max-w-sm"
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium text-gray-900">{canvas.name}</span>
-                        <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
-                      </div>
+                      <span className="text-sm font-medium text-gray-900 truncate">{canvas.name}</span>
+                      <svg className="h-4 w-4 text-gray-400 ml-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
                     </button>
                   ))}
                   

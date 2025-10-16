@@ -63,8 +63,8 @@ const Header = () => {
             </span>
           </div>
 
-          {/* Project/Canvas Selector */}
-          <div className="hidden sm:block">
+          {/* Project/Canvas Selector - Always visible and more prominent */}
+          <div className="flex-1 max-w-md mx-4">
             <ProjectCanvasSelector />
           </div>
 

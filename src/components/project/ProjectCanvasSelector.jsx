@@ -258,7 +258,7 @@ const ProjectCanvasSelector = ({ className = '' }) => {
    * Get button styling based on current state
    */
   const getButtonStyling = () => {
-    const baseClasses = "inline-flex items-center px-2 py-1.5 border shadow-sm text-xs font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
+    const baseClasses = "inline-flex items-center w-full justify-between px-3 py-2 border shadow-sm text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500";
     
     if (isLoading) {
       return `${baseClasses} border-gray-300 text-gray-500 bg-gray-50 cursor-wait`;
