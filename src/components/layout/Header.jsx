@@ -93,7 +93,6 @@ const Header = () => {
                     key={user.uid}
                     className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white cursor-pointer hover:scale-105 transition-transform"
                     style={{ backgroundColor: getUserColor(user.uid) }}
-                    title={user.displayName || 'Anonymous User'}
                   >
                     {(user.displayName?.charAt(0) || 'U').toUpperCase()}
                   </div>
@@ -101,9 +100,8 @@ const Header = () => {
                 
               {/* Current user square */}
               <div 
-                className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border-2 border-blue-400"
+                className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white ring-2 ring-gray-800 cursor-pointer hover:scale-105 transition-transform"
                 style={{ backgroundColor: getUserColor(currentUser.uid) }}
-                title={`${currentUser.displayName} (you)`}
               >
                 {(currentUser.displayName?.charAt(0) || 'U').toUpperCase()}
               </div>
@@ -112,32 +110,12 @@ const Header = () => {
               {users.filter(user => user && user.uid).length > 5 && (
                 <div 
                   className="w-8 h-8 rounded-sm flex items-center justify-center bg-gray-400 text-white text-xs font-bold shadow-sm border border-white" 
-                  title={`+${users.filter(user => user && user.uid).length - 5} more users`}
                 >
                   +{users.filter(user => user && user.uid).length - 5}
                 </div>
               )}
             </div>
 
-            {/* Current User Info */}
-            <div className="flex items-center space-x-2">
-              {currentUser.photoURL ? (
-                <img
-                  src={currentUser.photoURL}
-                  alt="Profile"
-                  className="h-8 w-8 rounded-full"
-                />
-              ) : (
-                <div className="h-8 w-8 bg-blue-500 rounded-full flex items-center justify-center">
-                  <span className="text-white text-sm font-medium">
-                    {currentUser.displayName?.charAt(0)?.toUpperCase() || 'U'}
-                  </span>
-                </div>
-              )}
-              <span className="hidden md:block text-sm font-medium text-gray-700 max-w-32 truncate">
-                {currentUser.displayName || 'Anonymous'}
-              </span>
-            </div>
 
             {/* Share Button */}
             <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
