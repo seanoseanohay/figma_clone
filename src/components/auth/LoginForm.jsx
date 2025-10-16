@@ -10,11 +10,11 @@ const LoginForm = () => {
   const [loading, setLoading] = useState(false);
   const [localError, setLocalError] = useState('');
   
-  // Hidden modal state
-  const [isHiddenModalOpen, setIsHiddenModalOpen] = useState(false);
-  const [hiddenEmail, setHiddenEmail] = useState('');
-  const [hiddenPassword, setHiddenPassword] = useState('');
-  const [hiddenLoading, setHiddenLoading] = useState(false);
+  // Simple email/password form state
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [emailLoading, setEmailLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
 
   // Redirect if already authenticated
   if (currentUser) {
@@ -43,66 +43,66 @@ const LoginForm = () => {
     }
   };
 
-  // Hidden modal functions
-  const openHiddenModal = () => {
-    setIsHiddenModalOpen(true);
-    setHiddenEmail('');
-    setHiddenPassword('');
-  };
-
-  const closeHiddenModal = () => {
-    setIsHiddenModalOpen(false);
-    setHiddenEmail('');
-    setHiddenPassword('');
-    setHiddenLoading(false);
-  };
-
-  const handleHiddenSubmit = async (e) => {
+  // Simple email/password login
+  const handleEmailSubmit = async (e) => {
     e.preventDefault();
     
-    if (!hiddenEmail || !hiddenPassword) {
-      console.error('❌ Email and password required');
+    if (!email || !password) {
+      setEmailError('Email and password required');
       return;
     }
 
-    setHiddenLoading(true);
+    setEmailLoading(true);
+    setEmailError('');
     
     try {
-      console.log('🔓 Hidden auth attempting login');
-      await signInWithEmailAndPassword(auth, hiddenEmail, hiddenPassword);
-      console.log('✅ Hidden auth successful');
-      closeHiddenModal(); // Modal disappears on success
+      await signInWithEmailAndPassword(auth, email, password);
+      console.log('✅ Email login successful');
+      // Success handled by AuthProvider context change
     } catch (error) {
-      console.error('❌ Hidden auth failed:', error.message);
-      setHiddenLoading(false);
+      console.error('❌ Email login failed:', error.message);
+      setEmailError('Invalid email or password');
+      setEmailLoading(false);
     }
   };
 
-  // Hidden keyboard shortcut listener (client-side only)
-  useEffect(() => {
-    // Only add listeners after component mounts (avoid SSR issues)
-    if (typeof window === 'undefined') return;
-    
-    const handleKeyPress = (event) => {
-      // Check for Ctrl+Shift+L (Windows/Linux) or Cmd+Shift+L (Mac)
-      if (event.shiftKey && event.key.toLowerCase() === 'l' && (event.ctrlKey || event.metaKey)) {
-        event.preventDefault();
-        openHiddenModal();
-      }
-      
-      // Close modal on Escape
-      if (event.key === 'Escape' && isHiddenModalOpen) {
-        closeHiddenModal();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyPress);
-    return () => window.removeEventListener('keydown', handleKeyPress);
-  }, [isHiddenModalOpen]);
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
+      <div className="max-w-[400px] w-full space-y-8">
+        
+        {/* TEMPORARY: Simple Email/Password Form */}
+        <div className="bg-yellow-50 p-4 border border-yellow-200 rounded">
+          <h3 className="text-sm font-medium text-yellow-800 mb-2">Temporary Login (Testing)</h3>
+          <form onSubmit={handleEmailSubmit} className="space-y-2">
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+              required
+            />
+            <input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
+              required
+            />
+            <button
+              type="submit"
+              disabled={emailLoading}
+              className="w-full py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50"
+            >
+              {emailLoading ? 'Signing in...' : 'Login'}
+            </button>
+            {emailError && (
+              <p className="text-red-600 text-xs">{emailError}</p>
+            )}
+          </form>
+        </div>
+
         {/* Header */}
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
@@ -153,61 +153,6 @@ const LoginForm = () => {
           </p>
         </div>
       </div>
-
-      {/* Hidden Login Modal */}
-      {isHiddenModalOpen && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-          onClick={closeHiddenModal}
-        >
-          <div 
-            className="bg-white p-6 rounded-lg shadow-lg w-80"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-lg font-medium mb-4">Hidden Login</h3>
-            <form onSubmit={handleHiddenSubmit} className="space-y-4">
-              <div>
-                <input
-                  type="email"
-                  placeholder="Email"
-                  value={hiddenEmail}
-                  onChange={(e) => setHiddenEmail(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                  autoComplete="off"
-                />
-              </div>
-              <div>
-                <input
-                  type="password"
-                  placeholder="Password"
-                  value={hiddenPassword}
-                  onChange={(e) => setHiddenPassword(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  required
-                  autoComplete="off"
-                />
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={hiddenLoading}
-                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {hiddenLoading ? 'Signing in...' : 'Sign In'}
-                </button>
-                <button
-                  type="button"
-                  onClick={closeHiddenModal}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

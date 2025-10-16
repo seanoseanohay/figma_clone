@@ -172,36 +172,33 @@ const Header = () => {
             </span>
           </div>
 
-          {/* Project/Canvas Dropdown - Properly Sized */}
-          <div className="flex items-center flex-shrink-0 w-64 mx-4" ref={dropdownRef}>
-            <div className="relative w-full">
-              <button
-                onClick={toggleDropdown}
-                className="w-full flex items-center justify-between px-4 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                type="button"
+          {/* Project/Canvas Dropdown */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={toggleDropdown}
+              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+              type="button"
+            >
+              {isLoadingProjects ? (
+                "Loading..."
+              ) : currentProjectCanvas ? (
+                `${currentProjectCanvas.projectName} > ${currentProjectCanvas.canvasName}`
+              ) : (
+                "Select Project"
+              )}
+              <svg 
+                className={`w-4 h-4 ml-2 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
               >
-                <span className="truncate">
-                  {isLoadingProjects ? (
-                    "Loading..."
-                  ) : currentProjectCanvas ? (
-                    `${currentProjectCanvas.projectName} > ${currentProjectCanvas.canvasName}`
-                  ) : (
-                    "Select Project > Canvas"
-                  )}
-                </span>
-                <svg 
-                  className={`w-4 h-4 ml-2 flex-shrink-0 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
 
-              {/* Dropdown Menu */}
-              {isDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-[400px] overflow-y-auto min-w-[300px]">
+            {/* Dropdown Menu */}
+            {isDropdownOpen && (
+              <div className="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-50 max-h-[400px] overflow-y-auto min-w-[300px]">
                   {isLoadingProjects ? (
                     <div className="px-3 py-4 text-center text-gray-500">
                       <div className="inline-flex items-center">
@@ -262,14 +259,13 @@ const Header = () => {
                   )}
                 </div>
               )}
-            </div>
           </div>
 
           {/* Right Side: User Squares + Current User + Actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-6">
             
             {/* User Squares - Max 6 visible */}
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-2">
               {/* Other users first - limit to 6 total squares */}
               {users
                 .filter(user => user && user.uid)
@@ -303,13 +299,6 @@ const Header = () => {
             </div>
 
 
-            {/* Share Button */}
-            <button className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors">
-              <svg className="w-4 h-4 md:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-              </svg>
-              <span className="hidden md:inline">Share</span>
-            </button>
 
             {/* Sign Out Button */}
             <button
@@ -330,16 +319,6 @@ const Header = () => {
               )}
             </button>
 
-            {/* Mobile Menu Button - Hidden on desktop */}
-            <button 
-              onClick={() => setMobileMenuOpen(true)}
-              className="inline-flex items-center p-2 border border-gray-300 shadow-sm rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
-              style={{ display: 'none' }} // Force hidden on desktop
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
