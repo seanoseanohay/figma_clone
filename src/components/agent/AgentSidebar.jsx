@@ -104,18 +104,18 @@ const AgentSidebar = ({ isOpen, onClose }) => {
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black bg-opacity-25 z-40"
+        className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4"
         onClick={onClose}
         style={{ zIndex: 40 }}
-      />
-      
-      {/* Sidebar */}
-      <div 
-        className="fixed right-0 top-0 h-full w-96 bg-white shadow-2xl z-50 flex flex-col"
-        style={{ zIndex: 50 }}
       >
+        {/* Modal */}
+        <div 
+          className="w-full max-w-lg bg-white rounded-lg shadow-2xl z-50 flex flex-col max-h-[80vh] transform transition-all duration-200 ease-out"
+          style={{ zIndex: 50 }}
+          onClick={(e) => e.stopPropagation()}
+        >
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-lg">
           <div className="flex items-center space-x-3">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
               <span className="text-white text-lg">🤖</span>
@@ -152,7 +152,7 @@ const AgentSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Chat History */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
           {history.length === 0 ? (
             <div className="text-center py-8">
               <div className="w-16 h-16 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -218,7 +218,7 @@ const AgentSidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Input Area */}
-        <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="p-4 border-t border-gray-200 bg-white rounded-b-lg">
           {history.length > 0 && (
             <div className="flex justify-end mb-3">
               <button
@@ -271,6 +271,7 @@ const AgentSidebar = ({ isOpen, onClose }) => {
               </button>
             </div>
           </form>
+        </div>
         </div>
       </div>
     </>
