@@ -1,4 +1,5 @@
-import ColorPicker from '../common/ColorPicker.jsx';
+import { useState, useRef, useEffect } from 'react';
+import { SketchPicker } from 'react-color';
 
 // Tool constants - separated by type for better organization
 export const TOOLS = {
@@ -19,6 +20,74 @@ const MODIFICATION_TOOLS = [TOOLS.MOVE, TOOLS.RESIZE];
 
 // Shape tools (create new shapes)
 const SHAPE_TOOLS = [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
+
+/**
+ * ColorSquare - Inline colored square that opens color picker
+ * Replaces text-based color display with a visual indicator
+ */
+const ColorSquare = ({ color, onChange, disabled = false }) => {
+  const [showPicker, setShowPicker] = useState(false);
+  const pickerRef = useRef(null);
+
+  // Close picker when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
+        setShowPicker(false);
+      }
+    };
+
+    if (showPicker) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showPicker]);
+
+  const handleChangeComplete = (newColor) => {
+    onChange(newColor.hex);
+  };
+
+  return (
+    <span className="relative inline-flex items-center" ref={pickerRef}>
+      {/* Colored Square Button */}
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!disabled) setShowPicker(!showPicker);
+        }}
+        disabled={disabled}
+        className={`
+          w-5 h-5 rounded border-2 border-gray-600 shadow-sm
+          transition-all duration-150
+          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:border-gray-800 cursor-pointer'}
+        `}
+        style={{ backgroundColor: color }}
+        title={`Color: ${color.toUpperCase()} - Click to change`}
+      />
+
+      {/* Color Picker Popover */}
+      {showPicker && (
+        <div 
+          className="absolute z-50"
+          style={{ 
+            top: '100%', 
+            left: '50%', 
+            transform: 'translateX(-50%)',
+            marginTop: '8px'
+          }}
+        >
+          <div className="shadow-2xl rounded-lg overflow-hidden">
+            <SketchPicker
+              color={color}
+              onChangeComplete={handleChangeComplete}
+              disableAlpha={true}
+            />
+          </div>
+        </div>
+      )}
+    </span>
+  );
+};
 
 // Tool configurations with icons, labels, and cursors
 const TOOL_CONFIG = {
@@ -114,35 +183,30 @@ const Toolbar = ({
     }
   };
 
-  // Format object properties for display
+  // Format numbers with commas as thousands separators
+  const formatNumber = (num) => {
+    return new Intl.NumberFormat('en-US').format(Math.round(num));
+  };
+
+  // Format object properties for display (without color - color shown via ColorSquare)
   const formatObjectProperties = (obj) => {
     if (!obj) return null;
     
+    const x = formatNumber(obj.x);
+    const y = formatNumber(obj.y);
+    const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
+    const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
+    
     if (obj.type === 'rectangle') {
-      const width = Math.round(obj.width);
-      const height = Math.round(obj.height);
-      const x = Math.round(obj.x);
-      const y = Math.round(obj.y);
-      const color = obj.fill || '#808080';
-      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
-      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
-      return `Rectangle: ${width}×${height} at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
+      const width = formatNumber(obj.width);
+      const height = formatNumber(obj.height);
+      return `Rectangle: ${width}×${height} at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     } else if (obj.type === 'circle') {
-      const radius = Math.round(obj.radius);
-      const x = Math.round(obj.x);
-      const y = Math.round(obj.y);
-      const color = obj.fill || '#808080';
-      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
-      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
-      return `Circle: r=${radius} at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
+      const radius = formatNumber(obj.radius);
+      return `Circle: r=${radius} at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     } else if (obj.type === 'star') {
       const numPoints = obj.numPoints || 5;
-      const x = Math.round(obj.x);
-      const y = Math.round(obj.y);
-      const color = obj.fill || '#808080';
-      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
-      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
-      return `Star: ${numPoints} points at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
+      return `Star: ${numPoints} points at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     }
     
     return null;
@@ -188,11 +252,11 @@ const Toolbar = ({
   };
 
   // Build Line 1: Object properties or tool name
-  const line1 = selectedObject 
+  const line1Text = selectedObject 
     ? formatObjectProperties(selectedObject)
     : TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
 
-  // Build Line 2: Tool name (if object selected) • Cursor • Zoom
+  // Build Line 2: Tool name (if object selected) • Cursor • Zoom • Color (if creating)
   const line2Parts = [];
   
   // Add tool name if object is selected (Option C)
@@ -200,20 +264,20 @@ const Toolbar = ({
     line2Parts.push(TOOL_CONFIG[selectedTool]?.label || '');
   }
   
-  // Add cursor position
+  // Add cursor position (with formatted numbers)
   if (cursorPosition) {
-    const x = Math.round(cursorPosition.x);
-    const y = Math.round(cursorPosition.y);
+    const x = formatNumber(cursorPosition.x);
+    const y = formatNumber(cursorPosition.y);
     line2Parts.push(`Cursor: (${x}, ${y})`);
   }
   
   // Add zoom level
   line2Parts.push(`Zoom: ${Math.round(zoomLevel)}%`);
   
-  const line2 = line2Parts.join(' • ');
+  const line2Text = line2Parts.join(' • ');
 
-  // Check if we should show color picker (when object selected OR drawing tool active)
-  const showColorPicker = hasSelection || SHAPE_TOOLS.includes(selectedTool);
+  // Determine if we should show color (when object selected OR drawing tool active)
+  const showColor = hasSelection || SHAPE_TOOLS.includes(selectedTool);
 
   return (
     <div className="w-full flex justify-center" style={{ width: '100%' }}>
@@ -277,34 +341,36 @@ const Toolbar = ({
           <div className="flex items-center space-x-1">
             {SHAPE_TOOLS.map(toolKey => renderToolButton(toolKey))}
           </div>
-          
-          {/* Contextual Color Picker (only show when object selected OR drawing tool active) */}
-          {showColorPicker && (
-            <>
-              {/* Vertical Divider */}
-              <div className="mx-4 h-10 border-l-2 border-gray-300"></div>
-              
-              {/* Color Picker */}
-              <div className="flex items-center">
-                <ColorPicker 
-                  color={selectedColor}
-                  onChange={onColorChange}
-                />
-              </div>
-            </>
-          )}
         </div>
         
         {/* Two-line description area with object properties and canvas info */}
         <div className="px-6 pb-3 text-center">
-          {/* Line 1: Object properties or tool name */}
-          <p className="text-xs font-medium text-gray-700">
-            {line1}
+          {/* Line 1: Object properties or tool name with color square */}
+          <p className="text-xs font-medium text-gray-700 flex items-center justify-center gap-2">
+            <span>{line1Text}</span>
+            {selectedObject && showColor && (
+              <>
+                <span>•</span>
+                <ColorSquare 
+                  color={selectedColor}
+                  onChange={onColorChange}
+                />
+              </>
+            )}
           </p>
           
-          {/* Line 2: Tool (if object selected) • Cursor • Zoom */}
-          <p className="text-xs text-gray-500 mt-1">
-            {line2}
+          {/* Line 2: Tool (if object selected) • Cursor • Zoom • Color (if creating) */}
+          <p className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-2">
+            <span>{line2Text}</span>
+            {!selectedObject && showColor && (
+              <>
+                <span>•</span>
+                <ColorSquare 
+                  color={selectedColor}
+                  onChange={onColorChange}
+                />
+              </>
+            )}
           </p>
         </div>
       </div>

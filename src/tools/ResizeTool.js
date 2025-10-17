@@ -33,6 +33,27 @@ export class ResizeTool {
   }
 
   /**
+   * Calculate new star dimensions based on resize handle
+   * Stars maintain shape by adjusting both inner and outer radius based on distance from center
+   * Maintains the proportional relationship between inner and outer radius (40%)
+   */
+  calculateStarResize(star, handle, currentPos, startPos) {
+    // Calculate distance from center to current mouse position
+    const dx = currentPos.x - star.x
+    const dy = currentPos.y - star.y
+    const newOuterRadius = Math.sqrt(dx * dx + dy * dy)
+    
+    // Maintain the 40% ratio for inner radius
+    const newInnerRadius = newOuterRadius * 0.4
+    
+    return {
+      ...star,
+      outerRadius: Math.max(newOuterRadius, this.minSize / 2), // Minimum radius
+      innerRadius: Math.max(newInnerRadius, this.minSize / 4) // Minimum inner radius
+    }
+  }
+
+  /**
    * Calculate new rectangle dimensions based on resize handle
    */
   calculateRectangleResize(rect, handle, deltaX, deltaY) {
@@ -179,6 +200,32 @@ export class ResizeTool {
       }
       
       return // Circles don't need crossover detection
+    } else if (startObject.type === 'star') {
+      // Star resize: adjust both inner and outer radius based on distance from center
+      newObject = this.calculateStarResize(startObject, currentHandle, pos, startPos)
+      
+      // Clamp star to canvas (use circle clamping since stars are radial)
+      if (state.clampStarToCanvas) {
+        newObject = state.clampStarToCanvas(newObject)
+      }
+      
+      // Update local state for immediate visual feedback
+      setLocalRectUpdates(prev => ({
+        ...prev,
+        [resizeSelectedId]: newObject
+      }))
+      
+      // Send updates if we own this object
+      if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
+        updateActiveObjectPosition(canvasId, resizeSelectedId, {
+          x: newObject.x,
+          y: newObject.y,
+          innerRadius: newObject.innerRadius,
+          outerRadius: newObject.outerRadius
+        })
+      }
+      
+      return // Stars don't need crossover detection
     } else if (startObject.type === 'rectangle') {
       // Rectangle resize: apply corner-specific transformations
       newObject = this.calculateRectangleResize(startObject, currentHandle, deltaX, deltaY)
@@ -294,6 +341,9 @@ export class ResizeTool {
           updateData.height = finalObject.height
         } else if (finalObject.type === 'circle') {
           updateData.radius = finalObject.radius
+        } else if (finalObject.type === 'star') {
+          updateData.innerRadius = finalObject.innerRadius
+          updateData.outerRadius = finalObject.outerRadius
         }
 
         // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)
