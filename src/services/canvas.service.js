@@ -14,13 +14,24 @@ import {
   setDoc,
   arrayUnion
 } from 'firebase/firestore'
-import { db, auth } from './firebase.js'
+import { ref, set, update, remove, onValue, onDisconnect } from 'firebase/database'
+import { db, auth, rtdb } from './firebase.js'
 import { FIREBASE_COLLECTIONS, OBJECT_UPDATE_THROTTLE } from '../constants/canvas.constants.js'
 import { canUserAccessProject } from './project.service.js'
 
-// Throttling mechanism for position updates during drag operations
+// Throttling mechanism for Firestore position updates during drag operations
 const pendingUpdates = new Map()
 const updateTimeouts = new Map()
+
+// Throttling mechanism for RTDB active object position updates during drag
+// 100ms throttle = ~10 updates/sec for smooth movement without excessive cost
+// Increase this value (e.g., 150ms) if experiencing lag - smooth motion requires only ~8 FPS
+const ACTIVE_OBJECT_THROTTLE = 100
+const activeObjectPendingUpdates = new Map()
+const activeObjectTimeouts = new Map()
+
+// Track cleanup handlers for disconnection
+const activeObjectDisconnectHandlers = new Map()
 
 /**
  * Canvas Service
@@ -669,7 +680,15 @@ export const addCollaboratorToCanvas = async (canvasId, inviteeEmail, inviterUse
     }
   } catch (error) {
     console.error('Error adding collaborator:', error);
-    return { success: false, pending: false, message: 'Failed to add collaborator' };
+    
+    // Provide more specific error messages
+    if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+      return { success: false, pending: false, message: 'Permission denied. Please check Firestore security rules.' };
+    } else if (error.code === 'not-found') {
+      return { success: false, pending: false, message: 'Canvas not found.' };
+    } else {
+      return { success: false, pending: false, message: 'Failed to add collaborator. Please try again.' };
+    }
   }
 };
 
@@ -770,3 +789,195 @@ export const subscribeToCanvasObjects = (canvasId, callback) => {
     return () => {}; // Return no-op function
   }
 };
+
+// =======================
+// REALTIME OBJECT MOVEMENT (RTDB)
+// =======================
+
+/**
+ * Update active object position in RTDB for real-time movement during drag
+ * Throttled to 75ms for smooth updates without excessive Firebase calls
+ * @param {string} canvasId - Canvas ID
+ * @param {string} objectId - Object ID being dragged
+ * @param {number} x - X position
+ * @param {number} y - Y position
+ * @param {number} width - Width (optional, for resize operations)
+ * @param {number} height - Height (optional, for resize operations)
+ * @returns {Promise<void>}
+ */
+export const updateActiveObjectPosition = (canvasId, objectId, position) => {
+  try {
+    if (!auth.currentUser || !canvasId || !objectId) {
+      return Promise.resolve()
+    }
+
+    const updateKey = `${canvasId}_${objectId}`
+    
+    // Store the latest update for this object
+    activeObjectPendingUpdates.set(updateKey, {
+      canvasId,
+      objectId,
+      position,
+      userId: auth.currentUser.uid
+    })
+
+    // If there's already a pending update, just update the data
+    if (activeObjectTimeouts.has(updateKey)) {
+      return Promise.resolve()
+    }
+
+    // Set up throttled update
+    const timeoutId = setTimeout(async () => {
+      const updateData = activeObjectPendingUpdates.get(updateKey)
+      if (updateData) {
+        activeObjectPendingUpdates.delete(updateKey)
+        activeObjectTimeouts.delete(updateKey)
+        
+        try {
+          const activeObjectRef = ref(
+            rtdb, 
+            `/canvases/${updateData.canvasId}/activeObjects/${updateData.objectId}`
+          )
+          
+          await set(activeObjectRef, {
+            ...updateData.position,
+            isBeingDragged: true,
+            draggedBy: updateData.userId,
+            lastUpdate: Date.now()
+          })
+
+          // Set up automatic cleanup on disconnect if not already set
+          if (!activeObjectDisconnectHandlers.has(updateKey)) {
+            const disconnectHandler = onDisconnect(activeObjectRef)
+            await disconnectHandler.remove()
+            activeObjectDisconnectHandlers.set(updateKey, disconnectHandler)
+          }
+        } catch (error) {
+          // Silently handle RTDB errors (graceful degradation)
+          if (error.code !== 'PERMISSION_DENIED') {
+            console.error('Error updating active object position:', error)
+          }
+        }
+      }
+    }, ACTIVE_OBJECT_THROTTLE)
+
+    activeObjectTimeouts.set(updateKey, timeoutId)
+    return Promise.resolve()
+  } catch (error) {
+    console.error('Error setting up active object update:', error)
+    return Promise.resolve()
+  }
+}
+
+/**
+ * Clear active object from RTDB when drag ends
+ * @param {string} canvasId - Canvas ID
+ * @param {string} objectId - Object ID that finished dragging
+ * @returns {Promise<void>}
+ */
+export const clearActiveObject = async (canvasId, objectId) => {
+  try {
+    if (!canvasId || !objectId) {
+      return
+    }
+
+    const updateKey = `${canvasId}_${objectId}`
+    
+    // Clear any pending throttled updates
+    if (activeObjectTimeouts.has(updateKey)) {
+      clearTimeout(activeObjectTimeouts.get(updateKey))
+      activeObjectTimeouts.delete(updateKey)
+    }
+    activeObjectPendingUpdates.delete(updateKey)
+    
+    // Clear disconnect handler
+    activeObjectDisconnectHandlers.delete(updateKey)
+
+    // Remove from RTDB
+    const activeObjectRef = ref(rtdb, `/canvases/${canvasId}/activeObjects/${objectId}`)
+    await remove(activeObjectRef)
+    
+    console.log(`Active object cleared: ${objectId}`)
+  } catch (error) {
+    // Silently handle RTDB errors
+    if (error.code !== 'PERMISSION_DENIED') {
+      console.error('Error clearing active object:', error)
+    }
+  }
+}
+
+/**
+ * Subscribe to active objects in a canvas for real-time movement updates
+ * @param {string} canvasId - Canvas ID
+ * @param {Function} callback - Called with object of active objects {objectId: {x, y, ...}}
+ * @returns {Function} Unsubscribe function
+ */
+export const subscribeToActiveObjects = (canvasId, callback) => {
+  try {
+    if (!canvasId) {
+      console.warn('Cannot subscribe to active objects: missing canvasId')
+      callback({})
+      return () => {}
+    }
+
+    const activeObjectsRef = ref(rtdb, `/canvases/${canvasId}/activeObjects`)
+    
+    const handleActiveObjectsUpdate = (snapshot) => {
+      const activeObjectsData = snapshot.val() || {}
+      
+      // Filter out objects being dragged by current user (we use local updates for those)
+      const filteredData = {}
+      for (const [objectId, data] of Object.entries(activeObjectsData)) {
+        if (data.draggedBy !== auth.currentUser?.uid) {
+          filteredData[objectId] = data
+        }
+      }
+      
+      callback(filteredData)
+    }
+
+    // Also clean up stale entries (older than 5 seconds) on each update
+    const handleActiveObjectsUpdateWithCleanup = async (snapshot) => {
+      const now = Date.now()
+      const activeObjectsData = snapshot.val() || {}
+      
+      // Find and remove stale entries
+      const staleEntries = []
+      for (const [objectId, data] of Object.entries(activeObjectsData)) {
+        if (data.lastUpdate && now - data.lastUpdate > 5000) {
+          staleEntries.push(objectId)
+        }
+      }
+      
+      // Remove stale entries
+      if (staleEntries.length > 0) {
+        console.log(`Cleaning up ${staleEntries.length} stale active objects`)
+        for (const objectId of staleEntries) {
+          try {
+            const staleRef = ref(rtdb, `/canvases/${canvasId}/activeObjects/${objectId}`)
+            await remove(staleRef)
+          } catch (error) {
+            console.error('Error removing stale active object:', error)
+          }
+        }
+      }
+      
+      // Send filtered data to callback
+      handleActiveObjectsUpdate(snapshot)
+    }
+
+    const unsubscribe = onValue(activeObjectsRef, handleActiveObjectsUpdateWithCleanup, (error) => {
+      if (error.code !== 'PERMISSION_DENIED') {
+        console.error('Error subscribing to active objects:', error)
+      }
+      callback({}) // Return empty object for graceful degradation
+    })
+    
+    console.log(`Subscribed to active objects (canvas: ${canvasId})`)
+    
+    return unsubscribe
+  } catch (error) {
+    console.error('Error subscribing to active objects:', error)
+    return () => {} // Return no-op function
+  }
+}

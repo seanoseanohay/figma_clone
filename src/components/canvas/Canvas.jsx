@@ -1,11 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Stage, Layer, Rect } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
-import ProjectDashboard from '../dashboard/ProjectDashboard.jsx';
-import { EmptyState } from './EmptyState.jsx';
+import EmptyState from './EmptyState.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
@@ -14,7 +13,10 @@ import {
   createObject, 
   updateObjectPosition, 
   lockObject, 
-  unlockObject 
+  unlockObject,
+  updateActiveObjectPosition,
+  clearActiveObject,
+  subscribeToActiveObjects
 } from '../../services/canvas.service.js';
 import { 
   CANVAS_WIDTH, 
@@ -30,11 +32,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
-  // Show empty state if no canvas selected
-  if (!canvasId) {
-    return <EmptyState />;
-  }
-  
+  // All hooks must be called before any conditional returns
   const stageRef = useRef(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
@@ -47,7 +45,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const { usersWithCursors } = usePresence();
   
   // Canvas objects hook for real-time sync - now canvas-specific
-  const { objects: canvasObjects, isLoading: objectsLoading, error: objectsError } = useCanvasObjects(canvasId);
+  const { objects: canvasObjects, isLoading: objectsLoading, error: objectsError} = useCanvasObjects(canvasId);
   
   // Rectangle creation state (Rectangle tool only)
   const [isDrawing, setIsDrawing] = useState(false);
@@ -70,6 +68,9 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // Local rectangle state during operations (for immediate visual feedback)
   const [localRectUpdates, setLocalRectUpdates] = useState({});
   
+  // Active objects being dragged by other users (from RTDB for real-time movement)
+  const [activeObjects, setActiveObjects] = useState({});
+  
   // Constants
   const DRAG_THRESHOLD = 5;
   const HANDLE_SIZE = 20; // Reduced from 40 to test zoom/coordinate issues
@@ -82,30 +83,47 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   };
 
   // Filter rectangles from canvas objects and merge with local updates
-  const rectangles = canvasObjects
-    .filter(obj => obj.type === 'rectangle')
-    .map(rect => {
-      // If WE are controlling this object, show our local updates for immediate feedback
-      if (localRectUpdates[rect.id] && rect.lockedBy === auth.currentUser?.uid) {
-        return {
-          ...rect,
-          ...localRectUpdates[rect.id]
-        };
-      }
-      
-      // For everyone else (including other users watching our movements), 
-      // show the latest Firestore data which gets updated in real-time
-      if (rect.lockedBy && rect.lockedBy !== auth.currentUser?.uid) {
-        return {
-          ...rect,
-          isLockedByOther: true,
-          lockedByName: rect.lastModifiedBy
-        };
-      }
-      
-      // No one is controlling it, show Firestore data
-      return rect;
-    });
+  // Memoized to prevent unnecessary re-renders during drag operations
+  const rectangles = useMemo(() => {
+    return canvasObjects
+      .filter(obj => obj.type === 'rectangle')
+      .map(rect => {
+        // If WE are controlling this object, show our local updates for immediate feedback
+        if (localRectUpdates[rect.id] && rect.lockedBy === auth.currentUser?.uid) {
+          return {
+            ...rect,
+            ...localRectUpdates[rect.id]
+          };
+        }
+        
+        // If another user is dragging this object, show real-time RTDB position
+        if (activeObjects[rect.id] && rect.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...rect,
+            x: activeObjects[rect.id].x,
+            y: activeObjects[rect.id].y,
+            width: activeObjects[rect.id].width !== undefined ? activeObjects[rect.id].width : rect.width,
+            height: activeObjects[rect.id].height !== undefined ? activeObjects[rect.id].height : rect.height,
+            isLockedByOther: true,
+            lockedByName: rect.lastModifiedBy,
+            isBeingDragged: true
+          };
+        }
+        
+        // For everyone else (including other users watching our movements), 
+        // show the latest Firestore data which gets updated in real-time
+        if (rect.lockedBy && rect.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...rect,
+            isLockedByOther: true,
+            lockedByName: rect.lastModifiedBy
+          };
+        }
+        
+        // No one is controlling it, show Firestore data
+        return rect;
+      });
+  }, [canvasObjects, localRectUpdates, activeObjects]);
 
   // Helper function to check if current user can edit an object
   const canEditObject = useCallback((objectId) => {
@@ -388,6 +406,21 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     setStagePos(newPos);
   }, []);
 
+  // Subscribe to active objects (real-time movement from RTDB)
+  useEffect(() => {
+    if (!canvasId) return;
+
+    console.log('Setting up active objects subscription for canvas:', canvasId);
+    const unsubscribe = subscribeToActiveObjects(canvasId, (activeObjectsData) => {
+      setActiveObjects(activeObjectsData);
+    });
+
+    return () => {
+      console.log('Cleaning up active objects subscription');
+      unsubscribe();
+    };
+  }, [canvasId]);
+
   // Clear selection when switching tools
   useEffect(() => {
     if (selectedTool === TOOLS.PAN || selectedTool === TOOLS.RECTANGLE) {
@@ -615,11 +648,15 @@ const Canvas = ({ selectedTool, onToolChange }) => {
                 [moveSelectedId]: clampedRect
               }));
               
-              // Send updates to Firestore if we own this object
+              // Send updates if we own this object
               if (doWeOwnObject(moveSelectedId)) {
-                updateObjectPosition(moveSelectedId, {
+                // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
+                // Firestore writes happen ONLY on drag end to avoid excessive database load
+                updateActiveObjectPosition(canvasId, moveSelectedId, {
                   x: clampedRect.x,
-                  y: clampedRect.y
+                  y: clampedRect.y,
+                  width: clampedRect.width,
+                  height: clampedRect.height
                 });
               }
             }
@@ -685,9 +722,11 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             [resizeSelectedId]: newRect
           }));
           
-          // Send updates to Firestore if we own this object (skip for test data)
+          // Send updates if we own this object (skip for test data)
           if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
-            updateObjectPosition(resizeSelectedId, {
+            // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
+            // Firestore writes happen ONLY on drag end to avoid excessive database load
+            updateActiveObjectPosition(canvasId, resizeSelectedId, {
               x: newRect.x,
               y: newRect.y,
               width: newRect.width,
@@ -727,14 +766,21 @@ const Canvas = ({ selectedTool, onToolChange }) => {
           const finalRect = localRectUpdates[moveSelectedId];
           try {
             console.log('Move: Final position sync and unlock');
+            
+            // Clear active object from RTDB (remove real-time tracking)
+            await clearActiveObject(canvasId, moveSelectedId);
+            
+            // Final Firestore update with unlock
             await updateObjectPosition(moveSelectedId, {
               x: finalRect.x,
               y: finalRect.y
             }, true); // true = final update, unlocks object
+            
             console.log('Move: Rectangle position synced and unlocked');
           } catch (error) {
             console.error('Failed to sync rectangle position:', error);
             try {
+              await clearActiveObject(canvasId, moveSelectedId);
               await unlockObject(moveSelectedId);
             } catch (unlockError) {
               console.error('Failed to unlock object:', unlockError);
@@ -768,16 +814,23 @@ const Canvas = ({ selectedTool, onToolChange }) => {
           const finalRect = localRectUpdates[resizeSelectedId];
           try {
             console.log('Resize: Final resize sync and unlock');
+            
+            // Clear active object from RTDB (remove real-time tracking)
+            await clearActiveObject(canvasId, resizeSelectedId);
+            
+            // Final Firestore update with unlock
             await updateObjectPosition(resizeSelectedId, {
               x: finalRect.x,
               y: finalRect.y,
               width: finalRect.width,
               height: finalRect.height
             }, true); // true = final update, unlocks object
+            
             console.log('Resize: Rectangle resize synced and unlocked');
           } catch (error) {
             console.error('Failed to sync rectangle resize:', error);
             try {
+              await clearActiveObject(canvasId, resizeSelectedId);
               await unlockObject(resizeSelectedId);
             } catch (unlockError) {
               console.error('Failed to unlock object:', unlockError);
@@ -889,9 +942,9 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   const boundarySize = Math.max(CANVAS_WIDTH, CANVAS_HEIGHT) * 3;
   const boundaryOffset = -boundarySize / 2 + Math.min(CANVAS_WIDTH, CANVAS_HEIGHT) / 2;
 
-  // If no canvasId, show project dashboard instead of canvas
+  // Show empty state if no canvas selected (after all hooks have been called)
   if (!canvasId) {
-    return <ProjectDashboard />;
+    return <EmptyState />;
   }
 
   return (

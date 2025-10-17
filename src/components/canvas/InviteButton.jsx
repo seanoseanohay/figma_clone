@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { UserPlus } from 'lucide-react'
-import { InviteModal } from './InviteModal'
+import InviteModal from './InviteModal'
 
 /**
  * InviteButton Component
  * Button that opens the invite modal for adding collaborators to canvas
  */
-export const InviteButton = () => {
+const InviteButton = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   return (
@@ -29,4 +29,6 @@ export const InviteButton = () => {
     </>
   )
 }
+
+export default InviteButton
 

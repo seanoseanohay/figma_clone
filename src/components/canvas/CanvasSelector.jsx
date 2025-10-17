@@ -9,8 +9,8 @@ import { createCanvas } from '../../services/canvas.service'
  * CanvasSelector Component
  * Dropdown showing current canvas name with ability to switch or create new canvases
  */
-export const CanvasSelector = () => {
-  const { user } = useAuth()
+const CanvasSelector = () => {
+  const { currentUser } = useAuth()
   const { canvasId, setCurrentCanvas } = useCanvas()
   const { canvases, loading, refreshCanvases } = useCanvases()
   const [isOpen, setIsOpen] = useState(false)
@@ -45,14 +45,14 @@ export const CanvasSelector = () => {
       return
     }
 
-    if (!user) {
+    if (!currentUser) {
       console.error('User must be authenticated to create canvas')
       return
     }
 
     setIsCreating(true)
     try {
-      const result = await createCanvas(newCanvasName.trim(), user.uid)
+      const result = await createCanvas(newCanvasName.trim(), currentUser.uid)
       
       if (result.success) {
         setNewCanvasName('')
@@ -161,4 +161,6 @@ export const CanvasSelector = () => {
     </div>
   )
 }
+
+export default CanvasSelector
 

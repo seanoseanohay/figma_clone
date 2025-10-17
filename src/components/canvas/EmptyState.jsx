@@ -4,7 +4,7 @@ import { FileText } from 'lucide-react'
  * EmptyState Component
  * Displays when no canvas is selected
  */
-export const EmptyState = () => {
+const EmptyState = () => {
   return (
     <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
       <div className="text-center">
@@ -19,4 +19,6 @@ export const EmptyState = () => {
     </div>
   )
 }
+
+export default EmptyState
 

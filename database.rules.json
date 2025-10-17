@@ -10,6 +10,14 @@
             ".write": "auth != null && auth.uid == $userId",
             ".validate": "auth != null && newData.child('userId').val() == auth.uid"
           }
+        },
+        "activeObjects": {
+          ".read": "auth != null",
+          "$objectId": {
+            ".read": "auth != null",
+            ".write": "auth != null",
+            ".validate": "newData.hasChildren(['x', 'y', 'isBeingDragged', 'draggedBy', 'lastUpdate'])"
+          }
         }
       }
     },

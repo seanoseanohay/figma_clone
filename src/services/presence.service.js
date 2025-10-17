@@ -12,6 +12,9 @@ import { ref, set, update, remove, onDisconnect, onValue } from 'firebase/databa
  * This replaces the old MVP global canvas system where all users saw each other.
  */
 
+// Track which warnings have been shown to avoid console spam
+const shownWarnings = new Set()
+
 /**
  * Get the canvas-scoped presence path
  * @param {string} canvasId - Canvas ID
@@ -73,11 +76,19 @@ export const updateCursorPosition = async (canvasId, x, y) => {
     })
   } catch (error) {
     if (error.code === 'PERMISSION_DENIED') {
-      console.warn('Database permission denied. Check if database rules are deployed correctly.')
-      console.warn('Run: firebase deploy --only database')
+      // Only show this warning once to avoid console spam
+      if (!shownWarnings.has('RTDB_PERMISSION_DENIED')) {
+        console.warn('⚠️ Realtime Database permission denied. Cursor tracking disabled.')
+        console.warn('To enable: Run "firebase deploy --only database" after configuring database.rules.json')
+        shownWarnings.add('RTDB_PERMISSION_DENIED')
+      }
       return
     } else if (error.message?.includes('not initialized')) {
-      console.warn('Realtime Database not initialized. Please create the database in Firebase Console.')
+      if (!shownWarnings.has('RTDB_NOT_INITIALIZED')) {
+        console.warn('⚠️ Realtime Database not initialized. Cursor tracking disabled.')
+        console.warn('To enable: Create Realtime Database in Firebase Console')
+        shownWarnings.add('RTDB_NOT_INITIALIZED')
+      }
       return
     }
     console.error('Error updating cursor position:', error)
@@ -124,7 +135,11 @@ export const setUserOnline = async (canvasId, userData = {}) => {
     console.log(`User set online in canvas: ${displayName} (canvas: ${canvasId})`)
   } catch (error) {
     if (error.code === 'PERMISSION_DENIED') {
-      console.warn('Realtime Database not initialized. Please create the database in Firebase Console.')
+      if (!shownWarnings.has('RTDB_PERMISSION_DENIED')) {
+        console.warn('⚠️ Realtime Database permission denied. Presence tracking disabled.')
+        console.warn('To enable: Run "firebase deploy --only database" after configuring database.rules.json')
+        shownWarnings.add('RTDB_PERMISSION_DENIED')
+      }
       return
     }
     console.error('Error setting user online:', error)
@@ -186,7 +201,11 @@ export const subscribeToCanvasPresence = (canvasId, callback) => {
 
     const unsubscribe = onValue(presenceRef, handlePresenceUpdate, (error) => {
       if (error.code === 'PERMISSION_DENIED') {
-        console.warn('Realtime Database permission denied. Check security rules.')
+        if (!shownWarnings.has('RTDB_PERMISSION_DENIED')) {
+          console.warn('⚠️ Realtime Database permission denied. Presence tracking disabled.')
+          console.warn('To enable: Run "firebase deploy --only database" after configuring database.rules.json')
+          shownWarnings.add('RTDB_PERMISSION_DENIED')
+        }
         callback([]) // Return empty array for graceful degradation
         return
       }

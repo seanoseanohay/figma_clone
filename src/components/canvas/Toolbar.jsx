@@ -1,5 +1,3 @@
-import { InviteButton } from './InviteButton';
-
 // Tool constants - 4 distinct tools for clean separation
 export const TOOLS = {
   PAN: 'pan',
@@ -72,12 +70,6 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.MOVE }) => {
               </button>
             );
           })}
-          
-          {/* Vertical Divider */}
-          <div className="h-8 w-px bg-gray-300 mx-4"></div>
-          
-          {/* Invite Button */}
-          <InviteButton />
         </div>
         
         {/* Tool hint - centered within toolbar */}

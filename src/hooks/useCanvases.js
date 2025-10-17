@@ -7,7 +7,7 @@ import { getCanvasesForUser } from '../services/canvas.service'
  * Returns all canvases the user owns or collaborates on
  */
 export const useCanvases = () => {
-  const { user } = useAuth()
+  const { currentUser } = useAuth()
   const [canvases, setCanvases] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -16,7 +16,7 @@ export const useCanvases = () => {
    * Fetch canvases for the current user
    */
   const fetchCanvases = useCallback(async () => {
-    if (!user) {
+    if (!currentUser) {
       setCanvases([])
       setLoading(false)
       return
@@ -26,7 +26,7 @@ export const useCanvases = () => {
       setLoading(true)
       setError(null)
 
-      const result = await getCanvasesForUser(user.uid)
+      const result = await getCanvasesForUser(currentUser.uid)
 
       if (result.success) {
         setCanvases(result.canvases || [])
@@ -41,7 +41,7 @@ export const useCanvases = () => {
     } finally {
       setLoading(false)
     }
-  }, [user])
+  }, [currentUser])
 
   /**
    * Refresh the canvases list

@@ -10,12 +10,12 @@ import { addCollaboratorToCanvas } from '../../services/canvas.service'
  * InviteModal Component
  * Modal for inviting collaborators to a canvas via email
  */
-export const InviteModal = ({ isOpen, onClose }) => {
+const InviteModal = ({ isOpen, onClose }) => {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   
   const { canvasId } = useCanvas()
-  const { user } = useAuth()
+  const { currentUser } = useAuth()
   const { canvases } = useCanvases()
 
   // Find current canvas
@@ -43,7 +43,7 @@ export const InviteModal = ({ isOpen, onClose }) => {
     }
 
     // Check if inviting yourself
-    if (user && email.trim().toLowerCase() === user.email?.toLowerCase()) {
+    if (currentUser && email.trim().toLowerCase() === currentUser.email?.toLowerCase()) {
       toast.error('You cannot invite yourself')
       return
     }
@@ -54,7 +54,7 @@ export const InviteModal = ({ isOpen, onClose }) => {
       const result = await addCollaboratorToCanvas(
         canvasId,
         email.trim(),
-        user.uid
+        currentUser.uid
       )
       
       if (result.success) {
@@ -91,7 +91,7 @@ export const InviteModal = ({ isOpen, onClose }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
       onClick={handleClose}
     >
       <div 
@@ -172,4 +172,6 @@ export const InviteModal = ({ isOpen, onClose }) => {
     </div>
   )
 }
+
+export default InviteModal
 

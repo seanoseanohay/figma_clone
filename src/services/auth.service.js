@@ -277,7 +277,12 @@ export const processPendingInvites = async (userEmail, userId) => {
 
     console.log('Successfully processed pending invites for:', userEmail);
   } catch (error) {
-    console.error('Error processing pending invites:', error);
+    if (error.code === 'permission-denied' || error.message?.includes('permission')) {
+      // Silently handle permissions errors - pending invites feature requires Firestore rules to be configured
+      console.log('Pending invites feature not available (Firestore rules not configured)');
+    } else {
+      console.error('Error processing pending invites:', error);
+    }
   }
 };
 
