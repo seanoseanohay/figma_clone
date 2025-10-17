@@ -17,6 +17,156 @@ export class ResizeTool {
   }
 
   /**
+   * Find closest corner to click position (works for rectangles, circles, and stars)
+   */
+  getClosestCorner(pos, obj) {
+    // Calculate bounding box based on shape type
+    let bounds
+    if (obj.type === 'circle') {
+      bounds = {
+        x: obj.x - obj.radius,
+        y: obj.y - obj.radius,
+        width: obj.radius * 2,
+        height: obj.radius * 2
+      }
+    } else if (obj.type === 'star') {
+      // Stars use outerRadius for bounding box
+      bounds = {
+        x: obj.x - obj.outerRadius,
+        y: obj.y - obj.outerRadius,
+        width: obj.outerRadius * 2,
+        height: obj.outerRadius * 2
+      }
+    } else {
+      // Rectangles and other shapes with width/height
+      bounds = {
+        x: obj.x,
+        y: obj.y,
+        width: obj.width,
+        height: obj.height
+      }
+    }
+    
+    // Only detect corners if click is inside the bounds
+    if (pos.x < bounds.x || pos.x > bounds.x + bounds.width || 
+        pos.y < bounds.y || pos.y > bounds.y + bounds.height) {
+      return null
+    }
+    
+    const corners = [
+      { name: 'nw', x: bounds.x, y: bounds.y },
+      { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
+      { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
+      { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
+    ]
+    
+    let closestCorner = null
+    let minDistance = Infinity
+    
+    corners.forEach(corner => {
+      const distance = Math.sqrt(
+        Math.pow(pos.x - corner.x, 2) + Math.pow(pos.y - corner.y, 2)
+      )
+      
+      if (distance < minDistance) {
+        minDistance = distance
+        closestCorner = corner.name
+      }
+    })
+    
+    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type)
+    return closestCorner
+  }
+
+  /**
+   * Crossover detection - handles coordinate flipping when resizing past opposite corners
+   * Takes the CURRENT transformed rect and flips its coordinates if needed
+   */
+  handleCrossoverDetection(currentRect, currentHandle, originalRect) {
+    // Calculate the opposite corner coordinates of the ORIGINAL rectangle (anchor point)
+    const leftX = originalRect.x
+    const rightX = originalRect.x + originalRect.width
+    const topY = originalRect.y  
+    const bottomY = originalRect.y + originalRect.height
+    
+    // Check current rect's corners against original's corners to detect crossover
+    const currentLeft = currentRect.x
+    const currentRight = currentRect.x + currentRect.width
+    const currentTop = currentRect.y
+    const currentBottom = currentRect.y + currentRect.height
+    
+    let newHandle = currentHandle
+    let hasFlipped = false
+    
+    // Check for crossovers based on current handle
+    switch (currentHandle) {
+      case 'nw':
+        // NW handle: check if current rect's NW corner crossed past original's SE corner
+        if (currentLeft > rightX && currentTop > bottomY) {
+          newHandle = 'se'
+          hasFlipped = true
+        } else if (currentLeft > rightX) {
+          newHandle = 'ne'
+          hasFlipped = true
+        } else if (currentTop > bottomY) {
+          newHandle = 'sw'
+          hasFlipped = true
+        }
+        break
+        
+      case 'ne':
+        // NE handle: check if current rect's NE corner crossed past original's SW corner
+        if (currentRight < leftX && currentTop > bottomY) {
+          newHandle = 'sw'
+          hasFlipped = true
+        } else if (currentRight < leftX) {
+          newHandle = 'nw'
+          hasFlipped = true
+        } else if (currentTop > bottomY) {
+          newHandle = 'se'
+          hasFlipped = true
+        }
+        break
+        
+      case 'sw':
+        // SW handle: check if current rect's SW corner crossed past original's NE corner
+        if (currentLeft > rightX && currentBottom < topY) {
+          newHandle = 'ne'
+          hasFlipped = true
+        } else if (currentLeft > rightX) {
+          newHandle = 'se'
+          hasFlipped = true
+        } else if (currentBottom < topY) {
+          newHandle = 'nw'
+          hasFlipped = true
+        }
+        break
+        
+      case 'se':
+        // SE handle: check if current rect's SE corner crossed past original's NW corner
+        if (currentRight < leftX && currentBottom < topY) {
+          newHandle = 'nw'
+          hasFlipped = true
+        } else if (currentRight < leftX) {
+          newHandle = 'sw'
+          hasFlipped = true
+        } else if (currentBottom < topY) {
+          newHandle = 'ne'
+          hasFlipped = true
+        }
+        break
+    }
+    
+    // If flipped, keep the current rect's dimensions but maintain continuity
+    // The key fix: DON'T recalculate from original - use the transformed rect
+    if (hasFlipped) {
+      return { rect: currentRect, handle: newHandle, flipped: true }
+    }
+    
+    return { rect: null, handle: currentHandle, flipped: false }
+  }
+
+  /**
    * Calculate new circle dimensions based on resize handle
    * Circles maintain circular shape by adjusting radius based on distance from center
    */
@@ -94,7 +244,6 @@ export class ResizeTool {
       selectedObjectId,
       canvasObjects,
       isResizing,
-      getClosestCorner,
       setResizeSelectedId,
       setIsResizing,
       setResizeHandle,
@@ -124,7 +273,7 @@ export class ResizeTool {
     console.log('=== END OBJECT DEBUG ===')
 
     // Check if we clicked on a resize handle
-    const handle = getClosestCorner(pos, selectedObject)
+    const handle = this.getClosestCorner(pos, selectedObject)
     console.log('Checking closest corner on selected object:', handle)
     
     if (handle) {
@@ -161,7 +310,6 @@ export class ResizeTool {
       resizeSelectedId,
       doWeOwnObject,
       clampRectToCanvas,
-      handleCrossoverDetection,
       setResizeHandle,
       setResizeStartData,
       setLocalRectUpdates
@@ -231,7 +379,7 @@ export class ResizeTool {
       newObject = this.calculateRectangleResize(startObject, currentHandle, deltaX, deltaY)
 
       // Check for crossover and handle coordinate flipping
-      const crossoverResult = handleCrossoverDetection(newObject, currentHandle, startObject)
+      const crossoverResult = this.handleCrossoverDetection(newObject, currentHandle, startObject)
       if (crossoverResult.flipped && crossoverResult.handle !== currentHandle) {
         console.log(`🔄 Crossover detected: ${currentHandle} → ${crossoverResult.handle}`)
         

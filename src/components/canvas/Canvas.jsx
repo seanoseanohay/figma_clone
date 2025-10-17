@@ -289,6 +289,19 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       });
   }, [canvasObjects, localRectUpdates, activeObjects]);
 
+  // Combine all shapes and sort by z-index for proper rendering order
+  const allShapesSorted = useMemo(() => {
+    // Combine all shape types with their type identifier
+    const combined = [
+      ...rectangles.map(shape => ({ ...shape, shapeType: 'rectangle' })),
+      ...circles.map(shape => ({ ...shape, shapeType: 'circle' })),
+      ...stars.map(shape => ({ ...shape, shapeType: 'star' }))
+    ];
+    
+    // Sort by z-index (ascending - lower z-index renders first/behind)
+    return combined.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+  }, [rectangles, circles, stars]);
+
   // Helper function to check if current user can edit an object
   const canEditObject = useCallback((objectId) => {
     const obj = canvasObjects.find(o => o.id === objectId);
@@ -483,143 +496,6 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       x: clampedX,
       y: clampedY
     };
-  }, []);
-
-  // Crossover detection - handles coordinate flipping when resizing past opposite corners
-  // Takes the CURRENT transformed rect and flips its coordinates if needed
-  const handleCrossoverDetection = useCallback((currentRect, currentHandle, originalRect) => {
-    // Calculate the opposite corner coordinates of the ORIGINAL rectangle (anchor point)
-    const leftX = originalRect.x;
-    const rightX = originalRect.x + originalRect.width;
-    const topY = originalRect.y;  
-    const bottomY = originalRect.y + originalRect.height;
-    
-    // Check current rect's corners against original's corners to detect crossover
-    const currentLeft = currentRect.x;
-    const currentRight = currentRect.x + currentRect.width;
-    const currentTop = currentRect.y;
-    const currentBottom = currentRect.y + currentRect.height;
-    
-    let newHandle = currentHandle;
-    let hasFlipped = false;
-    
-    // Check for crossovers based on current handle
-    switch (currentHandle) {
-      case 'nw':
-        // NW handle: check if current rect's NW corner crossed past original's SE corner
-        if (currentLeft > rightX && currentTop > bottomY) {
-          newHandle = 'se';
-          hasFlipped = true;
-        } else if (currentLeft > rightX) {
-          newHandle = 'ne';
-          hasFlipped = true;
-        } else if (currentTop > bottomY) {
-          newHandle = 'sw';
-          hasFlipped = true;
-        }
-        break;
-        
-      case 'ne':
-        // NE handle: check if current rect's NE corner crossed past original's SW corner
-        if (currentRight < leftX && currentTop > bottomY) {
-          newHandle = 'sw';
-          hasFlipped = true;
-        } else if (currentRight < leftX) {
-          newHandle = 'nw';
-          hasFlipped = true;
-        } else if (currentTop > bottomY) {
-          newHandle = 'se';
-          hasFlipped = true;
-        }
-        break;
-        
-      case 'sw':
-        // SW handle: check if current rect's SW corner crossed past original's NE corner
-        if (currentLeft > rightX && currentBottom < topY) {
-          newHandle = 'ne';
-          hasFlipped = true;
-        } else if (currentLeft > rightX) {
-          newHandle = 'se';
-          hasFlipped = true;
-        } else if (currentBottom < topY) {
-          newHandle = 'nw';
-          hasFlipped = true;
-        }
-        break;
-        
-      case 'se':
-        // SE handle: check if current rect's SE corner crossed past original's NW corner
-        if (currentRight < leftX && currentBottom < topY) {
-          newHandle = 'nw';
-          hasFlipped = true;
-        } else if (currentRight < leftX) {
-          newHandle = 'sw';
-          hasFlipped = true;
-        } else if (currentBottom < topY) {
-          newHandle = 'ne';
-          hasFlipped = true;
-        }
-        break;
-    }
-    
-    // If flipped, keep the current rect's dimensions but maintain continuity
-    // The key fix: DON'T recalculate from original - use the transformed rect
-    if (hasFlipped) {
-      return { rect: currentRect, handle: newHandle, flipped: true };
-    }
-    
-    return { rect: null, handle: currentHandle, flipped: false };
-  }, []);
-  
-  // Find closest corner to click position (works for rectangles and circles)
-  const getClosestCorner = useCallback((pos, obj) => {
-    // For circles, use bounding box
-    let bounds
-    if (obj.type === 'circle') {
-      bounds = {
-        x: obj.x - obj.radius,
-        y: obj.y - obj.radius,
-        width: obj.radius * 2,
-        height: obj.radius * 2
-      }
-    } else {
-      bounds = {
-        x: obj.x,
-        y: obj.y,
-        width: obj.width,
-        height: obj.height
-      }
-    }
-    
-    // Only detect corners if click is inside the bounds
-    if (pos.x < bounds.x || pos.x > bounds.x + bounds.width || 
-        pos.y < bounds.y || pos.y > bounds.y + bounds.height) {
-      return null;
-    }
-    
-    const corners = [
-      { name: 'nw', x: bounds.x, y: bounds.y },
-      { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
-      { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
-      { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
-    ];
-    
-    let closestCorner = null;
-    let minDistance = Infinity;
-    
-    corners.forEach(corner => {
-      const distance = Math.sqrt(
-        Math.pow(pos.x - corner.x, 2) + Math.pow(pos.y - corner.y, 2)
-      );
-      
-      if (distance < minDistance) {
-        minDistance = distance;
-        closestCorner = corner.name;
-      }
-    });
-    
-    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type);
-    return closestCorner;
   }, []);
 
   // Calculate initial view to center the canvas and fit it in viewport
@@ -859,6 +735,20 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       setLocalRectUpdates({});
     }
     
+    // Sync resize tool state with current selection
+    if (selectedTool === TOOLS.RESIZE && selectedObjectId) {
+      // When switching to Resize tool, sync resizeSelectedId with selectedObjectId
+      setResizeSelectedId(selectedObjectId);
+      console.log('Resize tool: Synced resizeSelectedId with selection:', selectedObjectId);
+    }
+    
+    // Sync move tool state with current selection
+    if (selectedTool === TOOLS.MOVE && selectedObjectId) {
+      // When switching to Move tool, sync moveSelectedId with selectedObjectId
+      setMoveSelectedId(selectedObjectId);
+      console.log('Move tool: Synced moveSelectedId with selection:', selectedObjectId);
+    }
+    
     // Pan tool doesn't deselect
     if (selectedTool === TOOLS.PAN && !isTemporaryPan) {
       // Pan tool preserves selection
@@ -941,8 +831,6 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     clampRectToCanvas,
     clampCircleToCanvas,
     clampStarToCanvas,
-    getClosestCorner,
-    handleCrossoverDetection,
     isOnline,
     
     // Other props
@@ -953,8 +841,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     currentRect, currentCircle, currentStar, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
     resizeHandle, resizeStartData, canvasObjects, rectangles, circles, stars, localRectUpdates, selectedColor,
     findRectAt, findCircleAt, findStarAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
-    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, getClosestCorner,
-    handleCrossoverDetection, isOnline, onToolChange
+    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange
   ])
 
   // MOUSE DOWN HANDLER - Tool-specific logic
@@ -984,7 +871,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, getMousePos, findRectAt, canEditObject, getClosestCorner, moveSelectedId, resizeSelectedId, isConnected, buildToolState, canvasId]);
+  }, [selectedTool, getMousePos, isConnected, buildToolState, canvasId]);
 
   // MOUSE MOVE HANDLER - Tool-specific logic
   const handleMouseMove = useCallback((e) => {
@@ -1016,7 +903,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects, buildToolState, canvasId, onCursorUpdate]);
+  }, [selectedTool, isPanning, isMoving, isResizing, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
@@ -1033,7 +920,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, isMoving, moveSelectedId, localRectUpdates, doWeOwnObject, isResizing, resizeSelectedId, isDrawing, currentRect, onToolChange, clampRectToCanvas, buildToolState, canvasId, getMousePos]);
+  }, [selectedTool, buildToolState, canvasId, getMousePos]);
 
   // Set cursor based on selected tool
   useEffect(() => {
@@ -1160,37 +1047,60 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             listening={false}
           />
           
-          {/* Render created rectangles */}
-          {rectangles.map((rect) => {
-            const isSelected = selectedObjectId === rect.id;
-              
-            return (
-              <Rect
-                key={rect.id}
-                x={rect.x}
-                y={rect.y}
-                width={rect.width}
-                height={rect.height}
-                offsetX={0}
-                offsetY={0}
-                rotation={rect.rotation || 0}
-                fill={rect.fill}
-                stroke={
-                  rect.isLockedByOther 
-                    ? "#f59e0b" // Orange border for locked objects
-                    : isSelected 
-                      ? "#2563eb" // Blue border for selected
-                      : "#333333" // Default border
-                }
-                strokeWidth={
-                  rect.isLockedByOther || isSelected 
-                    ? 2 
-                    : 1
-                }
-                opacity={rect.isLockedByOther ? 0.7 : 1.0}
-                listening={false} // Disable events - handle via Stage only
-              />
-            );
+          {/* Render all shapes sorted by z-index */}
+          {allShapesSorted.map((shape) => {
+            const isSelected = selectedObjectId === shape.id;
+            const commonProps = {
+              fill: shape.fill,
+              stroke: shape.isLockedByOther 
+                ? "#f59e0b" // Orange border for locked objects
+                : isSelected 
+                  ? "#2563eb" // Blue border for selected
+                  : "#333333", // Default border
+              strokeWidth: shape.isLockedByOther || isSelected ? 2 : 1,
+              opacity: shape.isLockedByOther ? 0.7 : 1.0,
+              rotation: shape.rotation || 0,
+              listening: false // Disable events - handle via Stage only
+            };
+            
+            // Render based on shape type
+            if (shape.shapeType === 'rectangle') {
+              return (
+                <Rect
+                  key={shape.id}
+                  {...commonProps}
+                  x={shape.x}
+                  y={shape.y}
+                  width={shape.width}
+                  height={shape.height}
+                  offsetX={0}
+                  offsetY={0}
+                />
+              );
+            } else if (shape.shapeType === 'circle') {
+              return (
+                <Circle
+                  key={shape.id}
+                  {...commonProps}
+                  x={shape.x}
+                  y={shape.y}
+                  radius={shape.radius}
+                />
+              );
+            } else if (shape.shapeType === 'star') {
+              return (
+                <Star
+                  key={shape.id}
+                  {...commonProps}
+                  x={shape.x}
+                  y={shape.y}
+                  numPoints={shape.numPoints || 5}
+                  innerRadius={shape.innerRadius || 20}
+                  outerRadius={shape.outerRadius || 40}
+                />
+              );
+            }
+            return null;
           })}
           
           {/* Render resize handles for selected rectangle (RESIZE tool only) */}
@@ -1240,34 +1150,6 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             />
           )}
 
-          {/* Render all circles */}
-          {circles.map((circle) => {
-            const isSelected = selectedObjectId === circle.id;
-            return (
-              <Circle
-                key={circle.id}
-                x={circle.x}
-                y={circle.y}
-                radius={circle.radius}
-                rotation={circle.rotation || 0}
-                fill={circle.fill}
-                stroke={
-                  circle.isLockedByOther 
-                    ? "#f59e0b" // Orange border for locked objects
-                    : isSelected 
-                      ? "#2563eb" // Blue border for selected
-                      : "#333333" // Default border
-                }
-                strokeWidth={
-                  circle.isLockedByOther || isSelected 
-                    ? 2 
-                    : 1
-                }
-                opacity={circle.isLockedByOther ? 0.7 : 1.0}
-                listening={false} // Disable events - handle via Stage only
-              />
-            );
-          })}
 
           {/* Render resize handles for selected circle (RESIZE tool only) */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && circles.find(c => c.id === resizeSelectedId) && (() => {
@@ -1322,36 +1204,46 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             />
           )}
 
-          {/* Render all stars */}
-          {stars.map((star) => {
-            const isSelected = selectedObjectId === star.id;
-            return (
-              <Star
-                key={star.id}
-                x={star.x}
-                y={star.y}
-                numPoints={star.numPoints || 5}
-                innerRadius={star.innerRadius || 20}
-                outerRadius={star.outerRadius || 40}
-                rotation={star.rotation || 0}
-                fill={star.fill}
-                stroke={
-                  star.isLockedByOther 
-                    ? "#f59e0b" // Orange border for locked objects
-                    : isSelected 
-                      ? "#2563eb" // Blue border for selected
-                      : "#333333" // Default border
-                }
-                strokeWidth={
-                  star.isLockedByOther || isSelected 
-                    ? 2 
-                    : 1
-                }
-                opacity={star.isLockedByOther ? 0.7 : 1.0}
-                listening={false} // Disable events - handle via Stage only
+
+          {/* Render resize handles for selected star (RESIZE tool only) */}
+          {selectedTool === TOOLS.RESIZE && resizeSelectedId && stars.find(s => s.id === resizeSelectedId) && (() => {
+            const selectedStar = stars.find(s => s.id === resizeSelectedId);
+            
+            // Don't show handles if object is locked by another user
+            if (selectedStar.isLockedByOther) {
+              return null;
+            }
+            
+            // Position handles on star's bounding box corners (based on outerRadius)
+            const handlePadding = 5;
+            const bounds = {
+              x: selectedStar.x - selectedStar.outerRadius,
+              y: selectedStar.y - selectedStar.outerRadius,
+              width: selectedStar.outerRadius * 2,
+              height: selectedStar.outerRadius * 2
+            };
+            
+            const handles = [
+              { name: 'nw', x: bounds.x + handlePadding, y: bounds.y + handlePadding },
+              { name: 'ne', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + handlePadding },
+              { name: 'sw', x: bounds.x + handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding },
+              { name: 'se', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding }
+            ];
+            
+            return handles.map(handle => (
+              <Rect
+                key={`star-handle-${handle.name}`}
+                x={handle.x}
+                y={handle.y}
+                width={HANDLE_SIZE}
+                height={HANDLE_SIZE}
+                fill="#2563eb"
+                stroke="#ffffff"
+                strokeWidth={1}
+                listening={false}
               />
-            );
-          })}
+            ));
+          })()}
 
           {/* Render current star being drawn */}
           {currentStar && (
