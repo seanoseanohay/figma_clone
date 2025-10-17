@@ -5,10 +5,13 @@ import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
 import EmptyState from './EmptyState.jsx';
+import ConnectionBanner from './ConnectionBanner.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
 import { useCanvas } from '../../hooks/useCanvas.js';
+import { useConnectionStatus } from '../../hooks/useConnectionStatus.js';
+import { getToolHandler } from '../../tools/index.js';
 import { 
   createObject, 
   updateObjectPosition, 
@@ -43,6 +46,15 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // Multiplayer presence hooks
   const { updateCursor } = useCursorTracking();
   const { usersWithCursors } = usePresence();
+  
+  // Connection status monitoring
+  const { 
+    isConnected, 
+    isOnline, 
+    isFirebaseConnected, 
+    queuedCount, 
+    executeOrQueue 
+  } = useConnectionStatus();
   
   // Canvas objects hook for real-time sync - now canvas-specific
   const { objects: canvasObjects, isLoading: objectsLoading, error: objectsError} = useCanvasObjects(canvasId);
@@ -431,157 +443,85 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     }
   }, [selectedTool]);
 
+  // Helper function to build state object for tools
+  const buildToolState = useCallback(() => ({
+    // Getters
+    moveSelectedId,
+    resizeSelectedId,
+    isPanning,
+    isMoving,
+    isResizing,
+    isDrawing,
+    currentRect,
+    mouseDownPos,
+    isDragThresholdExceeded,
+    moveStartPos,
+    moveOriginalPos,
+    resizeHandle,
+    resizeStartData,
+    canvasObjects,
+    rectangles,
+    localRectUpdates,
+    
+    // Setters
+    setMoveSelectedId,
+    setResizeSelectedId,
+    setIsPanning,
+    setIsMoving,
+    setIsResizing,
+    setIsDrawing,
+    setCurrentRect,
+    setMouseDownPos,
+    setIsDragThresholdExceeded,
+    setMoveStartPos,
+    setMoveOriginalPos,
+    setResizeHandle,
+    setResizeStartData,
+    setLocalRectUpdates,
+    setStagePos,
+    
+    // Helpers
+    findRectAt,
+    canEditObject,
+    doWeOwnObject,
+    clampRectToCanvas,
+    getClosestCorner,
+    handleCrossoverDetection,
+    
+    // Other props
+    onToolChange,
+    TOOLS
+  }), [
+    moveSelectedId, resizeSelectedId, isPanning, isMoving, isResizing, isDrawing,
+    currentRect, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
+    resizeHandle, resizeStartData, canvasObjects, rectangles, localRectUpdates,
+    findRectAt, canEditObject, doWeOwnObject, clampRectToCanvas, getClosestCorner,
+    handleCrossoverDetection, onToolChange
+  ])
+
   // MOUSE DOWN HANDLER - Tool-specific logic
   const handleMouseDown = useCallback(async (e) => {
     const pos = getMousePos(e);
     
     console.log('Mouse down detected, tool:', selectedTool);
     
-    switch (selectedTool) {
-      case TOOLS.PAN:
-        setIsPanning(true);
-        e.target.getStage().container().style.cursor = 'grabbing';
-        break;
-        
-      case TOOLS.MOVE:
-        // Click empty space = deselect
-        const clickedRect = findRectAt(pos);
-        if (!clickedRect) {
-          if (moveSelectedId) {
-            try {
-              await unlockObject(moveSelectedId);
-              console.log('Move tool: Deselected and unlocked object');
-            } catch (error) {
-              console.error('Failed to unlock on deselect:', error);
-            }
-          }
-          setMoveSelectedId(null);
-          return;
-        }
-        
-        // Check if we can edit this object
-        if (!canEditObject(clickedRect.id)) {
-          console.log('Cannot select - object is locked by another user');
-          return;
-        }
-        
-        // Select object for potential movement
-        setMoveSelectedId(clickedRect.id);
-        setMouseDownPos(pos);
-        setIsDragThresholdExceeded(false);
-        setMoveOriginalPos({ x: clickedRect.x, y: clickedRect.y }); // Store original position
-        
-        // Lock the object to prevent others from grabbing it
-        try {
-          await lockObject(clickedRect.id);
-          console.log('Move tool: Object locked for potential movement');
-        } catch (error) {
-          console.error('Failed to lock object:', error);
-        }
-        break;
-        
-      case TOOLS.RESIZE:
-        console.log('Resize tool mouse down');
-        
-        // FIRST: Check if we clicked on a resize handle of the currently selected rectangle
-        // This must come BEFORE checking for empty space, because handles extend outside rectangle bounds
-        if (resizeSelectedId) {
-          const currentlySelected = rectangles.find(r => r.id === resizeSelectedId);
-          if (currentlySelected) {
-            console.log('=== RECTANGLE DATA DEBUG ===');
-            console.log('Selected rectangle ID:', resizeSelectedId);
-            console.log('Rectangle locked by:', currentlySelected.lockedBy);
-            console.log('Current user:', auth.currentUser?.uid);
-            console.log('=== END RECTANGLE DEBUG ===');
-            
-            const handle = getClosestCorner(pos, currentlySelected);
-            console.log('Checking closest corner on currently selected rectangle:', handle);
-            if (handle) {
-              console.log('Starting resize on corner:', handle, 'for selected rectangle');
-              
-              // CRITICAL: Only start new resize if we're not already resizing
-              if (!isResizing) {
-                // Lock the object for consecutive resizes (skip for test data)
-                if (!currentlySelected.id.match(/^[12]$/)) {
-                  try {
-                    await lockObject(resizeSelectedId);
-                    console.log('Re-locked object for consecutive resize');
-                  } catch (error) {
-                    console.error('Failed to lock object for consecutive resize:', error);
-                    return;
-                  }
-                }
-                
-                setIsResizing(true);
-                setResizeHandle(handle);
-                setResizeStartData({
-                  rect: { ...currentlySelected },
-                  startPos: pos
-                });
-                
-                return; // Handle click found - start resizing immediately
-              } else {
-                console.log('Already resizing - ignoring click to prevent jumping');
-                return;
-              }
-            }
-          }
-        }
-        
-        // SECOND: Check if we clicked on a rectangle (for selection)
-        const resizeClickedRect = findRectAt(pos);
-        console.log('Found rectangle:', resizeClickedRect ? resizeClickedRect.id : 'none');
-        
-        if (!resizeClickedRect) {
-          // Click empty space = deselect
-          if (resizeSelectedId) {
-            try {
-              await unlockObject(resizeSelectedId);
-            } catch (error) {
-              console.error('Failed to unlock on deselect:', error);
-            }
-          }
-          setResizeSelectedId(null);
-          return;
-        }
-        
-        // Check if we can edit this object
-        if (!canEditObject(resizeClickedRect.id)) {
-          console.log('Cannot select - object is locked by another user');
-          return;
-        }
-        
-        // Select object for resizing and show handles
-        console.log('Selecting rectangle for resize:', resizeClickedRect.id);
-        setResizeSelectedId(resizeClickedRect.id);
-        
-        // Lock the object (skip for test data)
-        if (!resizeClickedRect.id.match(/^[12]$/)) {
-          try {
-            await lockObject(resizeClickedRect.id);
-          } catch (error) {
-            console.error('Failed to lock object:', error);
-          }
-        }
-        break;
-        
-      case TOOLS.RECTANGLE:
-        // Start rectangle creation
-        if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
-          setIsDrawing(true);
-          const newRect = {
-            id: Date.now(),
-            x: pos.x,
-            y: pos.y,
-            width: 0,
-            height: 0,
-            fill: '#808080'
-          };
-          setCurrentRect(newRect);
-        }
-        break;
+    // Prevent editing operations when offline (allow pan tool to work)
+    if (!isConnected && selectedTool !== TOOLS.PAN) {
+      console.log('❌ Operation blocked - offline');
+      return;
     }
-  }, [selectedTool, getMousePos, findRectAt, canEditObject, getClosestCorner, moveSelectedId, resizeSelectedId]);
+    
+    // Get tool handler and execute
+    const toolHandler = getToolHandler(selectedTool);
+    if (toolHandler) {
+      const state = buildToolState();
+      const helpers = { pos, canvasId };
+      await toolHandler.onMouseDown(e, state, helpers);
+      return;
+    }
+    
+    // All tools now handled by tool handlers - no fallback needed
+  }, [selectedTool, getMousePos, findRectAt, canEditObject, getClosestCorner, moveSelectedId, resizeSelectedId, isConnected, buildToolState, canvasId]);
 
   // MOUSE MOVE HANDLER - Tool-specific logic
   const handleMouseMove = useCallback((e) => {
@@ -593,307 +533,34 @@ const Canvas = ({ selectedTool, onToolChange }) => {
       updateCursor(pos);
     }
     
-    switch (selectedTool) {
-      case TOOLS.PAN:
-        if (isPanning) {
-          const stage = e.target.getStage();
-          const newPos = {
-            x: stage.x() + e.evt.movementX,
-            y: stage.y() + e.evt.movementY,
-          };
-          stage.position(newPos);
-          setStagePos(newPos);
-        }
-        break;
-        
-      case TOOLS.MOVE:
-        if (moveSelectedId && mouseDownPos) {
-          // Check if we should start dragging (threshold detection)
-          if (!isDragThresholdExceeded) {
-            const distance = Math.sqrt(
-              Math.pow(pos.x - mouseDownPos.x, 2) + 
-              Math.pow(pos.y - mouseDownPos.y, 2)
-            );
-            
-            if (distance > DRAG_THRESHOLD) {
-              console.log('Move: Drag threshold exceeded, starting movement');
-              setIsDragThresholdExceeded(true);
-              setIsMoving(true);
-              setMoveStartPos(mouseDownPos);
-            }
-          }
-          
-          // If we're now moving, handle the movement
-          if (isDragThresholdExceeded && isMoving && moveStartPos && moveOriginalPos) {
-            // Calculate delta from where we started dragging
-            const deltaX = pos.x - moveStartPos.x;
-            const deltaY = pos.y - moveStartPos.y;
-            
-            // Find the actual rectangle to get its dimensions
-            const originalRect = canvasObjects.find(r => r.id === moveSelectedId && r.type === 'rectangle');
-            if (originalRect) {
-              // Apply delta to original position (prevents accumulation)
-              const newRect = {
-                ...originalRect,
-                x: moveOriginalPos.x + deltaX,
-                y: moveOriginalPos.y + deltaY
-              };
-              
-              // Apply boundary constraints
-              const clampedRect = clampRectToCanvas(newRect);
-              
-              // Apply local visual update for immediate feedback
-              setLocalRectUpdates(prev => ({
-                ...prev,
-                [moveSelectedId]: clampedRect
-              }));
-              
-              // Send updates if we own this object
-              if (doWeOwnObject(moveSelectedId)) {
-                // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
-                // Firestore writes happen ONLY on drag end to avoid excessive database load
-                updateActiveObjectPosition(canvasId, moveSelectedId, {
-                  x: clampedRect.x,
-                  y: clampedRect.y,
-                  width: clampedRect.width,
-                  height: clampedRect.height
-                });
-              }
-            }
-          }
-        }
-        break;
-        
-      case TOOLS.RESIZE:
-        if (isResizing && resizeStartData && resizeHandle) {
-          const { rect: startRect, startPos } = resizeStartData;
-          const deltaX = pos.x - startPos.x;
-          const deltaY = pos.y - startPos.y;
-          
-          let newRect = { ...startRect };
-          let currentHandle = resizeHandle;
-          
-          // Apply resize transformation based on current handle
-          switch (currentHandle) {
-            case 'nw':
-              newRect.x = startRect.x + deltaX;
-              newRect.y = startRect.y + deltaY;
-              newRect.width = startRect.width - deltaX;
-              newRect.height = startRect.height - deltaY;
-              break;
-            case 'ne':
-              newRect.y = startRect.y + deltaY;
-              newRect.width = startRect.width + deltaX;
-              newRect.height = startRect.height - deltaY;
-              break;
-            case 'sw':
-              newRect.x = startRect.x + deltaX;
-              newRect.width = startRect.width - deltaX;
-              newRect.height = startRect.height + deltaY;
-              break;
-            case 'se':
-              newRect.width = startRect.width + deltaX;
-              newRect.height = startRect.height + deltaY;
-              break;
-          }
-          
-          // Check for crossover and handle coordinate flipping
-          const crossoverResult = handleCrossoverDetection(pos, currentHandle, startRect);
-          if (crossoverResult.flipped) {
-            newRect = crossoverResult.rect;
-            
-            // Update the resize handle if crossover occurred
-            if (crossoverResult.handle !== currentHandle) {
-              console.log(`🔄 Crossover detected: ${currentHandle} → ${crossoverResult.handle}`);
-              setResizeHandle(crossoverResult.handle);
-            }
-          }
-          
-          // Enforce minimum size FIRST to prevent disappearing rectangles
-          if (newRect.width < 2) newRect.width = 2;
-          if (newRect.height < 2) newRect.height = 2;
-          
-          // Enforce boundary constraints
-          newRect = clampRectToCanvas(newRect);
-          
-          // Apply local visual update for immediate feedback
-          setLocalRectUpdates(prev => ({
-            ...prev,
-            [resizeSelectedId]: newRect
-          }));
-          
-          // Send updates if we own this object (skip for test data)
-          if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
-            // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
-            // Firestore writes happen ONLY on drag end to avoid excessive database load
-            updateActiveObjectPosition(canvasId, resizeSelectedId, {
-              x: newRect.x,
-              y: newRect.y,
-              width: newRect.width,
-              height: newRect.height
-            });
-          }
-        }
-        break;
-        
-      case TOOLS.RECTANGLE:
-        if (isDrawing && currentRect) {
-          const width = pos.x - currentRect.x;
-          const height = pos.y - currentRect.y;
-          
-          setCurrentRect({
-            ...currentRect,
-            width: width,
-            height: height
-          });
-        }
-        break;
+    // Get tool handler and execute
+    const toolHandler = getToolHandler(selectedTool);
+    if (toolHandler) {
+      const state = buildToolState();
+      const helpers = { pos, canvasId };
+      toolHandler.onMouseMove(e, state, helpers);
+      return;
     }
-  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects]);
+    
+    // All tools now handled by tool handlers - no fallback needed
+  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects, buildToolState, canvasId]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
     console.log('Mouse up with tool:', selectedTool);
     
-    switch (selectedTool) {
-      case TOOLS.PAN:
-        setIsPanning(false);
-        e.target.getStage().container().style.cursor = 'grab';
-        break;
-        
-      case TOOLS.MOVE:
-        if (isMoving && moveSelectedId && localRectUpdates[moveSelectedId] && doWeOwnObject(moveSelectedId)) {
-          const finalRect = localRectUpdates[moveSelectedId];
-          try {
-            console.log('Move: Final position sync and unlock');
-            
-            // Clear active object from RTDB (remove real-time tracking)
-            await clearActiveObject(canvasId, moveSelectedId);
-            
-            // Final Firestore update with unlock
-            await updateObjectPosition(moveSelectedId, {
-              x: finalRect.x,
-              y: finalRect.y
-            }, true); // true = final update, unlocks object
-            
-            console.log('Move: Rectangle position synced and unlocked');
-          } catch (error) {
-            console.error('Failed to sync rectangle position:', error);
-            try {
-              await clearActiveObject(canvasId, moveSelectedId);
-              await unlockObject(moveSelectedId);
-            } catch (unlockError) {
-              console.error('Failed to unlock object:', unlockError);
-            }
-          }
-        } else if (moveSelectedId && !isMoving) {
-          // Just a click without drag - keep object locked since it's selected
-          // Don't unlock here since user might want to start moving it
-          console.log('Move: Click only - keeping object selected and locked');
-        }
-        
-        // Reset movement states
-        setIsMoving(false);
-        setMoveStartPos(null);
-        setMouseDownPos(null);
-        setIsDragThresholdExceeded(false);
-        setMoveOriginalPos(null);
-        
-        // Clear local updates after sync
-        if (moveSelectedId) {
-          setLocalRectUpdates(prev => {
-            const updated = { ...prev };
-            delete updated[moveSelectedId];
-            return updated;
-          });
-        }
-        break;
-        
-      case TOOLS.RESIZE:
-        if (isResizing && resizeSelectedId && localRectUpdates[resizeSelectedId] && doWeOwnObject(resizeSelectedId)) {
-          const finalRect = localRectUpdates[resizeSelectedId];
-          try {
-            console.log('Resize: Final resize sync and unlock');
-            
-            // Clear active object from RTDB (remove real-time tracking)
-            await clearActiveObject(canvasId, resizeSelectedId);
-            
-            // Final Firestore update with unlock
-            await updateObjectPosition(resizeSelectedId, {
-              x: finalRect.x,
-              y: finalRect.y,
-              width: finalRect.width,
-              height: finalRect.height
-            }, true); // true = final update, unlocks object
-            
-            console.log('Resize: Rectangle resize synced and unlocked');
-          } catch (error) {
-            console.error('Failed to sync rectangle resize:', error);
-            try {
-              await clearActiveObject(canvasId, resizeSelectedId);
-              await unlockObject(resizeSelectedId);
-            } catch (unlockError) {
-              console.error('Failed to unlock object:', unlockError);
-            }
-          }
-        }
-        
-        // Reset resize states but keep object selected for consecutive resizes
-        setIsResizing(false);
-        setResizeHandle(null);
-        setResizeStartData(null);
-        
-        // Don't clear resizeSelectedId - keep object selected for consecutive resizes
-        // Only clear when user clicks elsewhere or switches tools
-        
-        // Clear local updates after sync
-        if (resizeSelectedId) {
-          setLocalRectUpdates(prev => {
-            const updated = { ...prev };
-            delete updated[resizeSelectedId];
-            return updated;
-          });
-        }
-        break;
-        
-      case TOOLS.RECTANGLE:
-        if (isDrawing && currentRect) {
-          const minWidth = 2;
-          const minHeight = 1;
-          
-          if (Math.abs(currentRect.width) >= minWidth && Math.abs(currentRect.height) >= minHeight) {
-            // Normalize negative dimensions and enforce boundaries
-            const finalRect = {
-              x: currentRect.width < 0 ? currentRect.x + currentRect.width : currentRect.x,
-              y: currentRect.height < 0 ? currentRect.y + currentRect.height : currentRect.y,
-              width: Math.abs(currentRect.width),
-              height: Math.abs(currentRect.height)
-            };
-            
-            // Clamp to canvas bounds
-            const clampedRect = clampRectToCanvas(finalRect);
-            
-            try {
-              // Save rectangle to Firestore
-              await createObject('rectangle', clampedRect, canvasId, {
-                fill: '#808080',
-                stroke: '#333333',
-                strokeWidth: 1
-              });
-              console.log('Rectangle created and saved to Firestore');
-            } catch (error) {
-              console.error('Failed to save rectangle:', error);
-            }
-          }
-          
-          // Reset drawing state and switch back to move tool
-          setIsDrawing(false);
-          setCurrentRect(null);
-          onToolChange(TOOLS.MOVE);
-        }
-        break;
+    // Get tool handler and execute
+    const toolHandler = getToolHandler(selectedTool);
+    if (toolHandler) {
+      const pos = getMousePos(e);
+      const state = buildToolState();
+      const helpers = { pos, canvasId };
+      await toolHandler.onMouseUp(e, state, helpers);
+      return;
     }
-  }, [selectedTool, isPanning, isMoving, moveSelectedId, localRectUpdates, doWeOwnObject, isResizing, resizeSelectedId, isDrawing, currentRect, onToolChange, clampRectToCanvas]);
+    
+    // All tools now handled by tool handlers - no fallback needed
+  }, [selectedTool, isPanning, isMoving, moveSelectedId, localRectUpdates, doWeOwnObject, isResizing, resizeSelectedId, isDrawing, currentRect, onToolChange, clampRectToCanvas, buildToolState, canvasId, getMousePos]);
 
   // Set cursor based on selected tool
   useEffect(() => {
@@ -949,6 +616,14 @@ const Canvas = ({ selectedTool, onToolChange }) => {
 
   return (
     <div className="canvas-container bg-gray-200 overflow-hidden">
+      {/* Connection Status Banner */}
+      <ConnectionBanner 
+        isConnected={isConnected}
+        isOnline={isOnline}
+        isFirebaseConnected={isFirebaseConnected}
+        queuedCount={queuedCount}
+      />
+      
       <Stage
         ref={stageRef}
         width={stageDimensions.width}

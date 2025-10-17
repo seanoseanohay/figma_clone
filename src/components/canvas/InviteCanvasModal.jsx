@@ -175,3 +175,6 @@ const InviteCanvasModal = ({ isOpen, onClose }) => {
 export default InviteCanvasModal;
 
 
+
+
+
