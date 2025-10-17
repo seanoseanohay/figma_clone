@@ -1,3 +1,5 @@
+import ColorPicker from '../common/ColorPicker.jsx';
+
 // Tool constants - separated by type for better organization
 export const TOOLS = {
   PAN: 'pan',
@@ -5,7 +7,8 @@ export const TOOLS = {
   MOVE: 'move', 
   RESIZE: 'resize',
   RECTANGLE: 'rectangle',
-  CIRCLE: 'circle'
+  CIRCLE: 'circle',
+  STAR: 'star'
 };
 
 // Selection tools (navigation and selection)
@@ -15,7 +18,7 @@ const SELECTION_TOOLS = [TOOLS.PAN, TOOLS.SELECT];
 const MODIFICATION_TOOLS = [TOOLS.MOVE, TOOLS.RESIZE];
 
 // Shape tools (create new shapes)
-const SHAPE_TOOLS = [TOOLS.RECTANGLE, TOOLS.CIRCLE];
+const SHAPE_TOOLS = [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
 
 // Tool configurations with icons, labels, and cursors
 const TOOL_CONFIG = {
@@ -62,6 +65,13 @@ const TOOL_CONFIG = {
     shortLabel: 'Circle',
     cursor: 'crosshair',
     shortcut: ''
+  },
+  [TOOLS.STAR]: {
+    icon: '⭐',
+    label: 'Star Tool',
+    shortLabel: 'Star',
+    cursor: 'crosshair',
+    shortcut: ''
   }
 };
 
@@ -71,10 +81,37 @@ const Toolbar = ({
   hasSelection = false,
   selectedObject = null,
   cursorPosition = null,
-  zoomLevel = 100
+  zoomLevel = 100,
+  selectedColor = '#808080',
+  onColorChange = () => {},
+  onZIndexChange = () => {}
 }) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
+  };
+
+  const handleBringToFront = () => {
+    if (hasSelection && selectedObject) {
+      onZIndexChange('front');
+    }
+  };
+
+  const handleSendToBack = () => {
+    if (hasSelection && selectedObject) {
+      onZIndexChange('back');
+    }
+  };
+
+  const handleMoveForward = () => {
+    if (hasSelection && selectedObject) {
+      onZIndexChange('forward');
+    }
+  };
+
+  const handleMoveBackward = () => {
+    if (hasSelection && selectedObject) {
+      onZIndexChange('backward');
+    }
   };
 
   // Format object properties for display
@@ -86,12 +123,26 @@ const Toolbar = ({
       const height = Math.round(obj.height);
       const x = Math.round(obj.x);
       const y = Math.round(obj.y);
-      return `Rectangle: ${width}×${height} at (${x}, ${y})`;
+      const color = obj.fill || '#808080';
+      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
+      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
+      return `Rectangle: ${width}×${height} at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
     } else if (obj.type === 'circle') {
       const radius = Math.round(obj.radius);
       const x = Math.round(obj.x);
       const y = Math.round(obj.y);
-      return `Circle: r=${radius} at (${x}, ${y})`;
+      const color = obj.fill || '#808080';
+      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
+      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
+      return `Circle: r=${radius} at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
+    } else if (obj.type === 'star') {
+      const numPoints = obj.numPoints || 5;
+      const x = Math.round(obj.x);
+      const y = Math.round(obj.y);
+      const color = obj.fill || '#808080';
+      const rotation = obj.rotation ? Math.round(obj.rotation) : 0;
+      const zIndex = obj.zIndex !== undefined ? obj.zIndex : 0;
+      return `Star: ${numPoints} points at (${x}, ${y}) • ${rotation}° • Color: ${color.toUpperCase()} • Z: ${zIndex}`;
     }
     
     return null;
@@ -161,10 +212,13 @@ const Toolbar = ({
   
   const line2 = line2Parts.join(' • ');
 
+  // Check if we should show color picker (when object selected OR drawing tool active)
+  const showColorPicker = hasSelection || SHAPE_TOOLS.includes(selectedTool);
+
   return (
     <div className="w-full flex justify-center" style={{ width: '100%' }}>
       <div className="bg-white shadow-lg rounded-lg" style={{ maxWidth: '900px', width: 'auto' }}>
-        {/* Tool Icons separated into 3 sections */}
+        {/* Tool Icons and Color Picker */}
         <div className="flex items-center justify-center px-6 py-3">
           {/* Selection Tools (Left) */}
           <div className="flex items-center space-x-1">
@@ -177,6 +231,43 @@ const Toolbar = ({
           {/* Modification Tools (Middle) */}
           <div className="flex items-center space-x-1">
             {MODIFICATION_TOOLS.map(toolKey => renderToolButton(toolKey))}
+            
+            {/* Z-Index Controls (inline with modification tools, only show when object is selected) */}
+            {hasSelection && (
+              <>
+                {/* Mini divider */}
+                <div className="mx-2 h-6 border-l border-gray-300"></div>
+                
+                <button
+                  onClick={handleBringToFront}
+                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
+                  title="Bring to Front (Ctrl+Shift+])"
+                >
+                  <span className="text-base">⬆️</span>
+                </button>
+                <button
+                  onClick={handleMoveForward}
+                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
+                  title="Move Forward (Ctrl+])"
+                >
+                  <span className="text-base">🔼</span>
+                </button>
+                <button
+                  onClick={handleMoveBackward}
+                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
+                  title="Move Backward (Ctrl+[)"
+                >
+                  <span className="text-base">🔽</span>
+                </button>
+                <button
+                  onClick={handleSendToBack}
+                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
+                  title="Send to Back (Ctrl+Shift+[)"
+                >
+                  <span className="text-base">⬇️</span>
+                </button>
+              </>
+            )}
           </div>
           
           {/* Vertical Divider */}
@@ -186,6 +277,22 @@ const Toolbar = ({
           <div className="flex items-center space-x-1">
             {SHAPE_TOOLS.map(toolKey => renderToolButton(toolKey))}
           </div>
+          
+          {/* Contextual Color Picker (only show when object selected OR drawing tool active) */}
+          {showColorPicker && (
+            <>
+              {/* Vertical Divider */}
+              <div className="mx-4 h-10 border-l-2 border-gray-300"></div>
+              
+              {/* Color Picker */}
+              <div className="flex items-center">
+                <ColorPicker 
+                  color={selectedColor}
+                  onChange={onColorChange}
+                />
+              </div>
+            </>
+          )}
         </div>
         
         {/* Two-line description area with object properties and canvas info */}

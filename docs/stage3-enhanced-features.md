@@ -7,6 +7,10 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - **E1**: ✅ Complete - Circle Creation Tool
 - **E4**: ✅ Complete - Fix Critical Rectangle Resize Bug
 - **E2**: ✅ Complete - Properties Display in Toolbar
+- **E6**: 🔄 Partial - Object Rotation (rendering works, interactive handles pending)
+- **E7**: ✅ Complete - Star Shape Tool
+- **E8**: ✅ Complete - Color Picker for Shapes
+- **E9**: ✅ Complete - Z-Index Management (Layer Ordering)
 - **E3**: ⏸️ Not Started - Text Tool with Formatting
 - **E5**: ⏸️ Not Started - Owner-Only Edit Restrictions
 - **A0**: ⏸️ Not Started - Performance Optimization & Monitoring
@@ -234,6 +238,148 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ---
 
+### Task E6: Implement Object Rotation Tool
+
+**Objective**: Enable users to rotate shapes (rectangles, circles, text, stars, etc.) with interactive handles and toolbar input.
+
+**Files to Modify**:
+- Create `src/tools/RotateTool.js`
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/components/canvas/Toolbar.jsx`
+- Update `src/services/canvas.service.js`
+
+**Specific Changes**:
+1. Add rotation handle to selected objects (Konva transformer supports rotation by default)
+2. Implement rotation logic on drag of rotation handle
+3. Display rotation angle in properties display (rounded to nearest degree)
+4. Allow angle input field in toolbar for manual rotation
+5. Support Shift+drag snapping to 15° increments
+6. Save and sync rotation value via canvas.service
+7. Ensure rotations are persisted and updated across all clients
+
+**Acceptance Criteria**:
+- [ ] Rotation handle appears for selected objects
+- [ ] Dragging handle rotates object smoothly
+- [ ] Rotation angle updates in real time in properties display
+- [ ] Manual rotation input works correctly
+- [ ] Rotation persists in Firestore and syncs for all users
+- [ ] Shift+drag snapping works correctly
+- [ ] Undo/redo (when available) respects rotation
+
+**Testing Steps**:
+1. Select shape and rotate with handle
+2. Verify angle display updates live
+3. Rotate while holding Shift to confirm snapping
+4. Reload canvas to confirm rotation persists
+5. Test multi-user sync for rotation changes
+
+---
+
+### Task E7: Add Star Shape Tool
+
+**Objective**: Allow users to create star shapes with adjustable points, inner radius, and outer radius.
+
+**Files to Modify**:
+- Create `src/tools/StarTool.js`
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/components/canvas/Toolbar.jsx`
+- Update `src/services/canvas.service.js`
+
+**Specific Changes**:
+1. Add Star tool to toolbar with a star icon (⭐)
+2. Implement drag-to-create star logic using Konva.Star
+3. Default to 5 points; allow user to modify `numPoints`, `innerRadius`, and `outerRadius`
+4. Integrate color picker (from E8) for star fill
+5. Ensure star behaves like other shapes (move, resize, rotate)
+6. Store star parameters in Firestore
+7. Add display to properties toolbar: `Star: 5 points at (x, y)`
+
+**Acceptance Criteria**:
+- [ ] Star tool appears and is selectable
+- [ ] User can drag to create a star
+- [ ] Star supports move, resize, and rotate
+- [ ] Point count and radius adjustments work
+- [ ] Color picker integration works correctly
+- [ ] Star persists and syncs across users
+
+**Testing Steps**:
+1. Create stars with various point counts and sizes
+2. Move, resize, and rotate stars
+3. Change star colors and verify persistence
+4. Confirm multiplayer synchronization
+
+---
+
+### Task E8: Add Color Picker for Shapes
+
+**Objective**: Add a universal color picker for assigning and changing shape colors.
+
+**Files to Modify**:
+- Update `src/components/canvas/Toolbar.jsx`
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/services/canvas.service.js`
+- Create `src/components/common/ColorPicker.jsx`
+
+**Specific Changes**:
+1. Add color picker component in toolbar using `react-color` or similar
+2. When a tool is active, color picker defines default fill color for new shapes
+3. When an object is selected, color picker updates its fill color in real time
+4. Display selected color in toolbar next to picker
+5. Save color property to Firestore for persistence
+6. Add color info to properties display (`Color: #RRGGBB`)
+7. Handle synchronization so all clients see updated colors instantly
+
+**Acceptance Criteria**:
+- [ ] Color picker appears in toolbar
+- [ ] Selected color applies to new shapes
+- [ ] Selected objects update color when picker changes
+- [ ] Colors persist across reloads
+- [ ] Color updates sync for all users
+- [ ] Color shows correctly in properties display
+
+**Testing Steps**:
+1. Create shapes with different colors
+2. Select object and change color via picker
+3. Reload to confirm color persistence
+4. Verify color sync across users
+5. Confirm color hex code updates in properties bar
+
+---
+
+### Task E9: Implement Z-Index Management (Layer Ordering)
+
+**Objective**: Allow users to control stacking order (front/back) of canvas objects.
+
+**Files to Modify**:
+- Update `src/components/canvas/Toolbar.jsx`
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/services/canvas.service.js`
+
+**Specific Changes**:
+1. Add Z-Index control buttons: Bring to Front, Send to Back, Move Forward, Move Back
+2. Update canvas service to store z-index ordering per object
+3. Sync z-index changes to Firestore for all clients
+4. Ensure proper redraw order in Canvas.jsx
+5. Integrate visual confirmation (temporary highlight or notification)
+6. Prepare for future undo/redo support (A2)
+7. Maintain consistent ordering on reload
+
+**Acceptance Criteria**:
+- [ ] Z-Index buttons appear in toolbar
+- [ ] Bring to Front/Send to Back works correctly
+- [ ] Move Forward/Move Back adjust order relative to peers
+- [ ] Z-order changes persist and sync for all users
+- [ ] Redraw order is visually correct
+- [ ] Undo/redo works when available
+
+**Testing Steps**:
+1. Create overlapping shapes
+2. Test all four z-index buttons
+3. Verify stacking order changes persist after reload
+4. Test z-order updates in multi-user environment
+
+---
+
 ## ✨ ADVANCED FEATURES
 
 ### Task A0: Performance Optimization & Monitoring
@@ -401,16 +547,23 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ## Next Steps
 
-**Stage 3 Progress: 3/9 tasks complete**
+**Stage 3 Progress: 6/13 tasks complete (1 partial)**
 
 Completed:
 - ✅ E1: Add Circle Creation Tool
 - ✅ E4: Fix Critical Rectangle Resize Bug
 - ✅ E2: Create Properties Display in Toolbar
+- ✅ E7: Add Star Shape Tool
+- ✅ E8: Add Color Picker for Shapes
+- ✅ E9: Implement Z-Index Management
+
+Partial:
+- 🔄 E6: Implement Object Rotation Tool (rendering works, needs interactive UI)
 
 Remaining Enhanced Tools:
 - ⏸️ E3: Implement Text Tool with Basic Formatting
 - ⏸️ E5: Add Owner-Only Edit Restrictions
+- ⏸️ E6: Complete Object Rotation Tool (interactive handles)
 
 Remaining Advanced Features:
 - ⏸️ A0: Performance Optimization & Monitoring
@@ -419,12 +572,13 @@ Remaining Advanced Features:
 - ⏸️ A3: Enhance Toolbar Design
 
 **Recommended Order**:
-1. **A0 (Performance Optimization)** - Establish baseline performance monitoring ← **RECOMMENDED NEXT**
-2. **E2-E3 (New Tools)** - Properties sidebar and Text tool
-3. **E5 (Ownership UI)** - Visual ownership indicators
-4. **A1-A3 (Polish)** - Export, Undo/Redo, Toolbar design
-
-**Note**: E1 (Circle Tool) and E4 (Resize Bug Fix) are already complete.
+1. **E8 (Color Picker)** - Foundation for E7 star colors ← **STARTING NOW**
+2. **E6 (Rotation Tool)** - Core manipulation feature
+3. **E7 (Star Tool)** - Additional shape with rotation support
+4. **E9 (Z-Index)** - Layer ordering for overlapping shapes
+5. **E3 (Text Tool)** - More complex tool with formatting
+6. **E5 (Ownership UI)** - Visual ownership indicators
+7. **A0-A3 (Polish)** - Performance, Export, Undo/Redo, Toolbar design
 
 After completing Stage 3, proceed to **Stage 4: Production Ready** tasks for deployment preparation.
 

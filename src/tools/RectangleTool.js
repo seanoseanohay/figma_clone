@@ -15,7 +15,7 @@ export class RectangleTool {
    */
   onMouseDown(e, state, helpers) {
     const { pos } = helpers
-    const { setIsDrawing, setCurrentRect } = state
+    const { setIsDrawing, setCurrentRect, selectedColor } = state
 
     // Start rectangle creation
     if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
@@ -26,7 +26,7 @@ export class RectangleTool {
         y: pos.y,
         width: 0,
         height: 0,
-        fill: '#808080'
+        fill: selectedColor || '#808080'
       }
       setCurrentRect(newRect)
     }
@@ -60,6 +60,7 @@ export class RectangleTool {
       isDrawing, 
       currentRect, 
       clampRectToCanvas,
+      selectedColor,
       setIsDrawing, 
       setCurrentRect
     } = state
@@ -78,13 +79,13 @@ export class RectangleTool {
         const clampedRect = clampRectToCanvas(finalRect)
 
         try {
-          // Save rectangle to Firestore
+          // Save rectangle to Firestore with selected color
           await createObject('rectangle', clampedRect, canvasId, {
-            fill: '#808080',
+            fill: selectedColor || '#808080',
             stroke: '#333333',
             strokeWidth: 1
           })
-          console.log('Rectangle created and saved to Firestore')
+          console.log('Rectangle created and saved to Firestore with color:', selectedColor)
         } catch (error) {
           console.error('Failed to save rectangle:', error)
         }

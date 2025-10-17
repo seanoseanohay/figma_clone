@@ -74,6 +74,7 @@ export class CircleTool {
       drawStart,
       currentCircle,
       isOnline,
+      selectedColor,
       setIsDrawing,
       setDrawStart,
       setCurrentCircle,
@@ -108,17 +109,17 @@ export class CircleTool {
       
       console.log('Creating circle:', finalCircle);
 
-      // Create circle object
+      // Create circle object with selected color
       // Store center point and radius
       await createObject('circle', {
         x: finalCircle.x,
         y: finalCircle.y
       }, canvasId, {
         radius: finalCircle.radius,
-        fill: '#808080' // Default gray
+        fill: selectedColor || '#808080'
       });
 
-      console.log('Circle created successfully');
+      console.log('Circle created successfully with color:', selectedColor);
     } catch (error) {
       console.error('Failed to create circle:', error);
     } finally {

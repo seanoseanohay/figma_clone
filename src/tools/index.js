@@ -4,6 +4,7 @@ import { MoveTool } from './MoveTool.js'
 import { ResizeTool } from './ResizeTool.js'
 import { RectangleTool } from './RectangleTool.js'
 import { CircleTool } from './CircleTool.js'
+import { StarTool } from './StarTool.js'
 import { TOOLS } from '../components/canvas/Toolbar.jsx'
 
 /**
@@ -15,7 +16,8 @@ export const toolRegistry = {
   [TOOLS.MOVE]: new MoveTool(),
   [TOOLS.RESIZE]: new ResizeTool(),
   [TOOLS.RECTANGLE]: new RectangleTool(),
-  [TOOLS.CIRCLE]: new CircleTool()
+  [TOOLS.CIRCLE]: new CircleTool(),
+  [TOOLS.STAR]: new StarTool()
 }
 
 /**
@@ -25,7 +27,7 @@ export const getToolHandler = (toolType) => {
   return toolRegistry[toolType] || null
 }
 
-export { PanTool, SelectTool, MoveTool, ResizeTool, RectangleTool, CircleTool }
+export { PanTool, SelectTool, MoveTool, ResizeTool, RectangleTool, CircleTool, StarTool }
 
 
 

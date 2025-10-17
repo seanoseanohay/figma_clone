@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -23,6 +23,11 @@ const LoggedInLayout = ({ children }) => {
   const [selectedObject, setSelectedObject] = useState(null);
   const [cursorPosition, setCursorPosition] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [selectedColor, setSelectedColor] = useState('#808080'); // Default gray
+  // Store a ref to the Canvas's z-index handler
+  const zIndexHandlerRef = useRef(null);
+  // Store a ref to the Canvas's color update handler (for selected objects)
+  const userColorChangeRef = useRef(null);
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
@@ -34,6 +39,10 @@ const LoggedInLayout = ({ children }) => {
 
   const handleObjectUpdate = (objectData) => {
     setSelectedObject(objectData);
+    // Update color picker to match selected object's color
+    if (objectData && objectData.fill) {
+      setSelectedColor(objectData.fill);
+    }
   };
 
   const handleCursorUpdate = (position) => {
@@ -43,6 +52,21 @@ const LoggedInLayout = ({ children }) => {
   const handleZoomUpdate = (zoom) => {
     setZoomLevel(zoom * 100); // Convert scale to percentage
   };
+
+  const handleColorChange = (newColor) => {
+    setSelectedColor(newColor);
+    // If there's a selected object and user changed the color, update the object
+    if (userColorChangeRef.current && hasSelection) {
+      userColorChangeRef.current(newColor);
+    }
+  };
+
+  const handleZIndexChange = useCallback((action) => {
+    // Call the Canvas's z-index handler if it's available
+    if (zIndexHandlerRef.current) {
+      zIndexHandlerRef.current(action);
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -60,6 +84,9 @@ const LoggedInLayout = ({ children }) => {
           selectedObject={selectedObject}
           cursorPosition={cursorPosition}
           zoomLevel={zoomLevel}
+          selectedColor={selectedColor}
+          onColorChange={handleColorChange}
+          onZIndexChange={handleZIndexChange}
         />
       </div>
       
@@ -87,7 +114,12 @@ const LoggedInLayout = ({ children }) => {
             onSelectionChange: handleSelectionChange,
             onObjectUpdate: handleObjectUpdate,
             onCursorUpdate: handleCursorUpdate,
-            onZoomUpdate: handleZoomUpdate
+            onZoomUpdate: handleZoomUpdate,
+            selectedColor,
+            onColorChange: handleColorChange,
+            onZIndexChange: handleZIndexChange,
+            zIndexHandlerRef,
+            userColorChangeRef
           })}
         </div>
       </div>
@@ -96,7 +128,7 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component - now just renders Canvas
-const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
@@ -105,6 +137,11 @@ const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpd
       onObjectUpdate={onObjectUpdate}
       onCursorUpdate={onCursorUpdate}
       onZoomUpdate={onZoomUpdate}
+      selectedColor={selectedColor}
+      onColorChange={onColorChange}
+      onZIndexChange={onZIndexChange}
+      zIndexHandlerRef={zIndexHandlerRef}
+      onUserColorChange={userColorChangeRef}
     />
   );
 };
@@ -142,7 +179,7 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
                           onToolChange={onToolChange}
@@ -150,6 +187,11 @@ function App() {
                           onObjectUpdate={onObjectUpdate}
                           onCursorUpdate={onCursorUpdate}
                           onZoomUpdate={onZoomUpdate}
+                          selectedColor={selectedColor}
+                          onColorChange={onColorChange}
+                          onZIndexChange={onZIndexChange}
+                          zIndexHandlerRef={zIndexHandlerRef}
+                          userColorChangeRef={userColorChangeRef}
                         />
                       )}
                     </LoggedInLayout>
@@ -172,7 +214,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
@@ -180,6 +222,11 @@ function App() {
                             onObjectUpdate={onObjectUpdate}
                             onCursorUpdate={onCursorUpdate}
                             onZoomUpdate={onZoomUpdate}
+                            selectedColor={selectedColor}
+                            onColorChange={onColorChange}
+                            onZIndexChange={onZIndexChange}
+                            zIndexHandlerRef={zIndexHandlerRef}
+                            userColorChangeRef={userColorChangeRef}
                           />
                         )}
                       </LoggedInLayout>
@@ -193,7 +240,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
@@ -201,6 +248,11 @@ function App() {
                             onObjectUpdate={onObjectUpdate}
                             onCursorUpdate={onCursorUpdate}
                             onZoomUpdate={onZoomUpdate}
+                            selectedColor={selectedColor}
+                            onColorChange={onColorChange}
+                            onZIndexChange={onZIndexChange}
+                            zIndexHandlerRef={zIndexHandlerRef}
+                            userColorChangeRef={userColorChangeRef}
                           />
                         )}
                       </LoggedInLayout>

@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Stage, Layer, Rect, Circle } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Star } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
@@ -14,7 +14,8 @@ import { useConnectionStatus } from '../../hooks/useConnectionStatus.js';
 import { getToolHandler } from '../../tools/index.js';
 import { 
   createObject, 
-  updateObjectPosition, 
+  updateObjectPosition,
+  updateObject,
   lockObject, 
   unlockObject,
   updateActiveObjectPosition,
@@ -32,7 +33,7 @@ import {
 } from '../../constants/canvas.constants.js';
 import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, onUserColorChange }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -73,6 +74,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   const [currentCircle, setCurrentCircle] = useState(null);
   const [drawStart, setDrawStart] = useState(null);
   
+  // Star creation state (Star tool only)
+  const [currentStar, setCurrentStar] = useState(null);
+  
   // Move tool state (clean separation)
   const [moveSelectedId, setMoveSelectedId] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
@@ -104,11 +108,68 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return null;
   };
 
+  // Handle z-index changes
+  const handleZIndexChange = useCallback(async (action) => {
+    if (!selectedObjectId) return;
+
+    const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+    if (!selectedObj) return;
+
+    // Get all objects of the same type sorted by z-index
+    const allObjects = [...canvasObjects].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    const currentIndex = allObjects.findIndex(obj => obj.id === selectedObjectId);
+    
+    let newZIndex = selectedObj.zIndex || 0;
+
+    switch (action) {
+      case 'front':
+        // Set to max z-index + 1
+        const maxZ = Math.max(...allObjects.map(obj => obj.zIndex || 0));
+        newZIndex = maxZ + 1;
+        break;
+      case 'back':
+        // Set to min z-index - 1
+        const minZ = Math.min(...allObjects.map(obj => obj.zIndex || 0));
+        newZIndex = minZ - 1;
+        break;
+      case 'forward':
+        // Swap with next object
+        if (currentIndex < allObjects.length - 1) {
+          const nextObj = allObjects[currentIndex + 1];
+          newZIndex = (nextObj.zIndex || 0) + 1;
+        }
+        break;
+      case 'backward':
+        // Swap with previous object
+        if (currentIndex > 0) {
+          const prevObj = allObjects[currentIndex - 1];
+          newZIndex = (prevObj.zIndex || 0) - 1;
+        }
+        break;
+    }
+
+    try {
+      await updateObject(selectedObjectId, { zIndex: newZIndex });
+      console.log('Z-index updated:', selectedObjectId, newZIndex);
+    } catch (error) {
+      console.error('Failed to update z-index:', error);
+    }
+  }, [selectedObjectId, canvasObjects]);
+
+  // Expose handleZIndexChange to parent via ref
+  useEffect(() => {
+    if (zIndexHandlerRef) {
+      zIndexHandlerRef.current = handleZIndexChange;
+    }
+  }, [handleZIndexChange, zIndexHandlerRef]);
+
   // Filter rectangles from canvas objects and merge with local updates
   // Memoized to prevent unnecessary re-renders during drag operations
+  // Now sorted by z-index
   const rectangles = useMemo(() => {
     return canvasObjects
       .filter(obj => obj.type === 'rectangle')
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
       .map(rect => {
         // If WE are controlling this object, show our local updates for immediate feedback
         if (localRectUpdates[rect.id] && rect.lockedBy === auth.currentUser?.uid) {
@@ -147,10 +208,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       });
   }, [canvasObjects, localRectUpdates, activeObjects]);
 
-  // Filter circles from canvas objects
+  // Filter circles from canvas objects, sorted by z-index
   const circles = useMemo(() => {
     return canvasObjects
       .filter(obj => obj.type === 'circle')
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
       .map(circle => {
         // If WE are controlling this object, show our local updates
         if (localRectUpdates[circle.id] && circle.lockedBy === auth.currentUser?.uid) {
@@ -184,6 +246,46 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         
         // No one is controlling it, show Firestore data
         return circle;
+      });
+  }, [canvasObjects, localRectUpdates, activeObjects]);
+
+  // Filter stars from canvas objects, sorted by z-index
+  const stars = useMemo(() => {
+    return canvasObjects
+      .filter(obj => obj.type === 'star')
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+      .map(star => {
+        // If WE are controlling this object, show our local updates
+        if (localRectUpdates[star.id] && star.lockedBy === auth.currentUser?.uid) {
+          return {
+            ...star,
+            ...localRectUpdates[star.id]
+          };
+        }
+        
+        // If another user is dragging this object, show real-time RTDB position
+        if (activeObjects[star.id] && star.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...star,
+            x: activeObjects[star.id].x,
+            y: activeObjects[star.id].y,
+            isLockedByOther: true,
+            lockedByName: star.lastModifiedBy,
+            isBeingDragged: true
+          };
+        }
+        
+        // If locked by another user, mark as locked
+        if (star.lockedBy && star.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...star,
+            isLockedByOther: true,
+            lockedByName: star.lastModifiedBy
+          };
+        }
+        
+        // No one is controlling it, show Firestore data
+        return star;
       });
   }, [canvasObjects, localRectUpdates, activeObjects]);
 
@@ -273,18 +375,44 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return null;
   }, [circles, isPointInCircle]);
   
+  // Helper function to check if point is inside star (using bounding circle approximation)
+  const isPointInStar = useCallback((point, star) => {
+    // Use outer radius as bounding circle for simplicity
+    const dx = point.x - star.x;
+    const dy = point.y - star.y;
+    const distanceSquared = dx * dx + dy * dy;
+    const outerRadius = star.outerRadius || 40;
+    return distanceSquared <= outerRadius * outerRadius;
+  }, []);
+  
+  // Find star at position
+  const findStarAt = useCallback((pos) => {
+    // Check from top to bottom (last drawn = topmost)
+    for (let i = stars.length - 1; i >= 0; i--) {
+      if (isPointInStar(pos, stars[i])) {
+        return stars[i];
+      }
+    }
+    return null;
+  }, [stars, isPointInStar]);
+  
   // Shape-agnostic object finder - checks all shape types
   const findObjectAt = useCallback((pos) => {
-    // Check circles first (drawn on top)
+    // Check in reverse z-index order (top to bottom)
+    // Stars first (typically on top in our z-index sorting)
+    const star = findStarAt(pos);
+    if (star) return star;
+    
+    // Then circles
     const circle = findCircleAt(pos);
     if (circle) return circle;
     
-    // Then check rectangles
+    // Then rectangles
     const rect = findRectAt(pos);
     if (rect) return rect;
     
     return null;
-  }, [findCircleAt, findRectAt]);
+  }, [findStarAt, findCircleAt, findRectAt]);
   
   // Boundary enforcement functions
   const clampRectToCanvas = useCallback((rect) => {
@@ -304,6 +432,18 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     
     return {
       ...circle,
+      x: clampedX,
+      y: clampedY
+    };
+  }, []);
+
+  const clampStarToCanvas = useCallback((star) => {
+    // Clamp center position so entire star stays in bounds
+    const clampedX = Math.max(star.outerRadius, Math.min(star.x, CANVAS_WIDTH - star.outerRadius));
+    const clampedY = Math.max(star.outerRadius, Math.min(star.y, CANVAS_HEIGHT - star.outerRadius));
+    
+    return {
+      ...star,
       x: clampedX,
       y: clampedY
     };
@@ -557,6 +697,27 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
   }, [selectedObjectId, canvasObjects, onSelectionChange, onObjectUpdate]);
 
+  // Expose handler for updating selected object's color when user explicitly changes it
+  useEffect(() => {
+    if (onUserColorChange) {
+      const handler = async (newColor) => {
+        if (selectedObjectId) {
+          const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+          // Only update if the color is different and we own the object
+          if (selectedObj && selectedObj.fill !== newColor && doWeOwnObject(selectedObjectId)) {
+            try {
+              await updateObject(selectedObjectId, { fill: newColor });
+              console.log('Object color updated:', selectedObjectId, newColor);
+            } catch (error) {
+              console.error('Failed to update object color:', error);
+            }
+          }
+        }
+      };
+      onUserColorChange.current = handler;
+    }
+  }, [selectedObjectId, canvasObjects, doWeOwnObject, onUserColorChange]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -649,7 +810,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Clear/manage state when switching tools
   useEffect(() => {
     // Deselect when switching to shape tools
-    if (selectedTool === TOOLS.RECTANGLE || selectedTool === TOOLS.CIRCLE) {
+    if (selectedTool === TOOLS.RECTANGLE || selectedTool === TOOLS.CIRCLE || selectedTool === TOOLS.STAR) {
       if (selectedObjectId) {
         // Unlock the selected object before deselecting
         unlockObject(selectedObjectId).catch(err => {
@@ -677,6 +838,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       setDrawStart(null);
       setIsDrawing(false);
     }
+    if (selectedTool !== TOOLS.STAR) {
+      setCurrentStar(null);
+      setDrawStart(null);
+      setIsDrawing(false);
+    }
   }, [selectedTool, selectedObjectId, isTemporaryPan]);
 
   // Helper function to build state object for tools
@@ -691,6 +857,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     isDrawing,
     currentRect,
     currentCircle,
+    currentStar,
     drawStart,
     mouseDownPos,
     isDragThresholdExceeded,
@@ -701,7 +868,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     canvasObjects,
     rectangles,
     circles,
+    stars,
     localRectUpdates,
+    selectedColor,
     
     // Setters
     setSelectedObjectId,
@@ -713,6 +882,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     setIsDrawing,
     setCurrentRect,
     setCurrentCircle,
+    setCurrentStar,
     setDrawStart,
     setMouseDownPos,
     setIsDragThresholdExceeded,
@@ -726,12 +896,15 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     // Helpers
     findRectAt,
     findCircleAt,
+    findStarAt,
     findObjectAt,
     isPointInCircle,
+    isPointInStar,
     canEditObject,
     doWeOwnObject,
     clampRectToCanvas,
     clampCircleToCanvas,
+    clampStarToCanvas,
     getClosestCorner,
     handleCrossoverDetection,
     isOnline,
@@ -741,10 +914,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     TOOLS
   }), [
     selectedObjectId, moveSelectedId, resizeSelectedId, isPanning, isMoving, isResizing, isDrawing,
-    currentRect, currentCircle, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
-    resizeHandle, resizeStartData, canvasObjects, rectangles, circles, localRectUpdates,
-    findRectAt, findCircleAt, findObjectAt, isPointInCircle, canEditObject, doWeOwnObject, 
-    clampRectToCanvas, clampCircleToCanvas, getClosestCorner,
+    currentRect, currentCircle, currentStar, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
+    resizeHandle, resizeStartData, canvasObjects, rectangles, circles, stars, localRectUpdates, selectedColor,
+    findRectAt, findCircleAt, findStarAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
+    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, getClosestCorner,
     handleCrossoverDetection, isOnline, onToolChange
   ])
 
@@ -847,6 +1020,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           container.style.cursor = 'crosshair';
           break;
         case TOOLS.CIRCLE:
+          container.style.cursor = 'crosshair';
+          break;
+        case TOOLS.STAR:
           container.style.cursor = 'crosshair';
           break;
         default:
@@ -959,6 +1135,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                 y={rect.y}
                 width={rect.width}
                 height={rect.height}
+                offsetX={0}
+                offsetY={0}
+                rotation={rect.rotation || 0}
                 fill={rect.fill}
                 stroke={
                   rect.isLockedByOther 
@@ -1034,6 +1213,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                 x={circle.x}
                 y={circle.y}
                 radius={circle.radius}
+                rotation={circle.rotation || 0}
                 fill={circle.fill}
                 stroke={
                   circle.isLockedByOther 
@@ -1099,6 +1279,52 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               x={currentCircle.x}
               y={currentCircle.y}
               radius={currentCircle.radius}
+              fill="#808080"
+              stroke="#333333"
+              strokeWidth={1}
+              opacity={0.7}
+            />
+          )}
+
+          {/* Render all stars */}
+          {stars.map((star) => {
+            const isSelected = selectedObjectId === star.id;
+            return (
+              <Star
+                key={star.id}
+                x={star.x}
+                y={star.y}
+                numPoints={star.numPoints || 5}
+                innerRadius={star.innerRadius || 20}
+                outerRadius={star.outerRadius || 40}
+                rotation={star.rotation || 0}
+                fill={star.fill}
+                stroke={
+                  star.isLockedByOther 
+                    ? "#f59e0b" // Orange border for locked objects
+                    : isSelected 
+                      ? "#2563eb" // Blue border for selected
+                      : "#333333" // Default border
+                }
+                strokeWidth={
+                  star.isLockedByOther || isSelected 
+                    ? 2 
+                    : 1
+                }
+                opacity={star.isLockedByOther ? 0.7 : 1.0}
+                listening={false} // Disable events - handle via Stage only
+              />
+            );
+          })}
+
+          {/* Render current star being drawn */}
+          {currentStar && (
+            <Star
+              x={currentStar.x}
+              y={currentStar.y}
+              numPoints={currentStar.numPoints || 5}
+              innerRadius={currentStar.innerRadius || 20}
+              outerRadius={currentStar.outerRadius || 40}
               fill="#808080"
               stroke="#333333"
               strokeWidth={1}
