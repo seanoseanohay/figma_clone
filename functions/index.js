@@ -23,6 +23,7 @@ const canvasesRoutes = require('./src/api/canvases');
 const objectsRoutes = require('./src/api/objects');
 const tokensRoutes = require('./src/api/tokens');
 const docsRoutes = require('./src/api/docs');
+const agentRoutes = require('./src/api/agent');
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -38,6 +39,7 @@ app.use('/api/canvases', canvasesRoutes);
 app.use('/api/objects', objectsRoutes);
 app.use('/api/tokens', tokensRoutes);
 app.use('/api/docs', docsRoutes);
+app.use('/api/agent', agentRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
