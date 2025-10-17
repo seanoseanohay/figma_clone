@@ -21,57 +21,93 @@ const SHAPE_TOOLS = [TOOLS.RECTANGLE, TOOLS.CIRCLE];
 const TOOL_CONFIG = {
   [TOOLS.PAN]: {
     icon: '🤚',
-    label: 'Pan Tool (Navigate Canvas) - Hold Space',
+    label: 'Pan Tool',
     shortLabel: 'Pan',
     cursor: 'grab',
-    shortcut: 'Space'
+    shortcut: 'Hold Space'
   },
   [TOOLS.SELECT]: {
     icon: '➡️',
-    label: 'Select Tool (Select Objects) - Press V',
+    label: 'Select Tool',
     shortLabel: 'Select',
     cursor: 'default',
-    shortcut: 'V'
+    shortcut: 'Press V'
   },
   [TOOLS.MOVE]: {
     icon: '👆',
-    label: 'Move Tool (Move Selected Objects) - Press M',
+    label: 'Move Tool',
     shortLabel: 'Move',
     cursor: 'default',
-    shortcut: 'M',
+    shortcut: 'Press M',
     requiresSelection: true
   },
   [TOOLS.RESIZE]: {
     icon: '↔️',
-    label: 'Resize Tool (Resize Selected Objects) - Press R',
+    label: 'Resize Tool',
     shortLabel: 'Resize',
     cursor: 'default',
-    shortcut: 'R',
+    shortcut: 'Press R',
     requiresSelection: true
   },
   [TOOLS.RECTANGLE]: {
     icon: '⬜',
-    label: 'Rectangle Tool (Create Rectangles)',
+    label: 'Rectangle Tool',
     shortLabel: 'Rectangle',
-    cursor: 'crosshair'
+    cursor: 'crosshair',
+    shortcut: ''
   },
   [TOOLS.CIRCLE]: {
     icon: '⭕',
-    label: 'Circle Tool (Create Circles)',
+    label: 'Circle Tool',
     shortLabel: 'Circle',
-    cursor: 'crosshair'
+    cursor: 'crosshair',
+    shortcut: ''
   }
 };
 
-const Toolbar = ({ onToolChange, selectedTool = TOOLS.PAN, hasSelection = false }) => {
+const Toolbar = ({ 
+  onToolChange, 
+  selectedTool = TOOLS.PAN, 
+  hasSelection = false,
+  selectedObject = null,
+  cursorPosition = null,
+  zoomLevel = 100
+}) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
+  };
+
+  // Format object properties for display
+  const formatObjectProperties = (obj) => {
+    if (!obj) return null;
+    
+    if (obj.type === 'rectangle') {
+      const width = Math.round(obj.width);
+      const height = Math.round(obj.height);
+      const x = Math.round(obj.x);
+      const y = Math.round(obj.y);
+      return `Rectangle: ${width}×${height} at (${x}, ${y})`;
+    } else if (obj.type === 'circle') {
+      const radius = Math.round(obj.radius);
+      const x = Math.round(obj.x);
+      const y = Math.round(obj.y);
+      return `Circle: r=${radius} at (${x}, ${y})`;
+    }
+    
+    return null;
   };
 
   const renderToolButton = (toolKey) => {
     const config = TOOL_CONFIG[toolKey];
     const isSelected = selectedTool === toolKey;
     const isDisabled = config.requiresSelection && !hasSelection;
+    
+    // Build tooltip text with hotkey
+    const tooltipText = isDisabled 
+      ? 'Select an object first' 
+      : config.shortcut 
+        ? `${config.label} (${config.shortcut})`
+        : config.label;
     
     return (
       <button
@@ -87,7 +123,7 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.PAN, hasSelection = false 
           cursor: isDisabled ? 'not-allowed' : 'pointer'
         }}
         className="flex items-center space-x-2 px-3 py-2 rounded-lg border font-medium transition-all duration-150 hover:bg-blue-50 disabled:hover:bg-white"
-        title={isDisabled ? 'Select an object first' : config.label}
+        title={tooltipText}
         aria-disabled={isDisabled}
       >
         <span className="text-lg" role="img" aria-label={config.label}>
@@ -99,6 +135,31 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.PAN, hasSelection = false 
       </button>
     );
   };
+
+  // Build Line 1: Object properties or tool name
+  const line1 = selectedObject 
+    ? formatObjectProperties(selectedObject)
+    : TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
+
+  // Build Line 2: Tool name (if object selected) • Cursor • Zoom
+  const line2Parts = [];
+  
+  // Add tool name if object is selected (Option C)
+  if (selectedObject) {
+    line2Parts.push(TOOL_CONFIG[selectedTool]?.label || '');
+  }
+  
+  // Add cursor position
+  if (cursorPosition) {
+    const x = Math.round(cursorPosition.x);
+    const y = Math.round(cursorPosition.y);
+    line2Parts.push(`Cursor: (${x}, ${y})`);
+  }
+  
+  // Add zoom level
+  line2Parts.push(`Zoom: ${Math.round(zoomLevel)}%`);
+  
+  const line2 = line2Parts.join(' • ');
 
   return (
     <div className="w-full flex justify-center" style={{ width: '100%' }}>
@@ -127,10 +188,16 @@ const Toolbar = ({ onToolChange, selectedTool = TOOLS.PAN, hasSelection = false 
           </div>
         </div>
         
-        {/* Tool hint - centered within toolbar */}
+        {/* Two-line description area with object properties and canvas info */}
         <div className="px-6 pb-3 text-center">
-          <p className="text-xs text-gray-500">
-            {TOOL_CONFIG[selectedTool]?.label || 'Select a tool'}
+          {/* Line 1: Object properties or tool name */}
+          <p className="text-xs font-medium text-gray-700">
+            {line1}
+          </p>
+          
+          {/* Line 2: Tool (if object selected) • Cursor • Zoom */}
+          <p className="text-xs text-gray-500 mt-1">
+            {line2}
           </p>
         </div>
       </div>

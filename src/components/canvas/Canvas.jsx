@@ -32,7 +32,7 @@ import {
 } from '../../constants/canvas.constants.js';
 import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -483,6 +483,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [initializeView]);
+  
+  // Notify zoom level on initial mount and when scale changes
+  useEffect(() => {
+    if (onZoomUpdate) {
+      onZoomUpdate(stageScale);
+    }
+  }, [stageScale, onZoomUpdate]);
 
   // Handle zoom functionality
   const handleWheel = useCallback((e) => {
@@ -511,7 +518,12 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
     stage.position(newPos);
     setStageScale(newScale);
     setStagePos(newPos);
-  }, []);
+    
+    // Update zoom level for toolbar
+    if (onZoomUpdate) {
+      onZoomUpdate(newScale);
+    }
+  }, [onZoomUpdate]);
 
   // Subscribe to active objects (real-time movement from RTDB)
   useEffect(() => {
@@ -528,12 +540,22 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
     };
   }, [canvasId]);
 
-  // Notify parent of selection changes
+  // Notify parent of selection changes and object updates
   useEffect(() => {
     if (onSelectionChange) {
       onSelectionChange(selectedObjectId);
     }
-  }, [selectedObjectId, onSelectionChange]);
+    
+    // Update selected object data for toolbar
+    if (onObjectUpdate) {
+      if (selectedObjectId) {
+        const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+        onObjectUpdate(selectedObj || null);
+      } else {
+        onObjectUpdate(null);
+      }
+    }
+  }, [selectedObjectId, canvasObjects, onSelectionChange, onObjectUpdate]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -764,6 +786,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
       return;
     }
     
+    // Update cursor position for toolbar display (real-time)
+    if (onCursorUpdate && pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
+      onCursorUpdate(pos);
+    }
+    
     // Update cursor position for multiplayer (only when not actively manipulating)
     if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT &&
         !isMoving && !isResizing && !isDrawing && !isPanning) {
@@ -780,7 +807,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects, buildToolState, canvasId]);
+  }, [selectedTool, isPanning, moveSelectedId, mouseDownPos, isDragThresholdExceeded, isMoving, moveStartPos, isResizing, resizeStartData, resizeHandle, resizeSelectedId, isDrawing, currentRect, getMousePos, clampRectToCanvas, handleCrossoverDetection, updateCursor, doWeOwnObject, canvasObjects, buildToolState, canvasId, onCursorUpdate]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {

@@ -20,6 +20,9 @@ const BYPASS_AUTH = false;
 const LoggedInLayout = ({ children }) => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.PAN);
   const [hasSelection, setHasSelection] = useState(false);
+  const [selectedObject, setSelectedObject] = useState(null);
+  const [cursorPosition, setCursorPosition] = useState(null);
+  const [zoomLevel, setZoomLevel] = useState(100);
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
@@ -27,6 +30,18 @@ const LoggedInLayout = ({ children }) => {
 
   const handleSelectionChange = (selected) => {
     setHasSelection(!!selected);
+  };
+
+  const handleObjectUpdate = (objectData) => {
+    setSelectedObject(objectData);
+  };
+
+  const handleCursorUpdate = (position) => {
+    setCursorPosition(position);
+  };
+
+  const handleZoomUpdate = (zoom) => {
+    setZoomLevel(zoom * 100); // Convert scale to percentage
   };
 
   return (
@@ -42,6 +57,9 @@ const LoggedInLayout = ({ children }) => {
           selectedTool={selectedTool}
           onToolChange={handleToolChange}
           hasSelection={hasSelection}
+          selectedObject={selectedObject}
+          cursorPosition={cursorPosition}
+          zoomLevel={zoomLevel}
         />
       </div>
       
@@ -63,7 +81,14 @@ const LoggedInLayout = ({ children }) => {
       {/* Main content area with top padding to account for fixed header/toolbar */}
       <div className="relative" style={{ paddingTop: `${CANVAS_TOP_OFFSET}px` }}>
         <div className="flex-1 overflow-hidden">
-          {children({ selectedTool, onToolChange: handleToolChange, onSelectionChange: handleSelectionChange })}
+          {children({ 
+            selectedTool, 
+            onToolChange: handleToolChange, 
+            onSelectionChange: handleSelectionChange,
+            onObjectUpdate: handleObjectUpdate,
+            onCursorUpdate: handleCursorUpdate,
+            onZoomUpdate: handleZoomUpdate
+          })}
         </div>
       </div>
     </div>
@@ -71,12 +96,15 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component - now just renders Canvas
-const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
       onToolChange={onToolChange}
       onSelectionChange={onSelectionChange}
+      onObjectUpdate={onObjectUpdate}
+      onCursorUpdate={onCursorUpdate}
+      onZoomUpdate={onZoomUpdate}
     />
   );
 };
@@ -114,11 +142,14 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange, onSelectionChange }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
                           onToolChange={onToolChange}
                           onSelectionChange={onSelectionChange}
+                          onObjectUpdate={onObjectUpdate}
+                          onCursorUpdate={onCursorUpdate}
+                          onZoomUpdate={onZoomUpdate}
                         />
                       )}
                     </LoggedInLayout>
@@ -141,11 +172,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
                             onSelectionChange={onSelectionChange}
+                            onObjectUpdate={onObjectUpdate}
+                            onCursorUpdate={onCursorUpdate}
+                            onZoomUpdate={onZoomUpdate}
                           />
                         )}
                       </LoggedInLayout>
@@ -159,11 +193,14 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
                             onSelectionChange={onSelectionChange}
+                            onObjectUpdate={onObjectUpdate}
+                            onCursorUpdate={onCursorUpdate}
+                            onZoomUpdate={onZoomUpdate}
                           />
                         )}
                       </LoggedInLayout>
