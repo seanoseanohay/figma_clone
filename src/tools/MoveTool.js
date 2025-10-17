@@ -115,6 +115,8 @@ export class MoveTool {
         let clampedObject
         if (originalObject.type === 'circle') {
           clampedObject = state.clampCircleToCanvas(newObject)
+        } else if (originalObject.type === 'star') {
+          clampedObject = state.clampStarToCanvas(newObject)
         } else if (originalObject.type === 'rectangle') {
           clampedObject = clampRectToCanvas(newObject)
         } else {
@@ -142,6 +144,9 @@ export class MoveTool {
             rtdbData.height = clampedObject.height
           } else if (originalObject.type === 'circle') {
             rtdbData.radius = clampedObject.radius
+          } else if (originalObject.type === 'star') {
+            rtdbData.innerRadius = clampedObject.innerRadius
+            rtdbData.outerRadius = clampedObject.outerRadius
           }
           
           updateActiveObjectPosition(canvasId, selectedObjectId, rtdbData)

@@ -375,14 +375,41 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return null;
   }, [circles, isPointInCircle]);
   
-  // Helper function to check if point is inside star (using bounding circle approximation)
+  // Helper function to check if point is inside star (accurate polygon detection)
   const isPointInStar = useCallback((point, star) => {
-    // Use outer radius as bounding circle for simplicity
-    const dx = point.x - star.x;
-    const dy = point.y - star.y;
-    const distanceSquared = dx * dx + dy * dy;
+    // Calculate actual star vertices
+    const numPoints = star.numPoints || 5;
+    const innerRadius = star.innerRadius || 20;
     const outerRadius = star.outerRadius || 40;
-    return distanceSquared <= outerRadius * outerRadius;
+    const rotation = star.rotation || 0;
+    
+    // Generate star points (alternating outer and inner vertices)
+    const points = [];
+    const angleStep = Math.PI / numPoints;
+    const rotationRad = (rotation * Math.PI) / 180;
+    
+    for (let i = 0; i < numPoints * 2; i++) {
+      const radius = i % 2 === 0 ? outerRadius : innerRadius;
+      const angle = i * angleStep - Math.PI / 2 + rotationRad;
+      points.push({
+        x: star.x + radius * Math.cos(angle),
+        y: star.y + radius * Math.sin(angle)
+      });
+    }
+    
+    // Point-in-polygon test using ray casting algorithm
+    let inside = false;
+    for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+      const xi = points[i].x, yi = points[i].y;
+      const xj = points[j].x, yj = points[j].y;
+      
+      const intersect = ((yi > point.y) !== (yj > point.y)) &&
+        (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+      
+      if (intersect) inside = !inside;
+    }
+    
+    return inside;
   }, []);
   
   // Find star at position
@@ -426,21 +453,30 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   }, []);
   
   const clampCircleToCanvas = useCallback((circle) => {
-    // Clamp center position so entire circle stays in bounds
-    const clampedX = Math.max(circle.radius, Math.min(circle.x, CANVAS_WIDTH - circle.radius));
-    const clampedY = Math.max(circle.radius, Math.min(circle.y, CANVAS_HEIGHT - circle.radius));
+    // First, clamp radius to ensure it can fit within canvas bounds
+    const maxRadius = Math.min(CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2);
+    const clampedRadius = Math.min(circle.radius, maxRadius);
+    
+    // Then clamp center position so entire circle stays in bounds
+    const clampedX = Math.max(clampedRadius, Math.min(circle.x, CANVAS_WIDTH - clampedRadius));
+    const clampedY = Math.max(clampedRadius, Math.min(circle.y, CANVAS_HEIGHT - clampedRadius));
     
     return {
       ...circle,
+      radius: clampedRadius,
       x: clampedX,
       y: clampedY
     };
   }, []);
 
   const clampStarToCanvas = useCallback((star) => {
-    // Clamp center position so entire star stays in bounds
-    const clampedX = Math.max(star.outerRadius, Math.min(star.x, CANVAS_WIDTH - star.outerRadius));
-    const clampedY = Math.max(star.outerRadius, Math.min(star.y, CANVAS_HEIGHT - star.outerRadius));
+    // Clamp star position so its outermost tips can touch the canvas edge
+    // The star's center must stay at least outerRadius away from edges
+    // so the tips reach exactly to the boundary (0, 0, CANVAS_WIDTH, CANVAS_HEIGHT)
+    const outerRadius = star.outerRadius || 40;
+    
+    const clampedX = Math.max(outerRadius, Math.min(star.x, CANVAS_WIDTH - outerRadius));
+    const clampedY = Math.max(outerRadius, Math.min(star.y, CANVAS_HEIGHT - outerRadius));
     
     return {
       ...star,
