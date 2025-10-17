@@ -10,6 +10,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute.jsx';
 import Header from './components/layout/Header.jsx';
 import Toolbar, { TOOLS } from './components/canvas/Toolbar.jsx';
 import Canvas from './components/canvas/Canvas.jsx';
+import { CANVAS_TOP_OFFSET, HEADER_HEIGHT, Z_INDEX } from './constants/layout.constants.js';
 
 // TEMPORARY: Set to true to bypass authentication and go directly to canvas
 // This should match the BYPASS_AUTH flag in AuthProvider.jsx
@@ -17,31 +18,52 @@ const BYPASS_AUTH = false;
 
 // Layout wrapper for all logged-in pages with persistent header and toolbar
 const LoggedInLayout = ({ children }) => {
-  const [selectedTool, setSelectedTool] = useState(TOOLS.MOVE);
+  const [selectedTool, setSelectedTool] = useState(TOOLS.PAN);
+  const [hasSelection, setHasSelection] = useState(false);
 
   const handleToolChange = (tool) => {
     setSelectedTool(tool);
   };
 
+  const handleSelectionChange = (selected) => {
+    setHasSelection(!!selected);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Fixed Header - Always at top */}
-      <div className="fixed top-0 left-0 right-0 z-40 bg-white" style={{ width: '100%' }}>
+      <div className="fixed top-0 left-0 right-0 bg-white" style={{ width: '100%', zIndex: Z_INDEX.HEADER }}>
         <Header />
       </div>
       
       {/* Fixed Toolbar - Below header with proper spacing */}
-      <div className="fixed left-0 right-0 z-30" style={{ top: '90px', width: '100%' }}>
+      <div className="fixed left-0 right-0" style={{ top: `${HEADER_HEIGHT}px`, width: '100%', zIndex: Z_INDEX.TOOLBAR }}>
         <Toolbar 
           selectedTool={selectedTool}
           onToolChange={handleToolChange}
+          hasSelection={hasSelection}
         />
       </div>
       
+      {/* Pointer-events blocking overlay - prevents canvas interaction above toolbar */}
+      <div 
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: `${CANVAS_TOP_OFFSET}px`,
+          zIndex: Z_INDEX.CANVAS_OVERLAY,
+          pointerEvents: 'auto',
+          background: 'transparent'
+        }}
+        aria-hidden="true"
+      />
+      
       {/* Main content area with top padding to account for fixed header/toolbar */}
-      <div className="relative" style={{ paddingTop: '200px' }}>
+      <div className="relative" style={{ paddingTop: `${CANVAS_TOP_OFFSET}px` }}>
         <div className="flex-1 overflow-hidden">
-          {children({ selectedTool, onToolChange: handleToolChange })}
+          {children({ selectedTool, onToolChange: handleToolChange, onSelectionChange: handleSelectionChange })}
         </div>
       </div>
     </div>
@@ -49,11 +71,12 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component - now just renders Canvas
-const CanvasPage = ({ selectedTool, onToolChange }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
       onToolChange={onToolChange}
+      onSelectionChange={onSelectionChange}
     />
   );
 };
@@ -91,10 +114,11 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
-                          onToolChange={onToolChange} 
+                          onToolChange={onToolChange}
+                          onSelectionChange={onSelectionChange}
                         />
                       )}
                     </LoggedInLayout>
@@ -117,10 +141,11 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
-                            onToolChange={onToolChange} 
+                            onToolChange={onToolChange}
+                            onSelectionChange={onSelectionChange}
                           />
                         )}
                       </LoggedInLayout>
@@ -134,10 +159,11 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
-                            onToolChange={onToolChange} 
+                            onToolChange={onToolChange}
+                            onSelectionChange={onSelectionChange}
                           />
                         )}
                       </LoggedInLayout>

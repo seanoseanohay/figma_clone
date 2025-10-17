@@ -61,9 +61,7 @@ export class RectangleTool {
       currentRect, 
       clampRectToCanvas,
       setIsDrawing, 
-      setCurrentRect, 
-      onToolChange,
-      TOOLS
+      setCurrentRect
     } = state
 
     if (isDrawing && currentRect) {
@@ -92,10 +90,9 @@ export class RectangleTool {
         }
       }
 
-      // Reset drawing state and switch back to move tool
+      // Reset drawing state (stay on rectangle tool)
       setIsDrawing(false)
       setCurrentRect(null)
-      onToolChange(TOOLS.MOVE)
     }
   }
 
@@ -108,6 +105,7 @@ export class RectangleTool {
 }
 
 export default RectangleTool
+
 
 
 

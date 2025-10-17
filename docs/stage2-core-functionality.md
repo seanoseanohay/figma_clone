@@ -10,7 +10,9 @@ Primary features that extend the platform with project management, sharing, conn
 - **C4**: ✅ Complete - Canvas Tool Handlers Extracted
 - **C5**: ✅ Complete - Object Ownership Management
 - **C6**: ✅ Complete - Canvas-Scoped Presence
-- **C7-C9**: ⏸️ Not started (REST API infrastructure)
+- **C7**: ✅ Complete - REST API Infrastructure
+- **C8**: ✅ Complete - API Token Management System
+- **C9**: ✅ Complete - Comprehensive API Documentation
 
 ---
 
@@ -310,18 +312,18 @@ GET    /api/canvases/{id}/snapshot
 10. Request/response logging
 
 **Acceptance Criteria**:
-- [ ] All API endpoints respond with consistent JSON format
-- [ ] Token authentication works correctly for all endpoints
-- [ ] Rate limiting prevents abuse
-- [ ] Batch operations handle 10+ objects efficiently
-- [ ] Canvas snapshot returns complete state in <2 seconds
-- [ ] All operations enforce canvas boundaries and constraints
-- [ ] Error responses provide clear, actionable messages
-- [ ] API handles concurrent requests without data corruption
-- [ ] Request logging captures all API activity
-- [ ] CORS configured properly for external access
+- [x] All API endpoints respond with consistent JSON format
+- [x] Token authentication works correctly for all endpoints
+- [x] Rate limiting prevents abuse
+- [x] Batch operations handle 10+ objects efficiently
+- [x] Canvas snapshot returns complete state in <2 seconds
+- [x] All operations enforce canvas boundaries and constraints
+- [x] Error responses provide clear, actionable messages
+- [x] API handles concurrent requests without data corruption
+- [x] Request logging captures all API activity
+- [x] CORS configured properly for external access
 
-**Status**: ⏸️ Not started
+**Status**: ✅ COMPLETE
 
 ---
 
@@ -381,20 +383,20 @@ GET    /api/canvases/{id}/snapshot
 11. Background cleanup job
 
 **Acceptance Criteria**:
-- [ ] Users can generate tokens for accessible canvases
-- [ ] Tokens are cryptographically secure
-- [ ] Token plaintext only shown once at creation
-- [ ] Token validation works correctly in API endpoints
-- [ ] Permission system enforces restrictions
-- [ ] Token management UI displays all tokens
-- [ ] Token revocation works immediately
-- [ ] Usage tracking updates correctly
-- [ ] Expired tokens are automatically cleaned up
-- [ ] Firebase security rules prevent unauthorized access
-- [ ] Copy to clipboard works reliably
-- [ ] UI provides security best practices guidance
+- [x] Users can generate tokens for accessible canvases
+- [x] Tokens are cryptographically secure
+- [x] Token plaintext only shown once at creation
+- [x] Token validation works correctly in API endpoints
+- [x] Permission system enforces restrictions
+- [x] Token management UI displays all tokens
+- [x] Token revocation works immediately
+- [x] Usage tracking updates correctly
+- [x] Expired tokens are automatically cleaned up
+- [x] Firebase security rules prevent unauthorized access
+- [x] Copy to clipboard works reliably
+- [x] UI provides security best practices guidance
 
-**Status**: ⏸️ Not started
+**Status**: ✅ COMPLETE
 
 ---
 
@@ -432,41 +434,39 @@ GET    /api/canvases/{id}/snapshot
 12. Troubleshooting section
 
 **Acceptance Criteria**:
-- [ ] OpenAPI 3.0 spec is complete and valid
-- [ ] Swagger UI is accessible at `/api/docs`
-- [ ] All endpoints documented with examples
-- [ ] Getting started guide enables first API call in 5 minutes
-- [ ] Code examples in JavaScript, Python, and cURL
-- [ ] Authentication flow clearly explained
-- [ ] Rate limiting documented with strategies
-- [ ] Error codes documented with troubleshooting
-- [ ] AI agent integration guide with specific examples
-- [ ] Documentation is searchable and easy to navigate
+- [x] OpenAPI 3.0 spec is complete and valid
+- [x] Swagger UI is accessible at `/api/docs`
+- [x] All endpoints documented with examples
+- [x] Getting started guide enables first API call in 5 minutes
+- [x] Code examples in JavaScript, Python, and cURL
+- [x] Authentication flow clearly explained
+- [x] Rate limiting documented with strategies
+- [x] Error codes documented with troubleshooting
+- [x] AI agent integration guide with specific examples
+- [x] Documentation is searchable and easy to navigate
 
-**Status**: ⏸️ Not started
+**Status**: ✅ COMPLETE
 
 ---
 
 ## Next Steps
 
-**Stage 2 Core Functionality: ✅ COMPLETE (6/9 tasks)**
+**Stage 2 Core Functionality: ✅ COMPLETE (9/9 tasks)**
 
-Completed:
+All tasks completed:
 - ✅ C1: Canvas Management System
 - ✅ C2: Canvas Invitation System
 - ✅ C3: Connection Status Monitoring
 - ✅ C4: Canvas Tool Handlers Extracted
 - ✅ C5: Object Ownership Management
 - ✅ C6: Canvas-Scoped Presence
+- ✅ C7: REST API Infrastructure for AI/External Access
+- ✅ C8: API Token Management System
+- ✅ C9: Comprehensive API Documentation with OpenAPI/Swagger
 
-Remaining (Optional for REST API):
-- ⏸️ C7: REST API Infrastructure for AI/External Access
-- ⏸️ C8: API Token Management System
-- ⏸️ C9: Comprehensive API Documentation with OpenAPI/Swagger
+**Proceed to Stage 3: Enhanced Tools & Advanced Features**
 
-**Recommendation**: 
-- If AI agent integration is a priority, continue with C7-C9
-- Otherwise, proceed to **Stage 3: Enhanced Tools & Advanced Features**
+**Implementation Summary**: See `docs/REST_API_IMPLEMENTATION_SUMMARY.md` for complete details on C7-C9.
 
-**Note**: All core functionality is complete with canvas-only architecture, offline handling, tool extraction, and ownership management.
+**Note**: All core functionality is complete including canvas-only architecture, offline handling, tool extraction, ownership management, and full REST API for AI/external integrations.
 

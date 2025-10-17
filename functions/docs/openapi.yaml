@@ -1,0 +1,752 @@
+openapi: 3.0.0
+info:
+  title: CollabCanvas API
+  version: 1.0.0
+  description: |
+    REST API for CollabCanvas - A collaborative canvas platform for real-time design and AI integration.
+    
+    ## Authentication
+    All endpoints (except `/api/health`) require authentication using Bearer tokens.
+    Include your API token in the Authorization header:
+    ```
+    Authorization: Bearer YOUR_API_TOKEN
+    ```
+    
+    ## Rate Limits
+    - Read operations: 200 requests per minute
+    - Write operations: 50 requests per minute
+    
+    ## Error Responses
+    All errors follow a consistent format:
+    ```json
+    {
+      "error": {
+        "message": "Error description",
+        "code": "ERROR_CODE"
+      }
+    }
+    ```
+  contact:
+    name: CollabCanvas Support
+    email: support@collabcanvas.example.com
+
+servers:
+  - url: https://your-project.web.app/api
+    description: Production server
+  - url: http://localhost:5001/your-project/us-central1/api
+    description: Local development server
+
+tags:
+  - name: Health
+    description: System health check
+  - name: Canvases
+    description: Canvas management operations
+  - name: Objects
+    description: Canvas object operations
+  - name: Tokens
+    description: API token management
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Check if the API is running
+      tags: [Health]
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  timestamp:
+                    type: string
+                    format: date-time
+                  version:
+                    type: string
+                    example: 1.0.0
+
+  /canvases:
+    get:
+      summary: List canvases
+      description: Get all canvases accessible by the authenticated user
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of canvases
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  canvases:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Canvas'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Create canvas
+      description: Create a new canvas
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: string
+                  example: My Design Canvas
+                description:
+                  type: string
+                  example: Canvas for project designs
+      responses:
+        '201':
+          description: Canvas created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canvas'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /canvases/{id}:
+    get:
+      summary: Get canvas
+      description: Get a specific canvas by ID
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvasId'
+      responses:
+        '200':
+          description: Canvas details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canvas'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      summary: Update canvas
+      description: Update canvas metadata (owner only)
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvasId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '200':
+          description: Canvas updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Canvas'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+    delete:
+      summary: Delete canvas
+      description: Delete a canvas and all its objects (owner only)
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvasId'
+      responses:
+        '204':
+          description: Canvas deleted
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /canvases/{id}/snapshot:
+    get:
+      summary: Get canvas snapshot
+      description: Get complete canvas state with all objects
+      tags: [Canvases]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/CanvasId'
+      responses:
+        '200':
+          description: Canvas snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  canvas:
+                    $ref: '#/components/schemas/Canvas'
+                  objects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CanvasObject'
+                  objectCount:
+                    type: integer
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /objects:
+    get:
+      summary: List objects
+      description: Get all objects for a canvas
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: canvasId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Canvas ID to fetch objects from
+      responses:
+        '200':
+          description: List of objects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CanvasObject'
+                  count:
+                    type: integer
+
+    post:
+      summary: Create object
+      description: Create a new object on the canvas
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateObject'
+      responses:
+        '201':
+          description: Object created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasObject'
+
+  /objects/{id}:
+    get:
+      summary: Get object
+      description: Get a specific object by ID
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      responses:
+        '200':
+          description: Object details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasObject'
+
+    put:
+      summary: Update object
+      description: Update an object (full update)
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateObject'
+      responses:
+        '200':
+          description: Object updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasObject'
+
+    patch:
+      summary: Patch object
+      description: Partially update an object
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchObject'
+      responses:
+        '200':
+          description: Object patched
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CanvasObject'
+
+    delete:
+      summary: Delete object
+      description: Delete an object from the canvas
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/ObjectId'
+      responses:
+        '204':
+          description: Object deleted
+
+  /objects/batch:
+    post:
+      summary: Create objects in batch
+      description: Create multiple objects in a single request (max 100)
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - canvasId
+                - objects
+              properties:
+                canvasId:
+                  type: string
+                objects:
+                  type: array
+                  maxItems: 100
+                  items:
+                    $ref: '#/components/schemas/CreateObject'
+      responses:
+        '201':
+          description: Objects created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CanvasObject'
+                  count:
+                    type: integer
+
+    put:
+      summary: Update objects in batch
+      description: Update multiple objects in a single request (max 100)
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - updates
+              properties:
+                updates:
+                  type: array
+                  maxItems: 100
+                  items:
+                    allOf:
+                      - type: object
+                        required:
+                          - id
+                        properties:
+                          id:
+                            type: string
+                      - $ref: '#/components/schemas/UpdateObject'
+      responses:
+        '200':
+          description: Objects updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  objects:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CanvasObject'
+                  count:
+                    type: integer
+
+    delete:
+      summary: Delete objects in batch
+      description: Delete multiple objects in a single request (max 100)
+      tags: [Objects]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - ids
+              properties:
+                ids:
+                  type: array
+                  maxItems: 100
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: Objects deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+
+  /tokens/generate:
+    post:
+      summary: Generate API token
+      description: Generate a new API token (requires Firebase Auth)
+      tags: [Tokens]
+      security:
+        - FirebaseAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - canvasId
+              properties:
+                name:
+                  type: string
+                  example: AI Assistant Token
+                canvasId:
+                  type: string
+                permissions:
+                  type: array
+                  items:
+                    type: string
+                    enum: [read, create_objects, update_objects, delete_objects]
+                  default: [read, create_objects, update_objects, delete_objects]
+                expiresInDays:
+                  type: integer
+                  default: 90
+      responses:
+        '201':
+          description: Token generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: The plaintext token (shown only once)
+                  tokenId:
+                    type: string
+                  name:
+                    type: string
+                  canvasId:
+                    type: string
+                  canvasName:
+                    type: string
+                  permissions:
+                    type: array
+                    items:
+                      type: string
+                  expiresAt:
+                    type: string
+                    format: date-time
+                  warning:
+                    type: string
+
+  /tokens/{tokenId}:
+    delete:
+      summary: Revoke token
+      description: Revoke an API token (requires Firebase Auth)
+      tags: [Tokens]
+      security:
+        - FirebaseAuth: []
+      parameters:
+        - name: tokenId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Token revoked
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Token
+      description: API token for external/AI access
+    FirebaseAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Firebase ID token for user authentication
+
+  parameters:
+    CanvasId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Canvas ID
+    
+    ObjectId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Object ID
+
+  schemas:
+    Canvas:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        ownerId:
+          type: string
+        collaborators:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CanvasObject:
+      type: object
+      properties:
+        id:
+          type: string
+        canvasId:
+          type: string
+        type:
+          type: string
+          enum: [rectangle, circle, text]
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+        width:
+          type: number
+          format: float
+        height:
+          type: number
+          format: float
+        fill:
+          type: string
+          example: "#808080"
+        createdBy:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    CreateObject:
+      type: object
+      required:
+        - canvasId
+        - type
+      properties:
+        canvasId:
+          type: string
+        type:
+          type: string
+          enum: [rectangle, circle, text]
+        x:
+          type: number
+          format: float
+          default: 0
+        y:
+          type: number
+          format: float
+          default: 0
+        width:
+          type: number
+          format: float
+          default: 100
+        height:
+          type: number
+          format: float
+          default: 100
+        fill:
+          type: string
+          default: "#808080"
+
+    UpdateObject:
+      type: object
+      properties:
+        type:
+          type: string
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+        width:
+          type: number
+          format: float
+        height:
+          type: number
+          format: float
+        fill:
+          type: string
+
+    PatchObject:
+      type: object
+      properties:
+        x:
+          type: number
+          format: float
+        y:
+          type: number
+          format: float
+        width:
+          type: number
+          format: float
+        height:
+          type: number
+          format: float
+        fill:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  code:
+                    type: string
+                    example: VALIDATION_ERROR
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  code:
+                    type: string
+                    example: UNAUTHORIZED
+
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  code:
+                    type: string
+                    example: FORBIDDEN
+
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  code:
+                    type: string
+                    example: NOT_FOUND
+

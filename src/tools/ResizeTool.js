@@ -1,14 +1,15 @@
 import { auth } from '../services/firebase.js'
 import { 
-  lockObject, 
-  unlockObject,
   updateActiveObjectPosition,
   updateObjectPosition,
   clearActiveObject
 } from '../services/canvas.service.js'
 
 /**
- * ResizeTool - Handles object resizing via corner handles
+ * ResizeTool - Handles object resizing via corner handles for PRE-SELECTED objects
+ * 
+ * NOTE: This tool NO LONGER handles selection. Use SelectTool to select objects first.
+ * ResizeTool only resizes objects that are already selected.
  */
 export class ResizeTool {
   constructor() {
@@ -16,16 +17,62 @@ export class ResizeTool {
   }
 
   /**
-   * Handle mouse down - select object or start resizing
+   * Calculate new circle dimensions based on resize handle
+   * Circles maintain circular shape by adjusting radius based on distance from center
+   */
+  calculateCircleResize(circle, handle, currentPos, startPos) {
+    // Calculate distance from center to current mouse position
+    const dx = currentPos.x - circle.x
+    const dy = currentPos.y - circle.y
+    const newRadius = Math.sqrt(dx * dx + dy * dy)
+    
+    return {
+      ...circle,
+      radius: Math.max(newRadius, this.minSize / 2) // Minimum radius
+    }
+  }
+
+  /**
+   * Calculate new rectangle dimensions based on resize handle
+   */
+  calculateRectangleResize(rect, handle, deltaX, deltaY) {
+    const newRect = { ...rect }
+    
+    switch (handle) {
+      case 'nw':
+        newRect.x = rect.x + deltaX
+        newRect.y = rect.y + deltaY
+        newRect.width = rect.width - deltaX
+        newRect.height = rect.height - deltaY
+        break
+      case 'ne':
+        newRect.y = rect.y + deltaY
+        newRect.width = rect.width + deltaX
+        newRect.height = rect.height - deltaY
+        break
+      case 'sw':
+        newRect.x = rect.x + deltaX
+        newRect.width = rect.width - deltaX
+        newRect.height = rect.height + deltaY
+        break
+      case 'se':
+        newRect.width = rect.width + deltaX
+        newRect.height = rect.height + deltaY
+        break
+    }
+    
+    return newRect
+  }
+
+  /**
+   * Handle mouse down - start resizing pre-selected object via corner handles
    */
   async onMouseDown(e, state, helpers) {
     const { pos, canvasId } = helpers
     const {
-      resizeSelectedId,
-      rectangles,
+      selectedObjectId,
+      canvasObjects,
       isResizing,
-      findRectAt,
-      canEditObject,
       getClosestCorner,
       setResizeSelectedId,
       setIsResizing,
@@ -35,85 +82,49 @@ export class ResizeTool {
 
     console.log('Resize tool mouse down')
 
-    // FIRST: Check if we clicked on a resize handle of the currently selected rectangle
-    // This must come BEFORE checking for empty space, because handles extend outside rectangle bounds
-    if (resizeSelectedId) {
-      const currentlySelected = rectangles.find(r => r.id === resizeSelectedId)
-      if (currentlySelected) {
-        console.log('=== RECTANGLE DATA DEBUG ===')
-        console.log('Selected rectangle ID:', resizeSelectedId)
-        console.log('Rectangle locked by:', currentlySelected.lockedBy)
-        console.log('Current user:', auth.currentUser?.uid)
-        console.log('=== END RECTANGLE DEBUG ===')
-
-        const handle = getClosestCorner(pos, currentlySelected)
-        console.log('Checking closest corner on currently selected rectangle:', handle)
-        if (handle) {
-          console.log('Starting resize on corner:', handle, 'for selected rectangle')
-
-          // CRITICAL: Only start new resize if we're not already resizing
-          if (!isResizing) {
-            // Lock the object for consecutive resizes (skip for test data)
-            if (!currentlySelected.id.match(/^[12]$/)) {
-              try {
-                await lockObject(resizeSelectedId)
-                console.log('Re-locked object for consecutive resize')
-              } catch (error) {
-                console.error('Failed to lock object for consecutive resize:', error)
-                return
-              }
-            }
-
-            setIsResizing(true)
-            setResizeHandle(handle)
-            setResizeStartData({
-              rect: { ...currentlySelected },
-              startPos: pos
-            })
-
-            return // Handle click found - start resizing immediately
-          } else {
-            console.log('Already resizing - ignoring click to prevent jumping')
-            return
-          }
-        }
-      }
-    }
-
-    // SECOND: Check if we clicked on a rectangle (for selection)
-    const resizeClickedRect = findRectAt(pos)
-    console.log('Found rectangle:', resizeClickedRect ? resizeClickedRect.id : 'none')
-
-    if (!resizeClickedRect) {
-      // Click empty space = deselect
-      if (resizeSelectedId) {
-        try {
-          await unlockObject(resizeSelectedId)
-        } catch (error) {
-          console.error('Failed to unlock on deselect:', error)
-        }
-      }
-      setResizeSelectedId(null)
+    // Resize tool requires a pre-selected object
+    if (!selectedObjectId) {
+      console.log('Resize tool: No object selected. Use Select tool first.')
       return
     }
 
-    // Check if we can edit this object
-    if (!canEditObject(resizeClickedRect.id)) {
-      console.log('Cannot select - object is locked by another user')
+    // Find the selected object
+    const selectedObject = canvasObjects.find(o => o.id === selectedObjectId)
+    if (!selectedObject) {
+      console.log('Resize tool: Selected object not found')
       return
     }
 
-    // Select object for resizing and show handles
-    console.log('Selecting rectangle for resize:', resizeClickedRect.id)
-    setResizeSelectedId(resizeClickedRect.id)
+    console.log('=== OBJECT DATA DEBUG ===')
+    console.log('Selected object ID:', selectedObjectId)
+    console.log('Object type:', selectedObject.type)
+    console.log('Object locked by:', selectedObject.lockedBy)
+    console.log('Current user:', auth.currentUser?.uid)
+    console.log('=== END OBJECT DEBUG ===')
 
-    // Lock the object (skip for test data)
-    if (!resizeClickedRect.id.match(/^[12]$/)) {
-      try {
-        await lockObject(resizeClickedRect.id)
-      } catch (error) {
-        console.error('Failed to lock object:', error)
+    // Check if we clicked on a resize handle
+    const handle = getClosestCorner(pos, selectedObject)
+    console.log('Checking closest corner on selected object:', handle)
+    
+    if (handle) {
+      console.log('Starting resize on corner:', handle, 'for selected', selectedObject.type)
+
+      // CRITICAL: Only start new resize if we're not already resizing
+      if (!isResizing) {
+        setIsResizing(true)
+        setResizeHandle(handle)
+        setResizeSelectedId(selectedObjectId) // Track which object is being resized
+        setResizeStartData({
+          object: { ...selectedObject },
+          startPos: pos
+        })
+
+        console.log('Resize tool: Ready to resize selected object')
+      } else {
+        console.log('Already resizing - ignoring click to prevent jumping')
       }
+    } else {
+      console.log('Resize tool: Click was not on a resize handle')
     }
   }
 
@@ -131,82 +142,125 @@ export class ResizeTool {
       clampRectToCanvas,
       handleCrossoverDetection,
       setResizeHandle,
+      setResizeStartData,
       setLocalRectUpdates
     } = state
 
     if (!isResizing || !resizeStartData || !resizeHandle) return
 
-    const { rect: startRect, startPos } = resizeStartData
+    const { object: startObject, startPos } = resizeStartData
     const deltaX = pos.x - startPos.x
     const deltaY = pos.y - startPos.y
-
-    let newRect = { ...startRect }
+    
+    let newObject
     let currentHandle = resizeHandle
 
-    // Apply resize transformation based on current handle
-    switch (currentHandle) {
-      case 'nw':
-        newRect.x = startRect.x + deltaX
-        newRect.y = startRect.y + deltaY
-        newRect.width = startRect.width - deltaX
-        newRect.height = startRect.height - deltaY
-        break
-      case 'ne':
-        newRect.y = startRect.y + deltaY
-        newRect.width = startRect.width + deltaX
-        newRect.height = startRect.height - deltaY
-        break
-      case 'sw':
-        newRect.x = startRect.x + deltaX
-        newRect.width = startRect.width - deltaX
-        newRect.height = startRect.height + deltaY
-        break
-      case 'se':
-        newRect.width = startRect.width + deltaX
-        newRect.height = startRect.height + deltaY
-        break
-    }
-
-    // Check for crossover and handle coordinate flipping
-    const crossoverResult = handleCrossoverDetection(pos, currentHandle, startRect)
-    if (crossoverResult.flipped) {
-      newRect = crossoverResult.rect
-
-      // Update the resize handle if crossover occurred
-      if (crossoverResult.handle !== currentHandle) {
-        console.log(`🔄 Crossover detected: ${currentHandle} → ${crossoverResult.handle}`)
-        setResizeHandle(crossoverResult.handle)
+    // Calculate new dimensions based on object type
+    if (startObject.type === 'circle') {
+      // Circle resize: adjust radius based on distance from center
+      newObject = this.calculateCircleResize(startObject, currentHandle, pos, startPos)
+      
+      // Clamp circle to canvas
+      newObject = state.clampCircleToCanvas(newObject)
+      
+      // Update local state for immediate visual feedback
+      setLocalRectUpdates(prev => ({
+        ...prev,
+        [resizeSelectedId]: newObject
+      }))
+      
+      // Send updates if we own this object
+      if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
+        updateActiveObjectPosition(canvasId, resizeSelectedId, {
+          x: newObject.x,
+          y: newObject.y,
+          radius: newObject.radius
+        })
       }
+      
+      return // Circles don't need crossover detection
+    } else if (startObject.type === 'rectangle') {
+      // Rectangle resize: apply corner-specific transformations
+      newObject = this.calculateRectangleResize(startObject, currentHandle, deltaX, deltaY)
+
+      // Check for crossover and handle coordinate flipping
+      const crossoverResult = handleCrossoverDetection(newObject, currentHandle, startObject)
+      if (crossoverResult.flipped && crossoverResult.handle !== currentHandle) {
+        console.log(`🔄 Crossover detected: ${currentHandle} → ${crossoverResult.handle}`)
+        
+        // Enforce minimum size BEFORE resetting reference point
+        if (newObject.width < this.minSize) newObject.width = this.minSize
+        if (newObject.height < this.minSize) newObject.height = this.minSize
+        
+        // Enforce boundary constraints
+        newObject = clampRectToCanvas(newObject)
+        
+        // Reset the resize reference point when handle flips
+        setResizeHandle(crossoverResult.handle)
+        setResizeStartData({
+          object: { ...newObject },  // Current transformed object becomes new baseline
+          startPos: pos              // Current mouse position becomes new reference
+        })
+        
+        // Apply the current state immediately
+        setLocalRectUpdates(prev => ({
+          ...prev,
+          [resizeSelectedId]: newObject
+        }))
+        
+        // Send updates if we own this object
+        if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
+          updateActiveObjectPosition(canvasId, resizeSelectedId, {
+            x: newObject.x,
+            y: newObject.y,
+            width: newObject.width,
+            height: newObject.height
+          })
+        }
+        
+        return // Next mousemove will calculate deltas from this new baseline
+      }
+
+      // Enforce minimum size FIRST to prevent disappearing rectangles
+      if (newObject.width < this.minSize) newObject.width = this.minSize
+      if (newObject.height < this.minSize) newObject.height = this.minSize
+
+      // Enforce boundary constraints
+      newObject = clampRectToCanvas(newObject)
+    } else {
+      // Unknown shape type - no resize
+      return
     }
-
-    // Enforce minimum size FIRST to prevent disappearing rectangles
-    if (newRect.width < this.minSize) newRect.width = this.minSize
-    if (newRect.height < this.minSize) newRect.height = this.minSize
-
-    // Enforce boundary constraints
-    newRect = clampRectToCanvas(newRect)
 
     // Apply local visual update for immediate feedback
     setLocalRectUpdates(prev => ({
       ...prev,
-      [resizeSelectedId]: newRect
+      [resizeSelectedId]: newObject
     }))
 
     // Send updates if we own this object (skip for test data)
     if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
       // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
       // Firestore writes happen ONLY on drag end to avoid excessive database load
-      updateActiveObjectPosition(canvasId, resizeSelectedId, {
-        x: newRect.x,
-        y: newRect.y,
-        width: newRect.width,
-        height: newRect.height
-      })
+      const rtdbData = {
+        x: newObject.x,
+        y: newObject.y
+      }
+      
+      // Add shape-specific properties
+      if (newObject.type === 'rectangle') {
+        rtdbData.width = newObject.width
+        rtdbData.height = newObject.height
+      } else if (newObject.type === 'circle') {
+        rtdbData.radius = newObject.radius
+      }
+      
+      updateActiveObjectPosition(canvasId, resizeSelectedId, rtdbData)
     }
   }
 
   /**
-   * Handle mouse up - finalize resize
+   * Handle mouse up - finalize resize (object stays selected and locked)
    */
   async onMouseUp(e, state, helpers) {
     const { canvasId } = helpers
@@ -222,29 +276,36 @@ export class ResizeTool {
     } = state
 
     if (isResizing && resizeSelectedId && localRectUpdates[resizeSelectedId] && doWeOwnObject(resizeSelectedId)) {
-      const finalRect = localRectUpdates[resizeSelectedId]
+      const finalObject = localRectUpdates[resizeSelectedId]
       try {
-        console.log('Resize: Final resize sync and unlock')
+        console.log('Resize: Final resize sync (keeping object locked)')
 
         // Clear active object from RTDB (remove real-time tracking)
         await clearActiveObject(canvasId, resizeSelectedId)
 
-        // Final Firestore update with unlock
-        await updateObjectPosition(resizeSelectedId, {
-          x: finalRect.x,
-          y: finalRect.y,
-          width: finalRect.width,
-          height: finalRect.height
-        }, true) // true = final update, unlocks object
+        // Build update data based on shape type
+        const updateData = {
+          x: finalObject.x,
+          y: finalObject.y
+        }
+        
+        if (finalObject.type === 'rectangle') {
+          updateData.width = finalObject.width
+          updateData.height = finalObject.height
+        } else if (finalObject.type === 'circle') {
+          updateData.radius = finalObject.radius
+        }
 
-        console.log('Resize: Rectangle resize synced and unlocked')
+        // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)
+        await updateObjectPosition(resizeSelectedId, updateData, false) // false = keep locked since object is still selected
+
+        console.log('Resize: Object resize synced, staying selected')
       } catch (error) {
-        console.error('Failed to sync rectangle resize:', error)
+        console.error('Failed to sync object resize:', error)
         try {
           await clearActiveObject(canvasId, resizeSelectedId)
-          await unlockObject(resizeSelectedId)
-        } catch (unlockError) {
-          console.error('Failed to unlock object:', unlockError)
+        } catch (clearError) {
+          console.error('Failed to clear active object:', clearError)
         }
       }
     }
@@ -254,8 +315,7 @@ export class ResizeTool {
     setResizeHandle(null)
     setResizeStartData(null)
 
-    // Don't clear resizeSelectedId - keep object selected for consecutive resizes
-    // Only clear when user clicks elsewhere or switches tools
+    // Don't clear resizeSelectedId - object stays selected
 
     // Clear local updates after sync
     if (resizeSelectedId) {
@@ -276,6 +336,7 @@ export class ResizeTool {
 }
 
 export default ResizeTool
+
 
 
 

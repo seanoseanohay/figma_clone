@@ -1,13 +1,14 @@
 import { 
-  lockObject, 
-  unlockObject,
   updateActiveObjectPosition,
   updateObjectPosition,
   clearActiveObject
 } from '../services/canvas.service.js'
 
 /**
- * MoveTool - Handles object movement/dragging
+ * MoveTool - Handles object movement/dragging for PRE-SELECTED objects
+ * 
+ * NOTE: This tool NO LONGER handles selection. Use SelectTool to select objects first.
+ * MoveTool only moves objects that are already selected.
  */
 export class MoveTool {
   constructor() {
@@ -15,63 +16,54 @@ export class MoveTool {
   }
 
   /**
-   * Handle mouse down - select and lock object
+   * Handle mouse down - start moving if clicked object is already selected
    */
   async onMouseDown(e, state, helpers) {
     const { pos, canvasId } = helpers
     const { 
-      findRectAt, 
-      canEditObject, 
-      moveSelectedId,
-      setMoveSelectedId, 
+      selectedObjectId,
+      findObjectAt,
       setMouseDownPos, 
       setIsDragThresholdExceeded,
-      setMoveOriginalPos
+      setMoveOriginalPos,
+      canvasObjects
     } = state
 
-    // Click empty space = deselect
-    const clickedRect = findRectAt(pos)
-    if (!clickedRect) {
-      if (moveSelectedId) {
-        try {
-          await unlockObject(moveSelectedId)
-          console.log('Move tool: Deselected and unlocked object')
-        } catch (error) {
-          console.error('Failed to unlock on deselect:', error)
-        }
-      }
-      setMoveSelectedId(null)
+    // Move tool requires a pre-selected object
+    if (!selectedObjectId) {
+      console.log('Move tool: No object selected. Use Select tool first.')
       return
     }
 
-    // Check if we can edit this object
-    if (!canEditObject(clickedRect.id)) {
-      console.log('Cannot select - object is locked by another user')
+    // Check if clicked object is the selected one
+    const clickedObject = findObjectAt(pos)
+    if (!clickedObject || clickedObject.id !== selectedObjectId) {
+      console.log('Move tool: Clicked object is not the selected object')
       return
     }
 
-    // Select object for potential movement
-    setMoveSelectedId(clickedRect.id)
+    // Find the full object data
+    const fullObject = canvasObjects.find(o => o.id === selectedObjectId)
+    if (!fullObject) {
+      console.log('Move tool: Selected object not found')
+      return
+    }
+
+    // Setup for potential movement
     setMouseDownPos(pos)
     setIsDragThresholdExceeded(false)
-    setMoveOriginalPos({ x: clickedRect.x, y: clickedRect.y })
+    setMoveOriginalPos({ x: fullObject.x, y: fullObject.y })
 
-    // Lock the object to prevent others from grabbing it
-    try {
-      await lockObject(clickedRect.id)
-      console.log('Move tool: Object locked for potential movement')
-    } catch (error) {
-      console.error('Failed to lock object:', error)
-    }
+    console.log('Move tool: Ready to move selected object')
   }
 
   /**
-   * Handle mouse move - drag object with threshold detection
+   * Handle mouse move - drag the pre-selected object with threshold detection
    */
   onMouseMove(e, state, helpers) {
     const { pos, canvasId } = helpers
     const {
-      moveSelectedId,
+      selectedObjectId,
       mouseDownPos,
       isDragThresholdExceeded,
       isMoving,
@@ -86,7 +78,7 @@ export class MoveTool {
       setLocalRectUpdates
     } = state
 
-    if (!moveSelectedId || !mouseDownPos) return
+    if (!selectedObjectId || !mouseDownPos) return
 
     // Check if we should start dragging (threshold detection)
     if (!isDragThresholdExceeded) {
@@ -109,48 +101,63 @@ export class MoveTool {
       const deltaX = pos.x - moveStartPos.x
       const deltaY = pos.y - moveStartPos.y
 
-      // Find the actual rectangle to get its dimensions
-      const originalRect = canvasObjects.find(r => r.id === moveSelectedId && r.type === 'rectangle')
-      if (originalRect) {
+      // Find the object being moved (could be rectangle or circle)
+      const originalObject = canvasObjects.find(o => o.id === selectedObjectId)
+      if (originalObject) {
         // Apply delta to original position (prevents accumulation)
-        const newRect = {
-          ...originalRect,
+        const newObject = {
+          ...originalObject,
           x: moveOriginalPos.x + deltaX,
           y: moveOriginalPos.y + deltaY
         }
 
-        // Apply boundary constraints
-        const clampedRect = clampRectToCanvas(newRect)
+        // Apply boundary constraints based on shape type
+        let clampedObject
+        if (originalObject.type === 'circle') {
+          clampedObject = state.clampCircleToCanvas(newObject)
+        } else if (originalObject.type === 'rectangle') {
+          clampedObject = clampRectToCanvas(newObject)
+        } else {
+          clampedObject = newObject // Default: no clamping
+        }
 
         // Apply local visual update for immediate feedback
         setLocalRectUpdates(prev => ({
           ...prev,
-          [moveSelectedId]: clampedRect
+          [selectedObjectId]: clampedObject
         }))
 
         // Send updates if we own this object
-        if (doWeOwnObject(moveSelectedId)) {
+        if (doWeOwnObject(selectedObjectId)) {
           // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
           // Firestore writes happen ONLY on drag end to avoid excessive database load
-          updateActiveObjectPosition(canvasId, moveSelectedId, {
-            x: clampedRect.x,
-            y: clampedRect.y,
-            width: clampedRect.width,
-            height: clampedRect.height
-          })
+          const rtdbData = {
+            x: clampedObject.x,
+            y: clampedObject.y
+          }
+          
+          // Add shape-specific properties
+          if (originalObject.type === 'rectangle') {
+            rtdbData.width = clampedObject.width
+            rtdbData.height = clampedObject.height
+          } else if (originalObject.type === 'circle') {
+            rtdbData.radius = clampedObject.radius
+          }
+          
+          updateActiveObjectPosition(canvasId, selectedObjectId, rtdbData)
         }
       }
     }
   }
 
   /**
-   * Handle mouse up - finalize position and unlock
+   * Handle mouse up - finalize position (object stays selected and locked)
    */
   async onMouseUp(e, state, helpers) {
     const { canvasId } = helpers
     const {
       isMoving,
-      moveSelectedId,
+      selectedObjectId,
       localRectUpdates,
       doWeOwnObject,
       setIsMoving,
@@ -161,34 +168,32 @@ export class MoveTool {
       setLocalRectUpdates
     } = state
 
-    if (isMoving && moveSelectedId && localRectUpdates[moveSelectedId] && doWeOwnObject(moveSelectedId)) {
-      const finalRect = localRectUpdates[moveSelectedId]
+    if (isMoving && selectedObjectId && localRectUpdates[selectedObjectId] && doWeOwnObject(selectedObjectId)) {
+      const finalRect = localRectUpdates[selectedObjectId]
       try {
-        console.log('Move: Final position sync and unlock')
+        console.log('Move: Final position sync (keeping object locked)')
 
         // Clear active object from RTDB (remove real-time tracking)
-        await clearActiveObject(canvasId, moveSelectedId)
+        await clearActiveObject(canvasId, selectedObjectId)
 
-        // Final Firestore update with unlock
-        await updateObjectPosition(moveSelectedId, {
+        // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)
+        await updateObjectPosition(selectedObjectId, {
           x: finalRect.x,
           y: finalRect.y
-        }, true) // true = final update, unlocks object
+        }, false) // false = keep locked since object is still selected
 
-        console.log('Move: Rectangle position synced and unlocked')
+        console.log('Move: Object position synced, staying selected')
       } catch (error) {
-        console.error('Failed to sync rectangle position:', error)
+        console.error('Failed to sync object position:', error)
         try {
-          await clearActiveObject(canvasId, moveSelectedId)
-          await unlockObject(moveSelectedId)
-        } catch (unlockError) {
-          console.error('Failed to unlock object:', unlockError)
+          await clearActiveObject(canvasId, selectedObjectId)
+        } catch (clearError) {
+          console.error('Failed to clear active object:', clearError)
         }
       }
-    } else if (moveSelectedId && !isMoving) {
-      // Just a click without drag - keep object locked since it's selected
-      // Don't unlock here since user might want to start moving it
-      console.log('Move: Click only - keeping object selected and locked')
+    } else if (selectedObjectId && !isMoving) {
+      // Just a click without drag - object stays selected
+      console.log('Move: Click only - object stays selected')
     }
 
     // Reset movement states
@@ -199,10 +204,10 @@ export class MoveTool {
     setMoveOriginalPos(null)
 
     // Clear local updates after sync
-    if (moveSelectedId) {
+    if (selectedObjectId) {
       setLocalRectUpdates(prev => {
         const updated = { ...prev }
-        delete updated[moveSelectedId]
+        delete updated[selectedObjectId]
         return updated
       })
     }
@@ -217,6 +222,7 @@ export class MoveTool {
 }
 
 export default MoveTool
+
 
 
 

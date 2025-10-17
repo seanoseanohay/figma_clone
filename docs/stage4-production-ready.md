@@ -4,7 +4,11 @@
 Tasks focused on deployment preparation, reliability, and production-level polish.
 
 ## Current Status
-All tasks in this stage are **⏸️ Not Started**.
+- **PR1**: ⏸️ Not Started - UI Polish & Error Handling
+- **PR2**: ⏸️ Not Started - Firebase Quota Management & Monitoring
+- **PR3**: ⏸️ Not Started - Final Deployment & Documentation
+
+**Prerequisites**: Complete Stage 3 tasks before proceeding with production deployment.
 
 ---
 

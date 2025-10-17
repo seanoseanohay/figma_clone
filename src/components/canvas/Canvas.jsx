@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Stage, Layer, Rect } from 'react-konva';
+import { Stage, Layer, Rect, Circle } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
@@ -30,8 +30,9 @@ import {
   CANVAS_BACKGROUND,
   BOUNDARY_BACKGROUND
 } from '../../constants/canvas.constants.js';
+import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -42,6 +43,11 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   
   // Pan tool state (simple)
   const [isPanning, setIsPanning] = useState(false);
+  const [isTemporaryPan, setIsTemporaryPan] = useState(false); // For spacebar pan
+  const [toolBeforePan, setToolBeforePan] = useState(null); // Track tool before spacebar pan
+  
+  // Selection state - persists across all tools
+  const [selectedObjectId, setSelectedObjectId] = useState(null);
   
   // Multiplayer presence hooks
   const { updateCursor } = useCursorTracking();
@@ -62,6 +68,10 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // Rectangle creation state (Rectangle tool only)
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentRect, setCurrentRect] = useState(null);
+  
+  // Circle creation state (Circle tool only)
+  const [currentCircle, setCurrentCircle] = useState(null);
+  const [drawStart, setDrawStart] = useState(null);
   
   // Move tool state (clean separation)
   const [moveSelectedId, setMoveSelectedId] = useState(null);
@@ -137,6 +147,46 @@ const Canvas = ({ selectedTool, onToolChange }) => {
       });
   }, [canvasObjects, localRectUpdates, activeObjects]);
 
+  // Filter circles from canvas objects
+  const circles = useMemo(() => {
+    return canvasObjects
+      .filter(obj => obj.type === 'circle')
+      .map(circle => {
+        // If WE are controlling this object, show our local updates
+        if (localRectUpdates[circle.id] && circle.lockedBy === auth.currentUser?.uid) {
+          return {
+            ...circle,
+            ...localRectUpdates[circle.id]
+          };
+        }
+        
+        // If another user is dragging this object, show real-time RTDB position
+        if (activeObjects[circle.id] && circle.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...circle,
+            x: activeObjects[circle.id].x,
+            y: activeObjects[circle.id].y,
+            radius: activeObjects[circle.id].radius !== undefined ? activeObjects[circle.id].radius : circle.radius,
+            isLockedByOther: true,
+            lockedByName: circle.lastModifiedBy,
+            isBeingDragged: true
+          };
+        }
+        
+        // If locked by another user, mark as locked
+        if (circle.lockedBy && circle.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...circle,
+            isLockedByOther: true,
+            lockedByName: circle.lastModifiedBy
+          };
+        }
+        
+        // No one is controlling it, show Firestore data
+        return circle;
+      });
+  }, [canvasObjects, localRectUpdates, activeObjects]);
+
   // Helper function to check if current user can edit an object
   const canEditObject = useCallback((objectId) => {
     const obj = canvasObjects.find(o => o.id === objectId);
@@ -164,9 +214,17 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   }, [canvasObjects]);
   
   // Helper function to get mouse position relative to canvas
+  // Returns null if click is above the clipping boundary (in header/toolbar area)
   const getMousePos = useCallback((e) => {
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
+    
+    // Check if click is in the clipped area (above toolbar)
+    // This is a backup check - the overlay should block most clicks
+    if (e.evt && e.evt.clientY < CANVAS_TOP_OFFSET) {
+      console.log('Click rejected: above clipping boundary');
+      return null;
+    }
     
     // Standard Konva coordinate transformation
     const result = {
@@ -196,6 +254,38 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     return null;
   }, [rectangles, isPointInRect]);
   
+  // Helper function to check if point is inside circle
+  const isPointInCircle = useCallback((point, circle) => {
+    const dx = point.x - circle.x;
+    const dy = point.y - circle.y;
+    const distanceSquared = dx * dx + dy * dy;
+    return distanceSquared <= circle.radius * circle.radius;
+  }, []);
+  
+  // Find circle at position
+  const findCircleAt = useCallback((pos) => {
+    // Check from top to bottom (last drawn = topmost)
+    for (let i = circles.length - 1; i >= 0; i--) {
+      if (isPointInCircle(pos, circles[i])) {
+        return circles[i];
+      }
+    }
+    return null;
+  }, [circles, isPointInCircle]);
+  
+  // Shape-agnostic object finder - checks all shape types
+  const findObjectAt = useCallback((pos) => {
+    // Check circles first (drawn on top)
+    const circle = findCircleAt(pos);
+    if (circle) return circle;
+    
+    // Then check rectangles
+    const rect = findRectAt(pos);
+    if (rect) return rect;
+    
+    return null;
+  }, [findCircleAt, findRectAt]);
+  
   // Boundary enforcement functions
   const clampRectToCanvas = useCallback((rect) => {
     return {
@@ -206,16 +296,33 @@ const Canvas = ({ selectedTool, onToolChange }) => {
       height: Math.min(rect.height, CANVAS_HEIGHT - Math.max(0, rect.y))
     };
   }, []);
-
-  // Simple crossover detection - handles coordinate flipping when resizing past opposite corners
-  const handleCrossoverDetection = useCallback((mousePos, currentHandle, originalRect) => {
-    const { x: mouseX, y: mouseY } = mousePos;
+  
+  const clampCircleToCanvas = useCallback((circle) => {
+    // Clamp center position so entire circle stays in bounds
+    const clampedX = Math.max(circle.radius, Math.min(circle.x, CANVAS_WIDTH - circle.radius));
+    const clampedY = Math.max(circle.radius, Math.min(circle.y, CANVAS_HEIGHT - circle.radius));
     
-    // Calculate the opposite corner coordinates of the original rectangle
+    return {
+      ...circle,
+      x: clampedX,
+      y: clampedY
+    };
+  }, []);
+
+  // Crossover detection - handles coordinate flipping when resizing past opposite corners
+  // Takes the CURRENT transformed rect and flips its coordinates if needed
+  const handleCrossoverDetection = useCallback((currentRect, currentHandle, originalRect) => {
+    // Calculate the opposite corner coordinates of the ORIGINAL rectangle (anchor point)
     const leftX = originalRect.x;
     const rightX = originalRect.x + originalRect.width;
     const topY = originalRect.y;  
     const bottomY = originalRect.y + originalRect.height;
+    
+    // Check current rect's corners against original's corners to detect crossover
+    const currentLeft = currentRect.x;
+    const currentRight = currentRect.x + currentRect.width;
+    const currentTop = currentRect.y;
+    const currentBottom = currentRect.y + currentRect.height;
     
     let newHandle = currentHandle;
     let hasFlipped = false;
@@ -223,114 +330,102 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     // Check for crossovers based on current handle
     switch (currentHandle) {
       case 'nw':
-        // NW handle: check if crossed right edge (becomes NE) or bottom edge (becomes SW) or both (becomes SE)
-        if (mouseX > rightX && mouseY > bottomY) {
+        // NW handle: check if current rect's NW corner crossed past original's SE corner
+        if (currentLeft > rightX && currentTop > bottomY) {
           newHandle = 'se';
           hasFlipped = true;
-        } else if (mouseX > rightX) {
+        } else if (currentLeft > rightX) {
           newHandle = 'ne';
           hasFlipped = true;
-        } else if (mouseY > bottomY) {
+        } else if (currentTop > bottomY) {
           newHandle = 'sw';
           hasFlipped = true;
         }
         break;
         
       case 'ne':
-        // NE handle: check if crossed left edge (becomes NW) or bottom edge (becomes SE) or both (becomes SW)
-        if (mouseX < leftX && mouseY > bottomY) {
+        // NE handle: check if current rect's NE corner crossed past original's SW corner
+        if (currentRight < leftX && currentTop > bottomY) {
           newHandle = 'sw';
           hasFlipped = true;
-        } else if (mouseX < leftX) {
+        } else if (currentRight < leftX) {
           newHandle = 'nw';
           hasFlipped = true;
-        } else if (mouseY > bottomY) {
+        } else if (currentTop > bottomY) {
           newHandle = 'se';
           hasFlipped = true;
         }
         break;
         
       case 'sw':
-        // SW handle: check if crossed right edge (becomes SE) or top edge (becomes NW) or both (becomes NE)
-        if (mouseX > rightX && mouseY < topY) {
+        // SW handle: check if current rect's SW corner crossed past original's NE corner
+        if (currentLeft > rightX && currentBottom < topY) {
           newHandle = 'ne';
           hasFlipped = true;
-        } else if (mouseX > rightX) {
+        } else if (currentLeft > rightX) {
           newHandle = 'se';
           hasFlipped = true;
-        } else if (mouseY < topY) {
+        } else if (currentBottom < topY) {
           newHandle = 'nw';
           hasFlipped = true;
         }
         break;
         
       case 'se':
-        // SE handle: check if crossed left edge (becomes SW) or top edge (becomes NE) or both (becomes NW)
-        if (mouseX < leftX && mouseY < topY) {
+        // SE handle: check if current rect's SE corner crossed past original's NW corner
+        if (currentRight < leftX && currentBottom < topY) {
           newHandle = 'nw';
           hasFlipped = true;
-        } else if (mouseX < leftX) {
+        } else if (currentRight < leftX) {
           newHandle = 'sw';
           hasFlipped = true;
-        } else if (mouseY < topY) {
+        } else if (currentBottom < topY) {
           newHandle = 'ne';
           hasFlipped = true;
         }
         break;
     }
     
-    // If flipped, calculate new rectangle with proper coordinate swapping
+    // If flipped, keep the current rect's dimensions but maintain continuity
+    // The key fix: DON'T recalculate from original - use the transformed rect
     if (hasFlipped) {
-      // Mouse becomes the new corner, find the opposite corner in original rectangle
-      let oppositeX, oppositeY;
-      
-      switch (newHandle) {
-        case 'nw':
-          oppositeX = rightX;
-          oppositeY = bottomY;
-          break;
-        case 'ne':
-          oppositeX = leftX;
-          oppositeY = bottomY;
-          break;
-        case 'sw':
-          oppositeX = rightX;
-          oppositeY = topY;
-          break;
-        case 'se':
-          oppositeX = leftX;
-          oppositeY = topY;
-          break;
-      }
-      
-      // Create rectangle from mouse position to opposite corner
-      const newRect = {
-        x: Math.min(mouseX, oppositeX),
-        y: Math.min(mouseY, oppositeY),
-        width: Math.abs(mouseX - oppositeX),
-        height: Math.abs(mouseY - oppositeY),
-        fill: originalRect.fill
-      };
-      
-      return { rect: newRect, handle: newHandle, flipped: true };
+      return { rect: currentRect, handle: newHandle, flipped: true };
     }
     
     return { rect: null, handle: currentHandle, flipped: false };
   }, []);
   
-  // Find closest corner to click position (within rectangle bounds)
-  const getClosestCorner = useCallback((pos, rect) => {
-    // Only detect corners if click is inside the rectangle
-    if (pos.x < rect.x || pos.x > rect.x + rect.width || 
-        pos.y < rect.y || pos.y > rect.y + rect.height) {
+  // Find closest corner to click position (works for rectangles and circles)
+  const getClosestCorner = useCallback((pos, obj) => {
+    // For circles, use bounding box
+    let bounds
+    if (obj.type === 'circle') {
+      bounds = {
+        x: obj.x - obj.radius,
+        y: obj.y - obj.radius,
+        width: obj.radius * 2,
+        height: obj.radius * 2
+      }
+    } else {
+      bounds = {
+        x: obj.x,
+        y: obj.y,
+        width: obj.width,
+        height: obj.height
+      }
+    }
+    
+    // Only detect corners if click is inside the bounds
+    if (pos.x < bounds.x || pos.x > bounds.x + bounds.width || 
+        pos.y < bounds.y || pos.y > bounds.y + bounds.height) {
       return null;
     }
     
     const corners = [
-      { name: 'nw', x: rect.x, y: rect.y },
-      { name: 'ne', x: rect.x + rect.width, y: rect.y },
-      { name: 'sw', x: rect.x, y: rect.y + rect.height },
-      { name: 'se', x: rect.x + rect.width, y: rect.y + rect.height }
+      { name: 'nw', x: bounds.x, y: bounds.y },
+      { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
+      { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
+      { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
     ];
     
     let closestCorner = null;
@@ -347,7 +442,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
       }
     });
     
-    console.log('🎯 Closest corner detected:', closestCorner);
+    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type);
     return closestCorner;
   }, []);
 
@@ -433,19 +528,139 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     };
   }, [canvasId]);
 
-  // Clear selection when switching tools
+  // Notify parent of selection changes
   useEffect(() => {
-    if (selectedTool === TOOLS.PAN || selectedTool === TOOLS.RECTANGLE) {
-      // Clear all selections when switching to pan or rectangle tools
+    if (onSelectionChange) {
+      onSelectionChange(selectedObjectId);
+    }
+  }, [selectedObjectId, onSelectionChange]);
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      // Ignore if user is typing in an input field
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+      }
+
+      // Spacebar - temporary pan (hold down)
+      if (e.code === 'Space' && !isTemporaryPan) {
+        e.preventDefault();
+        setIsTemporaryPan(true);
+        setToolBeforePan(selectedTool);
+        onToolChange(TOOLS.PAN);
+        return;
+      }
+
+      // Arrow keys - pan viewport
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const panDistance = 50;
+        setStagePos(prev => {
+          const newPos = { ...prev };
+          if (e.key === 'ArrowUp') newPos.y += panDistance;
+          if (e.key === 'ArrowDown') newPos.y -= panDistance;
+          if (e.key === 'ArrowLeft') newPos.x += panDistance;
+          if (e.key === 'ArrowRight') newPos.x -= panDistance;
+          
+          // Update stage position
+          if (stageRef.current) {
+            const stage = stageRef.current;
+            stage.position(newPos);
+          }
+          
+          return newPos;
+        });
+        return;
+      }
+
+      // Escape - deselect
+      if (e.key === 'Escape' && selectedObjectId) {
+        e.preventDefault();
+        unlockObject(selectedObjectId).catch(err => {
+          console.error('Failed to unlock on escape:', err);
+        });
+        setSelectedObjectId(null);
+        return;
+      }
+
+      // Tool shortcuts (only if not already pressed)
+      if (!e.repeat) {
+        switch (e.key.toLowerCase()) {
+          case 'v':
+            e.preventDefault();
+            onToolChange(TOOLS.SELECT);
+            break;
+          case 'm':
+            e.preventDefault();
+            if (selectedObjectId) onToolChange(TOOLS.MOVE);
+            break;
+          case 'r':
+            e.preventDefault();
+            if (selectedObjectId) onToolChange(TOOLS.RESIZE);
+            break;
+          default:
+            break;
+        }
+      }
+    };
+
+    const handleKeyUp = (e) => {
+      // Spacebar release - return to previous tool
+      if (e.code === 'Space' && isTemporaryPan && toolBeforePan) {
+        e.preventDefault();
+        setIsTemporaryPan(false);
+        onToolChange(toolBeforePan);
+        setToolBeforePan(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange]);
+
+  // Clear/manage state when switching tools
+  useEffect(() => {
+    // Deselect when switching to shape tools
+    if (selectedTool === TOOLS.RECTANGLE || selectedTool === TOOLS.CIRCLE) {
+      if (selectedObjectId) {
+        // Unlock the selected object before deselecting
+        unlockObject(selectedObjectId).catch(err => {
+          console.error('Failed to unlock on tool switch:', err);
+        });
+        setSelectedObjectId(null);
+      }
       setMoveSelectedId(null);
       setResizeSelectedId(null);
       setLocalRectUpdates({});
     }
-  }, [selectedTool]);
+    
+    // Pan tool doesn't deselect
+    if (selectedTool === TOOLS.PAN && !isTemporaryPan) {
+      // Pan tool preserves selection
+    }
+    
+    // Clear drawing state when switching away from tools
+    if (selectedTool !== TOOLS.RECTANGLE) {
+      setCurrentRect(null);
+      setIsDrawing(false);
+    }
+    if (selectedTool !== TOOLS.CIRCLE) {
+      setCurrentCircle(null);
+      setDrawStart(null);
+      setIsDrawing(false);
+    }
+  }, [selectedTool, selectedObjectId, isTemporaryPan]);
 
   // Helper function to build state object for tools
   const buildToolState = useCallback(() => ({
     // Getters
+    selectedObjectId,
     moveSelectedId,
     resizeSelectedId,
     isPanning,
@@ -453,6 +668,8 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     isResizing,
     isDrawing,
     currentRect,
+    currentCircle,
+    drawStart,
     mouseDownPos,
     isDragThresholdExceeded,
     moveStartPos,
@@ -461,9 +678,11 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     resizeStartData,
     canvasObjects,
     rectangles,
+    circles,
     localRectUpdates,
     
     // Setters
+    setSelectedObjectId,
     setMoveSelectedId,
     setResizeSelectedId,
     setIsPanning,
@@ -471,6 +690,8 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     setIsResizing,
     setIsDrawing,
     setCurrentRect,
+    setCurrentCircle,
+    setDrawStart,
     setMouseDownPos,
     setIsDragThresholdExceeded,
     setMoveStartPos,
@@ -482,26 +703,37 @@ const Canvas = ({ selectedTool, onToolChange }) => {
     
     // Helpers
     findRectAt,
+    findCircleAt,
+    findObjectAt,
+    isPointInCircle,
     canEditObject,
     doWeOwnObject,
     clampRectToCanvas,
+    clampCircleToCanvas,
     getClosestCorner,
     handleCrossoverDetection,
+    isOnline,
     
     // Other props
     onToolChange,
     TOOLS
   }), [
-    moveSelectedId, resizeSelectedId, isPanning, isMoving, isResizing, isDrawing,
-    currentRect, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
-    resizeHandle, resizeStartData, canvasObjects, rectangles, localRectUpdates,
-    findRectAt, canEditObject, doWeOwnObject, clampRectToCanvas, getClosestCorner,
-    handleCrossoverDetection, onToolChange
+    selectedObjectId, moveSelectedId, resizeSelectedId, isPanning, isMoving, isResizing, isDrawing,
+    currentRect, currentCircle, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
+    resizeHandle, resizeStartData, canvasObjects, rectangles, circles, localRectUpdates,
+    findRectAt, findCircleAt, findObjectAt, isPointInCircle, canEditObject, doWeOwnObject, 
+    clampRectToCanvas, clampCircleToCanvas, getClosestCorner,
+    handleCrossoverDetection, isOnline, onToolChange
   ])
 
   // MOUSE DOWN HANDLER - Tool-specific logic
   const handleMouseDown = useCallback(async (e) => {
     const pos = getMousePos(e);
+    
+    // Reject if click is above clipping boundary
+    if (!pos) {
+      return;
+    }
     
     console.log('Mouse down detected, tool:', selectedTool);
     
@@ -526,6 +758,11 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   // MOUSE MOVE HANDLER - Tool-specific logic
   const handleMouseMove = useCallback((e) => {
     const pos = getMousePos(e);
+    
+    // Reject if mouse is above clipping boundary
+    if (!pos) {
+      return;
+    }
     
     // Update cursor position for multiplayer (only when not actively manipulating)
     if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT &&
@@ -570,6 +807,9 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         case TOOLS.PAN:
           container.style.cursor = isPanning ? 'grabbing' : 'grab';
           break;
+        case TOOLS.SELECT:
+          container.style.cursor = 'default';
+          break;
         case TOOLS.MOVE:
           container.style.cursor = 'default';
           break;
@@ -579,23 +819,26 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         case TOOLS.RECTANGLE:
           container.style.cursor = 'crosshair';
           break;
+        case TOOLS.CIRCLE:
+          container.style.cursor = 'crosshair';
+          break;
         default:
           container.style.cursor = 'default';
       }
     }
   }, [selectedTool, isPanning]);
 
-  // Calculate stage dimensions to cover the entire viewport
+  // Calculate stage dimensions to cover the viewport below the clipping boundary
   const [stageDimensions, setStageDimensions] = useState({ 
     width: window.innerWidth, 
-    height: window.innerHeight 
+    height: window.innerHeight - CANVAS_TOP_OFFSET
   });
   
   useEffect(() => {
     const updateDimensions = () => {
       setStageDimensions({ 
         width: window.innerWidth, 
-        height: window.innerHeight - 120 // Account for header and toolbar height
+        height: window.innerHeight - CANVAS_TOP_OFFSET
       });
     };
     
@@ -615,7 +858,7 @@ const Canvas = ({ selectedTool, onToolChange }) => {
   }
 
   return (
-    <div className="canvas-container bg-gray-200 overflow-hidden">
+    <div className="canvas-container bg-gray-200 overflow-hidden" style={{ position: 'relative' }}>
       {/* Connection Status Banner */}
       <ConnectionBanner 
         isConnected={isConnected}
@@ -624,17 +867,26 @@ const Canvas = ({ selectedTool, onToolChange }) => {
         queuedCount={queuedCount}
       />
       
-      <Stage
-        ref={stageRef}
-        width={stageDimensions.width}
-        height={stageDimensions.height}
-        onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseUp} // Ensure cleanup if mouse leaves canvas
-        draggable={false}
-      >
+      {/* Canvas clipping container */}
+      <div style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        clipPath: `inset(${CANVAS_TOP_OFFSET}px 0px 0px 0px)`
+      }}>
+        <Stage
+          ref={stageRef}
+          width={stageDimensions.width}
+          height={stageDimensions.height + CANVAS_TOP_OFFSET} // Extend upward to allow objects to exist above
+          onWheel={handleWheel}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp} // Ensure cleanup if mouse leaves canvas
+          draggable={false}
+        >
         <Layer>
           {/* Boundary background (extends beyond canvas) */}
           <Rect
@@ -658,11 +910,20 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             listening={selectedTool !== TOOLS.PAN && !(selectedTool === TOOLS.RESIZE && resizeSelectedId)}
           />
           
+          {/* Visual boundary line at y=0 - indicates where clipping starts */}
+          <Rect
+            x={0}
+            y={0}
+            width={CANVAS_WIDTH}
+            height={2}
+            fill="#3b82f6"
+            opacity={0.3}
+            listening={false}
+          />
+          
           {/* Render created rectangles */}
           {rectangles.map((rect) => {
-            const isSelected = 
-              (selectedTool === TOOLS.MOVE && moveSelectedId === rect.id) ||
-              (selectedTool === TOOLS.RESIZE && resizeSelectedId === rect.id);
+            const isSelected = selectedObjectId === rect.id;
               
             return (
               <Rect
@@ -737,6 +998,87 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             />
           )}
 
+          {/* Render all circles */}
+          {circles.map((circle) => {
+            const isSelected = selectedObjectId === circle.id;
+            return (
+              <Circle
+                key={circle.id}
+                x={circle.x}
+                y={circle.y}
+                radius={circle.radius}
+                fill={circle.fill}
+                stroke={
+                  circle.isLockedByOther 
+                    ? "#f59e0b" // Orange border for locked objects
+                    : isSelected 
+                      ? "#2563eb" // Blue border for selected
+                      : "#333333" // Default border
+                }
+                strokeWidth={
+                  circle.isLockedByOther || isSelected 
+                    ? 2 
+                    : 1
+                }
+                opacity={circle.isLockedByOther ? 0.7 : 1.0}
+                listening={false} // Disable events - handle via Stage only
+              />
+            );
+          })}
+
+          {/* Render resize handles for selected circle (RESIZE tool only) */}
+          {selectedTool === TOOLS.RESIZE && resizeSelectedId && circles.find(c => c.id === resizeSelectedId) && (() => {
+            const selectedCircle = circles.find(c => c.id === resizeSelectedId);
+            
+            // Don't show handles if object is locked by another user
+            if (selectedCircle.isLockedByOther) {
+              return null;
+            }
+            
+            // Position handles on circle's bounding box corners
+            const handlePadding = 5;
+            const bounds = {
+              x: selectedCircle.x - selectedCircle.radius,
+              y: selectedCircle.y - selectedCircle.radius,
+              width: selectedCircle.radius * 2,
+              height: selectedCircle.radius * 2
+            };
+            
+            const handles = [
+              { name: 'nw', x: bounds.x + handlePadding, y: bounds.y + handlePadding },
+              { name: 'ne', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + handlePadding },
+              { name: 'sw', x: bounds.x + handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding },
+              { name: 'se', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding }
+            ];
+            
+            return handles.map(handle => (
+              <Rect
+                key={`circle-handle-${handle.name}`}
+                x={handle.x}
+                y={handle.y}
+                width={HANDLE_SIZE}
+                height={HANDLE_SIZE}
+                fill="#2563eb"
+                stroke="#ffffff"
+                strokeWidth={1}
+                listening={false}
+              />
+            ));
+          })()}
+
+          {/* Render current circle being drawn */}
+          {currentCircle && (
+            <Circle
+              x={currentCircle.x}
+              y={currentCircle.y}
+              radius={currentCircle.radius}
+              fill="#808080"
+              stroke="#333333"
+              strokeWidth={1}
+              opacity={0.7}
+            />
+          )}
+
           {/* Render other users' cursors */}
           {usersWithCursors.map((user) => (
             <UserCursor 
@@ -746,7 +1088,8 @@ const Canvas = ({ selectedTool, onToolChange }) => {
             />
           ))}
         </Layer>
-      </Stage>
+        </Stage>
+      </div>
     </div>
   );
 };
