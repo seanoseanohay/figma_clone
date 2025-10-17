@@ -6,6 +6,7 @@ import { useCanvas } from '../../hooks/useCanvas.js';
 import CanvasSelector from '../canvas/CanvasSelector.jsx';
 import MobileMenu from './MobileMenu.jsx';
 import InviteModal from '../canvas/InviteModal.jsx';
+import AgentSidebar from '../agent/AgentSidebar.jsx';
 
 const Header = () => {
   const { currentUser, setAuthError } = useAuth();
@@ -14,6 +15,7 @@ const Header = () => {
   const [loading, setLoading] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
+  const [agentSidebarOpen, setAgentSidebarOpen] = useState(false);
   
   // Generate consistent color for each user
   // Now we can optionally use cursorColor from presence data if available
@@ -120,6 +122,24 @@ const Header = () => {
               )}
             </div>
 
+            {/* AI Assistant Button */}
+            <button
+              onClick={() => setAgentSidebarOpen(true)}
+              disabled={!canvasId}
+              className="relative group inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ marginRight: '12px' }}
+              title={!canvasId ? "Select a canvas to use AI Assistant" : "Open AI Assistant"}
+            >
+              <span className="text-base mr-2">🤖</span>
+              <span className="inline">AI Assistant</span>
+              {!canvasId && (
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                  Select a canvas to use AI Assistant
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              )}
+            </button>
+
             {/* Invite Button */}
             <button
               onClick={() => setInviteModalOpen(true)}
@@ -176,6 +196,12 @@ const Header = () => {
       <InviteModal
         isOpen={inviteModalOpen}
         onClose={() => setInviteModalOpen(false)}
+      />
+
+      {/* AI Agent Sidebar */}
+      <AgentSidebar
+        isOpen={agentSidebarOpen}
+        onClose={() => setAgentSidebarOpen(false)}
       />
     </header>
   );
