@@ -201,3 +201,4 @@ This same pattern could be applied to other tools if they develop similar state 
 
 The fix ensures that when you switch to Resize or Move tools, they immediately sync their internal selection state with the global selection. This eliminates visual bugs where handles or manipulation indicators appear on the wrong object. The solution is simple, performant, and follows React best practices for derived state management.
 
+

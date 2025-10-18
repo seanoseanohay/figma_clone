@@ -270,3 +270,4 @@ Z-index is now properly implemented in Konva by sorting shapes before rendering.
 
 The fix transforms shape rendering from a rigid type-based order to a flexible z-index-based order, giving users full control over shape layering regardless of shape type.
 
+

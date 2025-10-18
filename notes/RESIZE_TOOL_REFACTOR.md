@@ -92,3 +92,4 @@ These functions remain in Canvas because they're used by **multiple tools**:
 
 **Note**: This refactor maintains all existing functionality while improving code organization. The resize tool now owns all its logic instead of relying on Canvas to provide resize-specific helpers.
 
+

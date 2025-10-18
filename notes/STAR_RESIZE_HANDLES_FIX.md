@@ -154,3 +154,4 @@ Due to limitations in automated canvas testing (Konva event handling), the follo
 ## Conclusion
 The star resize functionality is now complete. Stars can be created, selected, moved, and resized just like rectangles and circles. The missing visual handles have been added, completing the user interface for star manipulation.
 
+

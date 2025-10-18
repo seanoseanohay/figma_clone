@@ -141,3 +141,4 @@ Automated testing via Chrome DevTools was challenging due to:
 - The 10ms timeout is minimal and doesn't impact user experience
 - Console logs added for debugging can be removed in production if desired
 
+

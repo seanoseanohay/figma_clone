@@ -155,3 +155,4 @@ All shape resize handles (rectangles, circles, stars) are rendered in `Canvas.js
 ## Conclusion
 The bug was caused by incomplete type handling in the `getClosestCorner()` function. Adding explicit support for the star shape type (using `outerRadius` for bounding box calculations) resolved the issue completely. Star resizing now works reliably and doesn't interfere with other canvas operations.
 
+

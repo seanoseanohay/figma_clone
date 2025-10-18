@@ -155,3 +155,4 @@ Implemented Konva's built-in `Transformer` component which automatically handles
 - `src/tools/ResizeTool.js` - Custom resize handles for non-rotated objects
 - `docs/stage3-enhanced-features.md` - Task E6 details
 
+
