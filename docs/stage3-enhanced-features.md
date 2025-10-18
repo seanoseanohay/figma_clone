@@ -897,37 +897,419 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ### Task A2: Add Undo/Redo System
 
-**Objective**: Implement comprehensive undo/redo functionality for all canvas operations
+**Objective**: Implement comprehensive undo/redo functionality with a 5-action limit per user
 
-**Files to Modify**:
-- Create `src/hooks/useHistory.js`
-- Update `src/services/canvas.service.js`
-- Update all tool handlers
-- Add keyboard shortcuts
+**Status**: 📋 DOCUMENTED - Ready for implementation
 
-**Specific Changes**:
-1. Create history management system that tracks all canvas operations
-2. Implement undo/redo stack with configurable history limit (50 operations)
-3. Add Ctrl+Z (undo) and Ctrl+Y (redo) keyboard shortcuts
-4. Include undo/redo buttons in toolbar or header
-5. Handle collaborative editing scenarios with conflict resolution
-6. Optimize history storage to prevent memory bloat
-7. Add visual feedback for undo/redo operations
+---
 
-**Acceptance Criteria**:
-- [ ] All canvas operations can be undone and redone
-- [ ] Keyboard shortcuts work correctly
-- [ ] History is limited to prevent memory issues
-- [ ] Collaborative undo/redo works without conflicts
-- [ ] Visual feedback indicates undo/redo actions
-- [ ] System performance remains good with history enabled
+## 🎯 Design Specifications
 
-**Testing Steps**:
-1. Perform various operations and test undo/redo functionality
-2. Test keyboard shortcuts for undo/redo
-3. Test undo/redo with multiple users collaborating
-4. Test history limit and memory management
-5. Verify visual feedback and user experience
+### **Core Principles**
+1. **5-Action Limit**: Users can undo/redo up to their last 5 actions
+2. **Per-User History**: Each user maintains their own independent undo/redo stacks
+3. **Collaborative Safety**: Ownership checks prevent conflicts in multi-user scenarios
+4. **Command Pattern**: Each action is encapsulated as a reversible command
+5. **Memento Pattern**: Complete state snapshots enable reliable undo/redo
+
+---
+
+## 📋 Scope of Undoable Actions
+
+### **Actions That ARE Undoable**:
+- ✅ **Object Creation**: Rectangles, circles, stars, text (undo = delete, redo = recreate)
+- ✅ **Object Deletion**: Removing objects (undo = restore, redo = delete again)
+- ✅ **Object Movement**: Position changes from drag operations (one undo per drag)
+- ✅ **Object Resizing**: Size changes (one undo per resize operation)
+- ✅ **Object Rotation**: Angle changes (one undo per rotation)
+- ✅ **Property Changes**: Color, z-index, text content/formatting (batched if rapid)
+
+### **Actions That Are NOT Undoable** (too noisy):
+- ❌ Tool selection changes (Select → Move → Rotate)
+- ❌ Object selection (clicking to select)
+- ❌ Zoom level changes
+- ❌ Pan/scroll canvas navigation
+- ❌ Cursor position updates
+- ❌ Opening/closing modals or editors
+
+---
+
+## 🏗️ Architecture Design
+
+### **1. Command Pattern Structure**
+
+Each action is represented as a command object:
+
+```javascript
+{
+  id: 'cmd_123abc',           // Unique command ID
+  type: 'MOVE_OBJECT',         // Action type (see types below)
+  userId: 'user123',           // Who performed the action
+  timestamp: 1234567890,       // When it happened
+  objectId: 'obj_abc123',      // Which object was affected
+  before: { x: 100, y: 200 },  // State before action (for undo)
+  after: { x: 150, y: 250 },   // State after action (for redo)
+  description: 'Move Rectangle' // Human-readable description
+}
+```
+
+### **2. Action Types**
+
+```javascript
+const ACTION_TYPES = {
+  CREATE_OBJECT: 'CREATE_OBJECT',       // New shape/text created
+  DELETE_OBJECT: 'DELETE_OBJECT',       // Object removed (A4)
+  MOVE_OBJECT: 'MOVE_OBJECT',           // Position changed
+  RESIZE_OBJECT: 'RESIZE_OBJECT',       // Dimensions changed
+  ROTATE_OBJECT: 'ROTATE_OBJECT',       // Rotation angle changed
+  UPDATE_PROPERTIES: 'UPDATE_PROPERTIES' // Color, z-index, text content, etc.
+};
+```
+
+### **3. Stack Management (5-Action Limit)**
+
+```javascript
+// Per-user stacks stored in React state
+const [undoStack, setUndoStack] = useState([]);  // Max 5 items
+const [redoStack, setRedoStack] = useState([]);  // Max 5 items
+
+// Example stacks:
+undoStack: [cmd5, cmd4, cmd3, cmd2, cmd1]  // Newest at index 0
+redoStack: [cmd1, cmd2, cmd3, cmd4, cmd5]  // Newest at index 0
+```
+
+**Stack Operations**:
+- **Record New Action**: Push to undoStack, clear redoStack, trim to 5
+- **Undo**: Pop from undoStack, push to redoStack, execute undo
+- **Redo**: Pop from redoStack, push to undoStack, execute redo
+
+### **4. useHistory Hook API**
+
+```javascript
+const {
+  recordAction,    // (type, objectId, before, after) => void
+  undo,            // () => void
+  redo,            // () => void
+  canUndo,         // boolean
+  canRedo,         // boolean
+  undoDescription, // "Undo: Move Rectangle" or null
+  redoDescription, // "Redo: Create Circle" or null
+  clearHistory     // () => void - reset both stacks
+} = useHistory();
+```
+
+---
+
+## ⚙️ Action Granularity Rules
+
+### **1. Drag Operations (Move/Resize/Rotate)**
+- **One undo per complete operation** (mouse down → drag → mouse up)
+- Do NOT record intermediate positions during drag
+- Record action only on `mouseup` event with start/end states
+- Example: Drag rectangle from (100, 200) to (300, 400) = ONE undo
+
+### **2. Text Editing**
+- **One undo per save** in text editor
+- Opening editor and clicking "Save" = ONE undo (entire text change)
+- Multiple formatting changes during one edit session = ONE undo
+- Canceling text editor = NO undo recorded
+
+### **3. Property Changes (Color, Z-Index)**
+- **Batch rapid changes**: If user changes color, then z-index within 1 second = ONE undo
+- **Separate slow changes**: Color change, wait 2 seconds, z-index change = TWO undos
+
+### **4. Object Creation**
+- Record immediately on creation (after initial drag complete)
+- Undo = delete object, Redo = recreate object with same ID and properties
+
+### **5. Object Deletion (A4)**
+- Record immediately on delete
+- Undo = restore object with all properties, Redo = delete again
+
+---
+
+## 👥 Multi-User Collaboration
+
+### **Per-User History (Chosen Approach)**
+- ✅ Each user has their own independent undo/redo stacks
+- ✅ User A can only undo/redo their own actions
+- ✅ User B's actions do not appear in User A's history
+- ✅ Prevents "someone undid my work" confusion
+- ✅ Simpler to implement and reason about
+
+### **Ownership Conflict Resolution**
+
+**Before Undo/Redo, Check:**
+1. Does object still exist?
+   - If deleted by another user → Show error: "Cannot undo: object no longer exists"
+2. Is object currently locked?
+   - If locked by another user → Show error: "Cannot undo: object is being edited by [User Name]"
+3. Has object been significantly modified?
+   - If modified by another user → Show warning with options:
+     - "Force undo anyway" (overwrites their changes - use with caution)
+     - "Skip this undo" (moves to next item in stack)
+
+### **Example Scenarios**
+
+**Scenario 1: Clean Undo**
+1. User A creates rectangle → recorded in User A's undo stack
+2. User A presses Ctrl+Z → Rectangle deleted (undo successful)
+3. User A presses Ctrl+Y → Rectangle restored (redo successful)
+
+**Scenario 2: Conflict - Object Locked**
+1. User A creates rectangle → recorded in User A's undo stack
+2. User B starts editing rectangle (locked by User B)
+3. User A presses Ctrl+Z → Error: "Cannot undo: Rectangle is being edited by Bob"
+4. User B finishes editing and releases lock
+5. User A presses Ctrl+Z → Rectangle deleted (undo successful)
+
+**Scenario 3: Conflict - Object Deleted**
+1. User A moves rectangle → recorded in User A's undo stack
+2. User B deletes rectangle
+3. User A presses Ctrl+Z → Error: "Cannot undo: Rectangle no longer exists"
+4. Action is removed from User A's undo stack (can't undo non-existent object)
+
+**Scenario 4: Conflict - Object Modified**
+1. User A changes rectangle color to red → recorded in User A's undo stack
+2. User B changes same rectangle to blue
+3. User A presses Ctrl+Z → Warning: "Rectangle has been modified by Bob. Undo anyway?"
+   - "Yes" → Reverts to User A's before-state (might lose User B's change)
+   - "No" → Skips this undo, keeps current state
+
+---
+
+## 🧠 State Snapshot Strategy (Memento Pattern)
+
+### **What to Store in `before` and `after`**
+
+**For CREATE_OBJECT**:
+- `before`: `null` (object didn't exist)
+- `after`: Complete object data (id, type, x, y, width, height, color, rotation, zIndex, etc.)
+
+**For DELETE_OBJECT**:
+- `before`: Complete object data (to restore on undo)
+- `after`: `null` (object deleted)
+
+**For MOVE_OBJECT**:
+- `before`: `{ x: oldX, y: oldY }`
+- `after`: `{ x: newX, y: newY }`
+
+**For RESIZE_OBJECT**:
+- `before`: `{ width: oldW, height: oldH }`
+- `after`: `{ width: newW, height: newH }`
+
+**For ROTATE_OBJECT**:
+- `before`: `{ rotation: oldAngle }`
+- `after`: `{ rotation: newAngle }`
+
+**For UPDATE_PROPERTIES**:
+- `before`: `{ color: oldColor, zIndex: oldZ, ... }` (only changed properties)
+- `after`: `{ color: newColor, zIndex: newZ, ... }` (only changed properties)
+
+---
+
+## 🎨 User Interface Design
+
+### **1. Toolbar Buttons**
+- Add undo/redo buttons to main toolbar (next to tool selection buttons)
+- Icons: ↶ (undo) and ↷ (redo)
+- Gray out when stacks are empty (canUndo/canRedo false)
+- Show tooltips:
+  - "Undo: Move Rectangle (Ctrl+Z)" when hovering over undo button
+  - "Redo: Create Circle (Ctrl+Y)" when hovering over redo button
+  - "No actions to undo" when disabled
+
+### **2. Keyboard Shortcuts**
+- **Ctrl+Z / Cmd+Z**: Undo last action
+- **Ctrl+Y / Cmd+Y**: Redo last undone action
+- **Ctrl+Shift+Z / Cmd+Shift+Z**: Alternative redo shortcut (common in design tools)
+
+### **3. Visual Feedback**
+- **Brief object highlight** (200ms flash) when undo/redo affects an object
+- **Toast notification** for errors: "Cannot undo: object is locked by Bob"
+- **Optional**: Show undo/redo history dropdown (list of last 5 actions)
+
+### **4. Accessibility**
+- Ensure buttons are keyboard accessible (Tab navigation)
+- Screen reader announcements for undo/redo actions
+- Clear focus indicators on buttons
+
+---
+
+## 🔧 Implementation Plan
+
+### **Phase 1: Core Hook (useHistory.js)**
+1. Create `src/hooks/useHistory.js`
+2. Implement stack management (undoStack, redoStack, 5-item limit)
+3. Implement `recordAction(type, objectId, before, after)` function
+4. Implement `undo()` function with ownership checks
+5. Implement `redo()` function with ownership checks
+6. Implement computed properties: `canUndo`, `canRedo`, `undoDescription`, `redoDescription`
+7. Add unit tests for stack operations
+
+### **Phase 2: Integration with Canvas Service**
+1. Update `src/services/canvas.service.js`
+2. Modify `createObject()` to accept callback for recording action
+3. Modify `updateObject()` to accept callback for recording action
+4. Modify `deleteObject()` to accept callback for recording action (A4)
+5. Ensure all CRUD operations support undo/redo
+
+### **Phase 3: Tool Handler Integration**
+1. Update `MoveTool.js`: Record MOVE_OBJECT on mouseup
+2. Update `ResizeTool.js`: Record RESIZE_OBJECT on mouseup
+3. Update `RotateTool.js`: Record ROTATE_OBJECT on mouseup
+4. Update `RectangleTool.js`, `CircleTool.js`, `StarTool.js`: Record CREATE_OBJECT on creation
+5. Update `TextTool.js`: Record CREATE_OBJECT or UPDATE_PROPERTIES on save
+6. Update `Canvas.jsx`: Record UPDATE_PROPERTIES for color/z-index changes
+
+### **Phase 4: UI Components**
+1. Update `src/components/canvas/Toolbar.jsx`
+2. Add undo/redo buttons with icons
+3. Add tooltips with descriptions and keyboard shortcuts
+4. Implement gray-out styling for disabled state
+5. Add keyboard event listeners to Canvas for Ctrl+Z/Ctrl+Y
+
+### **Phase 5: Conflict Resolution**
+1. Create `src/utils/undoConflictResolver.js`
+2. Implement ownership checks before undo/redo
+3. Implement object existence checks
+4. Implement error messaging system (toast notifications)
+5. Add conflict resolution UI (modal or inline warnings)
+
+### **Phase 6: Testing**
+1. Create `src/hooks/__tests__/useHistory.test.js`
+   - Test stack operations (push, pop, trim to 5)
+   - Test undo/redo logic
+   - Test edge cases (empty stacks, conflicts)
+2. Create `src/test/regression/undo_redo.test.js`
+   - Test multi-action sequences
+   - Test collaborative scenarios
+   - Test all action types
+3. Manual testing with multiple users
+4. Performance testing with rapid actions
+
+---
+
+## ✅ Acceptance Criteria
+
+### **Functional Requirements**
+- [x] DOCUMENTED: Undo/redo stacks maintain maximum 5 actions per user
+- [ ] Ctrl+Z undoes last action, Ctrl+Y redoes last undone action
+- [ ] All undoable actions (create, delete, move, resize, rotate, properties) work correctly
+- [ ] Redo stack clears when new action is performed
+- [ ] Per-user history works correctly (users only undo their own actions)
+- [ ] Ownership checks prevent conflicts in multi-user scenarios
+- [ ] Undo/redo buttons appear in toolbar and update state correctly
+- [ ] Tooltips show action descriptions ("Undo: Move Rectangle")
+- [ ] Visual feedback appears when undo/redo executes
+- [ ] Error messages display for conflict scenarios
+
+### **Edge Cases Handled**
+- [ ] Undo when object has been deleted by another user → Error shown
+- [ ] Undo when object is locked by another user → Error shown
+- [ ] Undo when object has been modified by another user → Warning shown
+- [ ] Rapid undo/redo operations don't cause race conditions
+- [ ] Undo/redo works correctly with all object types (rectangles, circles, stars, text)
+- [ ] Stack size limit enforced (oldest actions removed when > 5)
+
+### **Performance**
+- [ ] Undo/redo operations complete in < 100ms
+- [ ] Memory usage remains stable with frequent undo/redo operations
+- [ ] No memory leaks from retained object references
+- [ ] Large canvases (100+ objects) don't slow down undo/redo
+
+---
+
+## 🧪 Testing Steps
+
+### **Basic Functionality**
+1. Create rectangle → Press Ctrl+Z → Rectangle disappears (undo works)
+2. Press Ctrl+Y → Rectangle reappears (redo works)
+3. Create 6 rectangles → Press Ctrl+Z 6 times → Only 5 undo (limit enforced)
+4. Undo 3 times, then create new shape → Redo stack cleared, can't redo previous 3
+
+### **All Action Types**
+5. Test CREATE: Create shape → Undo → Shape deleted → Redo → Shape restored
+6. Test DELETE: Delete shape → Undo → Shape restored → Redo → Shape deleted
+7. Test MOVE: Drag shape → Undo → Returns to start position → Redo → Moves to end position
+8. Test RESIZE: Resize shape → Undo → Returns to original size → Redo → Returns to new size
+9. Test ROTATE: Rotate shape → Undo → Returns to 0° → Redo → Returns to rotated angle
+10. Test PROPERTIES: Change color → Undo → Original color → Redo → New color
+
+### **Multi-User Collaboration**
+11. User A creates rectangle → User A undoes → Rectangle deleted (User A's action)
+12. User A creates rectangle → User B cannot undo it (per-user history)
+13. User A moves rectangle → User B locks rectangle → User A tries to undo → Error: "object locked by User B"
+14. User A moves rectangle → User B deletes rectangle → User A tries to undo → Error: "object no longer exists"
+
+### **UI/UX**
+15. Undo button grays out when undo stack is empty
+16. Redo button grays out when redo stack is empty
+17. Hover over undo button → Tooltip shows "Undo: Move Rectangle (Ctrl+Z)"
+18. Hover over redo button → Tooltip shows "Redo: Create Circle (Ctrl+Y)"
+19. Undo/redo triggers brief visual highlight on affected object
+
+### **Edge Cases**
+20. Rapid undo/redo (spam Ctrl+Z/Ctrl+Y) → No crashes or race conditions
+21. Undo while offline → Action undone locally, syncs when online
+22. Undo rotated text → Text returns to original angle and position
+23. Undo z-index change → Object returns to original layer order
+
+---
+
+## 📦 Files to Create/Modify
+
+### **New Files**
+- `src/hooks/useHistory.js` - Core undo/redo hook
+- `src/hooks/__tests__/useHistory.test.js` - Hook unit tests
+- `src/utils/undoConflictResolver.js` - Conflict resolution logic
+- `src/test/regression/undo_redo.test.js` - Regression tests
+
+### **Modified Files**
+- `src/components/canvas/Toolbar.jsx` - Add undo/redo buttons
+- `src/components/canvas/Canvas.jsx` - Add keyboard shortcuts, integrate recordAction
+- `src/services/canvas.service.js` - Add undo/redo support to CRUD operations
+- `src/tools/MoveTool.js` - Record MOVE_OBJECT actions
+- `src/tools/ResizeTool.js` - Record RESIZE_OBJECT actions
+- `src/tools/RotateTool.js` - Record ROTATE_OBJECT actions
+- `src/tools/RectangleTool.js` - Record CREATE_OBJECT actions
+- `src/tools/CircleTool.js` - Record CREATE_OBJECT actions
+- `src/tools/StarTool.js` - Record CREATE_OBJECT actions
+- `src/tools/TextTool.js` - Record CREATE_OBJECT or UPDATE_PROPERTIES actions
+- `docs/stage3-enhanced-features.md` - This documentation
+
+---
+
+## 🚀 Success Metrics
+
+After implementation, the system should achieve:
+- ✅ 100% of undoable actions work correctly
+- ✅ Zero conflicts in multi-user testing
+- ✅ < 100ms undo/redo operation time
+- ✅ 90%+ test coverage for useHistory hook
+- ✅ Zero memory leaks in 1-hour stress test
+- ✅ Clear, helpful error messages for all edge cases
+
+---
+
+## 🔮 Future Enhancements (Out of Scope for A2)
+
+- **Persistent History**: Save undo/redo stacks to localStorage (survive page refresh)
+- **History Panel**: Show list of all 5 actions with preview
+- **Selective Undo**: Click on specific action in history to undo to that point
+- **Branching History**: Support undo branches when redo stack is cleared
+- **Cross-Session History**: Sync history across devices (Firebase)
+- **Unlimited History**: Remove 5-action limit (requires careful memory management)
+
+---
+
+**Dependencies**: 
+- Requires existing ownership/locking system ✅ Complete (E5)
+- Required by A4 (Object Deletion) - deletion needs undo as safety net
+
+**Status**: 📋 DOCUMENTED - Ready for implementation
+
+---
 
 ---
 
