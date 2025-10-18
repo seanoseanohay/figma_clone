@@ -13,6 +13,7 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - **E9**: ✅ Complete - Z-Index Management (Layer Ordering)
 - **E3**: ✅ Complete - Text Tool with Formatting
 - **E10**: ✅ Complete - Continuous Text Editing (Re-edit Existing Text)
+- **E11**: ⏸️ Not Started - Comprehensive Testing Framework (Unit, Integration, Regression)
 - **E5**: ⏸️ Not Started - Owner-Only Edit Restrictions
 - **A0**: ❌ Deferred - Performance Optimization & Monitoring (moved to end)
 - **A1**: ⏸️ Not Started - Canvas Export Functionality
@@ -254,6 +255,325 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - Text objects are properly locked/unlocked during editing
 - Same object ID is updated (no duplication)
 - See notes/E10_TEXT_RE_EDITING_COMPLETE.md for full details
+
+---
+
+### Task E11: Implement Comprehensive Testing Framework
+
+**Objective**: Establish robust testing infrastructure to prevent regressions and ensure code reliability through unit tests, integration tests, and regression tests for all critical functionality.
+
+**Testing Strategy**:
+- **Unit Tests**: Test individual functions, utilities, and pure logic in isolation
+- **Integration Tests**: Test tool interactions, service + hook combinations, component integration
+- **Regression Tests**: Specific tests for each past bug fix to prevent reoccurrence
+- **Test-Driven Development (TDD)**: Write failing tests BEFORE implementing new features going forward
+- **Mock-First Approach**: Use full mocking for Firebase (fast, simple, no emulator needed)
+
+**Framework Stack**:
+- **Vitest**: Modern, fast, Vite-native test runner with built-in coverage
+- **React Testing Library**: User-centric component testing
+- **@testing-library/jest-dom**: Additional DOM matchers
+- **@testing-library/user-event**: Realistic user interaction simulation
+- **MSW (Mock Service Worker)**: Mock Firebase and API calls
+- **Vitest UI**: Visual test runner interface (optional but helpful)
+
+**Files to Create**:
+- `vitest.config.js` - Vitest configuration
+- `src/test/setup.js` - Global test setup and mocks
+- `src/test/mocks/firebase.js` - Firebase service mocks
+- `src/test/mocks/auth.js` - Authentication mocks
+- `src/test/fixtures/testData.js` - Reusable test fixtures (shapes, users, canvas states)
+- `src/test/utils/testHelpers.js` - Custom render functions, test utilities
+- `.github/workflows/test.yml` - CI/CD pipeline for automated testing
+- `docs/TESTING_GUIDE.md` - Testing guidelines and best practices
+- Individual test files co-located with source code (e.g., `SelectTool.test.js` next to `SelectTool.js`)
+
+**Files to Refactor** (for testability):
+- `src/components/canvas/Canvas.jsx` - Break into smaller components (1000+ lines currently)
+  - Extract rendering logic to `CanvasRenderer.jsx`
+  - Extract event handlers to hooks or utility functions
+  - Separate concerns: rendering, state, event handling, sync
+- Tool handlers - Extract pure calculation functions
+- Complex components - Split into presentation and container components
+
+**Phase 1: Setup & Infrastructure (Week 1)**
+
+1. **Install Testing Dependencies**:
+   ```bash
+   npm install --save-dev vitest @vitest/ui @testing-library/react @testing-library/jest-dom @testing-library/user-event jsdom msw
+   ```
+
+2. **Configure Vitest**:
+   - Create `vitest.config.js` with jsdom environment
+   - Enable globals, coverage reporting, and parallel test execution
+   - Set coverage thresholds: 75% overall, 90% for critical paths
+
+3. **Set Up Test Infrastructure**:
+   - Create global test setup file with beforeAll/afterEach/afterAll hooks
+   - Mock Firebase Firestore, RTDB, Auth, and Storage
+   - Create mock user data (bobtester@test.com)
+   - Set up MSW for network request mocking
+
+4. **Create Test Utilities**:
+   - Custom `renderWithProviders()` function for testing components with context
+   - `createTestCanvas()` factory for canvas state
+   - `createTestUser()` factory for user data
+   - `createTestShape()` factories for rectangles, circles, stars, text
+
+**Phase 2: Critical Path Testing (Week 2)**
+
+5. **Tools Testing** (90% coverage target):
+   - `src/tools/SelectTool.test.js`:
+     - Object selection (single click)
+     - Double-click to edit text
+     - Deselection on canvas click
+     - Ownership checks
+     - Keyboard shortcuts (Escape, Enter)
+   
+   - `src/tools/MoveTool.test.js`:
+     - Object dragging and position updates
+     - Boundary constraints
+     - Real-time sync simulation
+     - Ownership/locking during move
+   
+   - `src/tools/ResizeTool.test.js`:
+     - Corner handle resizing
+     - Maintain aspect ratio (with Shift)
+     - Boundary constraints during resize
+     - Rotated object resizing
+     - **REGRESSION**: E4 resize bug - handle crossover stability
+   
+   - `src/tools/RotateTool.test.js`:
+     - Rotation handle dragging
+     - Angle snapping (Shift + 15° increments)
+     - Manual angle input
+     - Rotation sync
+   
+   - `src/tools/TextTool.test.js`:
+     - Text creation on click
+     - Text editing with formatting (B, I, U)
+     - Font size and family changes
+     - Color picker integration
+     - Multi-line text (Shift+Enter)
+     - Save/Cancel functionality
+   
+   - `src/tools/RectangleTool.test.js`, `CircleTool.test.js`, `StarTool.test.js`:
+     - Shape creation by dragging
+     - Minimum size constraints
+     - Color application
+     - Ownership assignment
+
+6. **Geometry & Transform Utilities** (90% coverage target):
+   - Test rotation calculations and matrix transformations
+   - Test hit detection for rotated objects
+   - Test boundary checking algorithms
+   - Test resize calculations (normal and rotated objects)
+   - **REGRESSION**: Star hit detection fixes
+   - **REGRESSION**: Rotated text selection fixes
+   - **REGRESSION**: Star boundary and resize fixes
+
+7. **Services & Hooks** (80% coverage target):
+   - `src/services/canvas.service.test.js`:
+     - createObject(), updateObject(), deleteObject()
+     - CRUD operations with Firestore mocks
+     - Error handling and edge cases
+   
+   - `src/hooks/useObjectOwnership.test.js`:
+     - Object locking/unlocking
+     - Ownership acquisition and release
+     - Timeout handling
+     - Multi-user conflict scenarios
+   
+   - `src/hooks/useCollaboration.test.js`:
+     - Real-time object sync
+     - Cursor tracking and display
+     - Presence system integration
+   
+   - `src/hooks/useCursorTracking.test.js`:
+     - Cursor position updates
+     - Throttling (50-100ms)
+     - Multi-user cursor rendering
+
+**Phase 3: Component & Integration Testing (Week 3)**
+
+8. **Component Tests** (70% coverage target):
+   - `src/components/canvas/Canvas.test.jsx`:
+     - Canvas rendering with objects
+     - Tool switching
+     - Keyboard shortcuts (V, M, R, T, etc.)
+     - Object rendering (rectangles, circles, stars, text)
+     - Integration with tool handlers
+   
+   - `src/components/canvas/Toolbar.test.jsx`:
+     - Tool button rendering and selection
+     - Properties display (object info, cursor, zoom)
+     - Color picker integration
+     - Z-index controls
+     - Rotation angle input
+   
+   - `src/components/canvas/TextEditor.test.jsx`:
+     - Editor overlay positioning
+     - Formatting button toggles
+     - Font size/family selectors
+     - Save/cancel functionality
+     - Keyboard shortcuts in editor
+   
+   - `src/components/layout/Sidebar.test.jsx`:
+     - User list rendering
+     - Active users display
+     - Canvas list and switching
+
+9. **Integration Tests**:
+   - Full user flow: Create rectangle → Move it → Resize it → Rotate it → Verify saved
+   - Multi-tool workflow: Text tool → Create text → Select tool → Edit text → Verify updates
+   - Ownership flow: User A creates shape → User B cannot edit → User A releases → User B can edit
+   - Z-index flow: Create overlapping shapes → Bring to front → Send to back → Verify order
+
+**Phase 4: Regression Tests (Week 4)**
+
+10. **Create Regression Test Suite**:
+    - `src/test/regression/E4_resize_crossover.test.js` - Rectangle resize handle crossover bug
+    - `src/test/regression/star_hit_detection.test.js` - Star hit detection fixes
+    - `src/test/regression/star_resize.test.js` - Star resize handle and boundary fixes
+    - `src/test/regression/text_selection.test.js` - Rotated text selection fixes
+    - `src/test/regression/circle_boundary.test.js` - Circle boundary constraint fixes
+    - `src/test/regression/z_index_rendering.test.js` - Z-index rendering order fixes
+    - Each test should:
+      - Reproduce the original bug (commented out or in describe block)
+      - Verify the fix works correctly
+      - Link to bug documentation in notes/
+
+**Phase 5: CI/CD & Documentation (Week 4)**
+
+11. **Set Up GitHub Actions**:
+    - Create `.github/workflows/test.yml`:
+      - Run on every push and pull request
+      - Test on Node 18 and 20 (matrix)
+      - Cache node_modules for speed
+      - Run `npm test` with coverage
+      - Upload coverage reports
+      - Fail if coverage drops below 75%
+      - Fail if any tests fail (block merge)
+
+12. **Create Testing Documentation**:
+    - `docs/TESTING_GUIDE.md`:
+      - How to run tests (`npm test`, `npm run test:ui`, `npm run test:coverage`)
+      - How to write new tests (examples for tools, components, hooks)
+      - Testing best practices (arrange-act-assert, descriptive names, isolated tests)
+      - Mock patterns and examples
+      - Regression test procedures
+      - TDD workflow for new features
+
+13. **Update package.json Scripts**:
+    ```json
+    {
+      "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "test:ui": "vitest --ui",
+        "test:coverage": "vitest run --coverage",
+        "test:e2e": "playwright test"
+      }
+    }
+    ```
+
+**Testing Priorities** (by criticality):
+
+**🔴 Critical (90% coverage required)**:
+- SelectTool, MoveTool, ResizeTool, RotateTool, TextTool
+- Geometry calculations (rotation, hit detection, boundaries)
+- Ownership/locking logic
+- All regression tests for past bugs
+
+**🟡 Important (80% coverage required)**:
+- canvas.service.js CRUD operations
+- useObjectOwnership, useCollaboration hooks
+- Shape tools (Rectangle, Circle, Star)
+- useCursorTracking
+
+**🟢 Standard (70% coverage required)**:
+- Canvas, Toolbar, TextEditor components
+- Sidebar, Header components
+- Z-index management
+- Color picker integration
+
+**⚪ Optional (no minimum)**:
+- Simple UI wrappers
+- Styling components
+- One-line utility functions
+
+**Test-Driven Development (TDD) Going Forward**:
+
+From this point forward, for ALL new features and bug fixes:
+
+1. **Write Failing Test First**:
+   - Reproduce the bug or define expected behavior
+   - Run test → should fail (red)
+
+2. **Implement Fix/Feature**:
+   - Write minimal code to make test pass
+   - Run test → should pass (green)
+
+3. **Refactor**:
+   - Clean up code while keeping tests green
+   - Ensure no regressions
+
+4. **Document**:
+   - Add comments explaining why test exists
+   - Link to bug reports or feature specs
+
+**Acceptance Criteria**:
+- [ ] Vitest installed and configured with coverage reporting
+- [ ] Test infrastructure set up (mocks, utilities, fixtures)
+- [ ] All critical tools have comprehensive unit tests (90%+ coverage)
+- [ ] Geometry/transform utilities fully tested (90%+ coverage)
+- [ ] Services and hooks have integration tests (80%+ coverage)
+- [ ] Key components have rendering and interaction tests (70%+ coverage)
+- [ ] Regression test suite covers all past bugs (E4, star issues, text issues, etc.)
+- [ ] GitHub Actions CI runs tests on every PR
+- [ ] CI fails if coverage drops below 75% or any test fails
+- [ ] TESTING_GUIDE.md documents testing practices and examples
+- [ ] Canvas.jsx refactored into smaller, testable components
+- [ ] All tests pass consistently (no flaky tests)
+- [ ] Test output is clear and helpful when failures occur
+
+**Testing Steps** (to verify testing framework):
+1. Run `npm test` → All tests pass
+2. Run `npm run test:coverage` → Coverage meets thresholds (75% overall, 90% critical)
+3. Intentionally break a tool → Test fails and shows clear error message
+4. Fix the tool → Test passes again
+5. Push to GitHub → CI runs and passes
+6. Lower coverage → CI fails with coverage error
+7. Run `npm run test:ui` → Visual test interface works
+8. Run `npm run test:watch` → Watch mode re-runs tests on file changes
+
+**Ongoing Maintenance**:
+- Run tests before every commit (`git hooks` optional)
+- Review test failures in CI before merging PRs
+- Update tests when changing functionality
+- Add regression tests for every new bug fix
+- Refactor tests as code evolves
+- Keep test runtime under 30 seconds for fast feedback
+
+**Success Metrics**:
+- 75%+ overall code coverage maintained
+- 90%+ coverage on critical paths (tools, geometry, ownership)
+- Zero flaky tests (tests pass consistently)
+- CI test runs complete in under 2 minutes
+- Zero regressions of previously fixed bugs
+- New features delivered with tests (TDD)
+
+**Dependencies**: None - this task establishes foundation for future development
+
+**Status**: ⏸️ Not Started
+
+**Deferred to Stage 4**:
+- **End-to-End (E2E) Testing** with Playwright/Cypress:
+  - Browser automation testing with real user interactions
+  - Full user flow testing (login → create → edit → save → verify)
+  - Visual regression testing (screenshot comparisons)
+  - Cross-browser testing
+  - Deferred because: E2E tests are slow, flaky, and high-maintenance. Unit/integration tests provide 80% of value with 20% of effort. E2E tests are best added once all features are complete and stable.
 
 ---
 
@@ -730,7 +1050,7 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ## Next Steps
 
-**Stage 3 Progress: 9/14 tasks complete**
+**Stage 3 Progress: 9/15 tasks complete**
 
 Completed Enhanced Tools:
 - ✅ E1: Add Circle Creation Tool
@@ -745,6 +1065,7 @@ Completed Enhanced Tools:
 
 Remaining Enhanced Tools:
 - ⏸️ E5: Add Owner-Only Edit Restrictions
+- ⏸️ E11: Comprehensive Testing Framework (Unit, Integration, Regression)
 
 Remaining Advanced Features:
 - ⏸️ A1: Implement Canvas Export Functionality
@@ -756,19 +1077,29 @@ Deferred (moved to end or separate stage):
 - ❌ A0: Performance Optimization & Monitoring
 
 **Recommended Order**:
-1. **E5 (Ownership UI)** - Visual ownership indicators and edit restrictions ← **RECOMMENDED NEXT**
-2. **A2 (Undo/Redo System)** - Critical safety net for destructive operations
-3. **A4 (Object Deletion)** - Delete key functionality (safe with undo/redo)
-4. **A1 (Canvas Export)** - PNG/SVG export functionality
-5. **A3 (Toolbar Design)** - Visual polish and refinement
-6. **A0 (Performance)** - Optimization and monitoring (deferred to end)
+1. **E11 (Testing Framework)** - Establish testing infrastructure and prevent future regressions ← **DOING NOW**
+2. **E5 (Ownership UI)** - Visual ownership indicators and edit restrictions
+3. **A2 (Undo/Redo System)** - Critical safety net for destructive operations
+4. **A4 (Object Deletion)** - Delete key functionality (safe with undo/redo)
+5. **A1 (Canvas Export)** - PNG/SVG export functionality
+6. **A3 (Toolbar Design)** - Visual polish and refinement
+7. **A0 (Performance)** - Optimization and monitoring (deferred to end)
 
-**Why E5 Next?**
-- Completes all Enhanced Tools (E1-E10)
+**Why E11 First?**
+- Establishes testing foundation to prevent regressions going forward
+- Creates safety net before implementing complex features (E5, A2, A4)
+- Enables Test-Driven Development (TDD) for all future work
+- Catches bugs early and reduces debugging time
+- Critical for maintaining code quality as codebase grows
+- Should have been implemented from the beginning, doing it now before more complexity is added
+
+**Why E5 Next (After E11)?**
+- Completes all Enhanced Tools (E1-E11)
 - Visual ownership indicators improve collaborative UX
 - Edit restrictions prevent conflicts in multi-user scenarios
 - Foundation for safe deletion (A4) - users need to know who owns what before deleting
 - Relatively contained scope (visual indicators + interaction blocking)
+- Can be developed with TDD using new testing framework
 
 **Why A2 Before A4?**
 - Undo/Redo is the safety net for deletion
