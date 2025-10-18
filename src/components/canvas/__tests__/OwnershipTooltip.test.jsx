@@ -1,13 +1,8 @@
 import { render } from '@testing-library/react'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import OwnershipTooltip from '../OwnershipTooltip'
 
-// Mock Konva components
-vi.mock('react-konva', () => ({
-  Group: ({ children, ...props }) => <group data-testid="konva-group" {...props}>{children}</group>,
-  Rect: (props) => <rect data-testid="konva-rect" {...props} />,
-  Text: (props) => <text data-testid="konva-text" {...props} />
-}))
+// react-konva is mocked globally in src/test/setup.js
 
 describe('OwnershipTooltip', () => {
   it('should render tooltip with owner name', () => {
@@ -22,7 +17,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const text = getByTestId('konva-text')
-    expect(text).toHaveProperty('text', 'Being edited by Alice')
+    expect(text.dataset.text).toBe('Being edited by Alice')
   })
 
   it('should not render when ownerName is null', () => {
@@ -66,7 +61,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const rect = getByTestId('konva-rect')
-    expect(rect).toHaveProperty('fill', ownerColor)
+    expect(rect.dataset.fill).toBe(ownerColor)
   })
 
   it('should use fallback color when ownerColor is not provided', () => {
@@ -81,7 +76,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const rect = getByTestId('konva-rect')
-    expect(rect).toHaveProperty('fill', '#333333')
+    expect(rect.dataset.fill).toBe('#333333')
   })
 
   it('should scale elements based on stageScale', () => {
@@ -98,7 +93,7 @@ describe('OwnershipTooltip', () => {
 
     const text = getByTestId('konva-text')
     // Font size should be 12 / stageScale = 12 / 2 = 6
-    expect(text).toHaveProperty('fontSize', 12 / stageScale)
+    expect(Number(text.dataset.fontSize)).toBe(12 / stageScale)
   })
 
   it('should position tooltip with offset from cursor', () => {
@@ -132,7 +127,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const text = getByTestId('konva-text')
-    expect(text).toHaveProperty('fill', '#ffffff')
+    expect(text.dataset.fill).toBe('#ffffff')
   })
 
   it('should disable interaction (listening=false)', () => {
@@ -147,7 +142,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const group = getByTestId('konva-group')
-    expect(group).toHaveProperty('listening', false)
+    expect(group.dataset.listening).toBe('false')
   })
 
   it('should format message correctly', () => {
@@ -163,7 +158,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const text = getByTestId('konva-text')
-    expect(text).toHaveProperty('text', `Being edited by ${ownerName}`)
+    expect(text.dataset.text).toBe(`Being edited by ${ownerName}`)
   })
 
   it('should handle long owner names', () => {
@@ -179,7 +174,7 @@ describe('OwnershipTooltip', () => {
     )
 
     const text = getByTestId('konva-text')
-    expect(text).toHaveProperty('text', `Being edited by ${longName}`)
+    expect(text.dataset.text).toBe(`Being edited by ${longName}`)
   })
 
   it('should handle empty string owner name', () => {
@@ -212,7 +207,7 @@ describe('OwnershipTooltip', () => {
     const text = getByTestId('konva-text')
     // When zoomed out (small scale), elements should be larger relative to stage
     // fontSize = 12 / 0.5 = 24
-    expect(text).toHaveProperty('fontSize', 12 / smallZoom)
+    expect(Number(text.dataset.fontSize)).toBe(12 / smallZoom)
   })
 
   it('should adjust size based on zoom level (large zoom)', () => {
@@ -230,7 +225,7 @@ describe('OwnershipTooltip', () => {
     const text = getByTestId('konva-text')
     // When zoomed in (large scale), elements should be smaller relative to stage
     // fontSize = 12 / 3 = 4
-    expect(text).toHaveProperty('fontSize', 12 / largeZoom)
+    expect(Number(text.dataset.fontSize)).toBe(12 / largeZoom)
   })
 })
 

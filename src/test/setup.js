@@ -12,6 +12,115 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+// Mock react-konva components globally
+import React from 'react';
+
+vi.mock('react-konva', () => {
+  // Create a Stage component that provides container() method
+  const Stage = React.forwardRef(({ children, ...props }, ref) => {
+    const divRef = React.useRef(null);
+    
+    // Attach Konva Stage methods to the ref
+    React.useImperativeHandle(ref, () => ({
+      container: () => divRef.current || document.createElement('div'),
+      getPointerPosition: () => ({ x: 0, y: 0 }),
+      scale: () => ({ x: 1, y: 1 }),
+      scaleX: () => 1,
+      scaleY: () => 1,
+      x: () => 0,
+      y: () => 0,
+      width: () => 800,
+      height: () => 600,
+      getStage: () => ref?.current,
+      position: () => ({ x: 0, y: 0 }),
+      setPosition: vi.fn(),
+      setScale: vi.fn(),
+      batchDraw: vi.fn(),
+      draw: vi.fn(),
+      find: vi.fn(() => []),
+      findOne: vi.fn(() => null)
+    }));
+    
+    return React.createElement('div', { 
+      'data-testid': 'konva-stage', 
+      ref: divRef,
+      ...props 
+    }, children);
+  });
+  
+  return {
+  Stage,
+  Layer: React.forwardRef(({ children, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: {}
+    }));
+    return React.createElement('div', { 'data-testid': 'konva-layer', ...props }, children);
+  }),
+  Group: React.forwardRef(({ children, listening, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: { listening }
+    }));
+    return React.createElement('div', { 'data-testid': 'konva-group', 'data-listening': String(listening), ...props }, children);
+  }),
+  Rect: React.forwardRef(({ fill, cornerRadius, shadowColor, shadowOffsetX, shadowOffsetY, shadowBlur, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: { fill, cornerRadius }
+    }));
+    return React.createElement('div', { 
+      'data-testid': 'konva-rect', 
+      'data-fill': fill,
+      'data-corner-radius': cornerRadius,
+      ...props 
+    });
+  }),
+  Text: React.forwardRef(({ text, fontSize, fill, verticalAlign, ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: { text, fontSize, fill, verticalAlign }
+    }));
+    return React.createElement('div', { 
+      'data-testid': 'konva-text', 
+      'data-text': text,
+      'data-font-size': fontSize,
+      'data-fill': fill,
+      'data-vertical-align': verticalAlign,
+      ...props 
+    });
+  }),
+  Circle: React.forwardRef(({ ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: {}
+    }));
+    return React.createElement('div', { 'data-testid': 'konva-circle', ...props });
+  }),
+  Star: React.forwardRef(({ ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: {}
+    }));
+    return React.createElement('div', { 'data-testid': 'konva-star', ...props });
+  }),
+  Transformer: React.forwardRef(({ ...props }, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      getStage: () => null,
+      getParent: () => null,
+      attrs: {}
+    }));
+    return React.createElement('div', { 'data-testid': 'konva-transformer', ...props });
+  })
+  };
+});
+
 // Mock Firebase services globally
 vi.mock('@/config/firebase', () => ({
   db: {

@@ -452,7 +452,8 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Helper function to get mouse position relative to canvas
   // Returns null if click is above the clipping boundary (in header/toolbar area)
   const getMousePos = useCallback((e) => {
-    const stage = e.target.getStage();
+    const stage = e.target.getStage?.();
+    if (!stage) return null; // Handle mocked/test environments
     const pointer = stage.getPointerPosition();
     
     // Check if click is in the clipped area (above toolbar)

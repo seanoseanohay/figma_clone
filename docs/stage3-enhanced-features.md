@@ -2213,9 +2213,506 @@ Benefits:
 
 ---
 
+### Task E14: Automatic Selection for Transform Tools
+
+**Objective**: Unify object interaction across Move, Rotate, and Resize tools so they automatically select any shape the user interacts with. Each tool should immediately select the target shape on click or drag — eliminating the need to enter a separate Select mode — but transformations must **only** apply to a single shape at a time.
+
+**Background Context**:
+- **E13** unified Select + Move tools for basic manipulation
+- **E14** extends that auto-select paradigm to transformation tools (Rotate/Resize)
+- Ensures consistent interaction model across all manipulation tools
+- Maintains single-object constraint for transforms that don't make sense in multi-select
+
+**Current Behavior Problems**:
+- User must manually select object before rotating or resizing
+- Extra click required: Select Tool → Click Object → Switch to Transform Tool
+- Inconsistent with E13's unified Select+Move approach
+- Breaks workflow flow and adds cognitive overhead
+
+**New Unified Behavior**:
+
+**1. Auto-Select on Interaction**:
+- When using Move, Rotate, or Resize, clicking or dragging a shape automatically selects it before applying the action
+- Hover highlight indicates which shape will be selected
+- No need to switch to Select tool first
+- Immediate transformation begins after auto-selection
+
+**2. Single-Target Enforcement (Rotate & Resize)**:
+- Rotate and Resize tools ignore existing multi-selections
+- When activated, these tools work on only the single shape under cursor
+- If multiple shapes are already selected, these tools operate on the *first clicked shape only*
+- Multi-selection is temporarily collapsed to single shape
+- **Rationale**: Rotating/resizing multiple objects with different centers creates unpredictable results
+
+**3. Multi-Selection Support (Move Tool)**:
+- Move tool still supports multi-selection when multiple items are Shift-clicked
+- Consistent with E13 unified Select+Move behavior
+- Group movement maintains relative positions
+- Works seamlessly with E12 multi-selection system
+
+**4. Unified Selection State**:
+- All tools share a central `activeSelection` state (or SelectionManager)
+- Switching tools preserves selection unless new object is clicked
+- Canvas click on empty space clears selection
+- Escape key clears selection globally
+
+**5. Keyboard Modifiers**:
+- `Shift` + click = additive selection (for Move tool only)
+- `Alt` + drag = duplicate (move tool only) - future enhancement
+- No multi-select modifiers for Rotate or Resize
+- All standard keyboard shortcuts still work (V, M, R, T, etc.)
+
+**Files to Modify**:
+- `src/tools/MoveTool.js` - Already has auto-select from E13, ensure consistency
+- `src/tools/RotateTool.js` - Add auto-select on click/drag
+- `src/tools/ResizeTool.js` - Add auto-select on click/drag
+- `src/components/canvas/Canvas.jsx` - Unified selection state management
+- `src/hooks/useSelection.js` - Create centralized selection manager (optional)
+
+**Specific Implementation Changes**:
+
+**1. RotateTool Auto-Selection**:
+```javascript
+onMouseDown(e, stage, canvasObjects, setState, getState) {
+  const clickedObject = getObjectAtPoint(e.evt.clientX, e.evt.clientY);
+  
+  if (clickedObject && canEditObject(clickedObject.id)) {
+    // Auto-select on click
+    setSelectedObjectId(clickedObject.id);
+    lockObject(clickedObject.id);
+    
+    // Begin rotation
+    startRotation(clickedObject);
+  }
+}
+```
+
+**2. ResizeTool Auto-Selection**:
+```javascript
+onMouseDown(e, stage, canvasObjects, setState, getState) {
+  const clickedObject = getObjectAtPoint(e.evt.clientX, e.evt.clientY);
+  const handleInfo = getResizeHandle(e.evt.clientX, e.evt.clientY);
+  
+  if (clickedObject && handleInfo && canEditObject(clickedObject.id)) {
+    // Auto-select on handle click
+    setSelectedObjectId(clickedObject.id);
+    lockObject(clickedObject.id);
+    
+    // Begin resize
+    startResize(clickedObject, handleInfo);
+  }
+}
+```
+
+**3. Hover Preview (All Tools)**:
+- Show subtle highlight on hovered object (2px blue outline)
+- Cursor changes to indicate action (rotate cursor, resize arrows, move hand)
+- Locked objects show red outline + "Locked by [User]" tooltip
+- Clear visual feedback before interaction begins
+
+**4. Multi-Selection Handling**:
+- Rotate/Resize: Clicking object in multi-selection reduces to single selection
+- Move: Maintains multi-selection, moves all selected objects as group
+- Visual feedback shows which objects will be affected
+
+**Interaction Flow Examples**:
+
+**Scenario 1: Single Object Rotation**
+```
+User activates Rotate tool → Hovers over rectangle → Rectangle highlights
+User clicks rectangle → Rectangle auto-selects → Rotation handle appears
+User drags handle → Rectangle rotates → Release → Rotation saved
+```
+
+**Scenario 2: Multi-Selection to Single Transform**
+```
+User has 3 objects selected (multi-select from E12)
+User switches to Rotate tool → Clicks object #2
+Objects #1 and #3 deselect → Only object #2 selected → Rotates
+```
+
+**Scenario 3: Move Tool with Multi-Selection**
+```
+User has 3 objects selected → Switches to Move tool (E13 unified)
+User drags any of the 3 objects → All 3 move together as group
+```
+
+**Acceptance Criteria**:
+- [ ] Rotate tool auto-selects object on click (no pre-selection needed)
+- [ ] Resize tool auto-selects object on handle click
+- [ ] Move tool maintains multi-selection behavior (from E13)
+- [ ] Hover highlights show which object will be selected
+- [ ] Cursor changes appropriately for each tool
+- [ ] Multi-selection collapses to single object for Rotate/Resize
+- [ ] Selection state persists when switching between tools
+- [ ] Click empty space clears all selections
+- [ ] Escape key clears all selections
+- [ ] Ownership checks prevent selecting locked objects
+- [ ] Visual feedback clearly indicates selection state
+- [ ] No regressions in existing tool behavior
+
+**Testing Steps**:
+1. **Rotate Auto-Select**: Click unselected shape with Rotate tool → Shape auto-selects and rotation handle appears
+2. **Resize Auto-Select**: Click unselected shape with Resize tool → Shape auto-selects and resize handles appear
+3. **Multi-Select Collapse**: Select 2 shapes → Switch to Rotate → Click one shape → Only that shape selected
+4. **Move Multi-Select**: Select 2 shapes → Switch to Move → Drag one → Both move together
+5. **Hover Preview**: Hover over shapes with each tool → Verify highlight and cursor changes
+6. **Tool Switching**: Select shape → Switch between tools → Verify selection persists
+7. **Empty Space**: Click empty space → Verify all selections cleared
+8. **Escape Key**: Press Escape → Verify all selections cleared
+9. **Ownership**: Hover over locked shape → Verify cannot select, shows locked indicator
+10. **All Object Types**: Test with rectangles, circles, stars, text
+
+**Edge Cases to Handle**:
+- What if user clicks object while another user has it locked? → Show "Locked by [User]" message, no selection
+- What if user is offline during selection? → Selection works locally, syncs when reconnected
+- What if object is deleted while transform is in progress? → Cancel transform, clear selection
+- What if user rapidly switches between multiple objects? → Each click updates selection immediately
+- What if resize handle overlaps with another object? → Handle takes priority over object body
+
+**Integration with Other Tasks**:
+- **Depends on E13**: Uses unified Select+Move paradigm as foundation
+- **Works with E12**: Respects multi-selection for Move tool, collapses for transforms
+- **Works with E5**: Respects ownership/locking system throughout
+- **Works with B5**: Delete tool can also adopt auto-select pattern
+
+**Why Different from E13**:
+- **E13** merged Select + Move into single tool (eliminates tool button)
+- **E14** adds auto-selection to existing transform tools (keeps separate buttons)
+- **E13** focused on navigation and basic manipulation
+- **E14** extends to complex transformations with single-object constraints
+
+**Benefits**:
+- **Eliminates Redundant Clicks**: No more Select → Click → Switch Tool workflow
+- **Prevents Group Distortion**: Single-object transforms avoid multi-select accidents
+- **Matches Industry UX**: Figma/Sketch behavior for transform tools
+- **Consistent Interaction Model**: All tools use same auto-select paradigm
+- **Simplified Code**: Centralized selection manager reduces duplication
+
+**Visual Design**:
+- Hover state: 2px solid blue outline (#3B82F6)
+- Selected state: 2px solid blue outline + handles
+- Locked object hover: 2px solid red outline (#EF4444) + tooltip
+- Multi-select (Move only): 2px solid purple outline (#8B5CF6)
+- Cursor changes: rotate cursor (🔄), resize arrows (↔️ ↕️ ⤡), move hand (👆)
+
+**Priority**: 🟡 **High** - Completes unified interaction model started in E13
+
+**Status**: ⏸️ Not Started
+
+**Dependencies**:
+- Requires E13 (Tool Consolidation) for unified selection foundation
+- Works with E12 (Multi-Selection) for Move tool group operations
+- Integrates with E5 (Ownership) for locked object handling
+
+**Notes**:
+- This task completes the interaction model overhaul started in E13
+- After E14, all manipulation tools will have consistent, predictable behavior
+- Sets foundation for future enhancements (Alt+drag duplicate, alignment tools, etc.)
+- Consider this the final piece of the "modern design tool UX" puzzle
+
+---
+
+### Task E15: Real-Time Sync for Rotation and Resizing
+
+**Objective**: Extend existing real-time movement synchronization so all users instantly see **rotation** and **resize** changes as they occur, matching the current behavior of `position` updates. This ensures full real-time parity between transform types and eliminates visual desync between collaborators.
+
+**Background Context**:
+- **Movement sync exists**: Position updates (x, y) already sync in real-time via RTDB
+- **Rotation/Resize incomplete**: These transforms only sync on mouseup (final state)
+- **Gap in UX**: Collaborators see delayed updates for rotation and resize, breaking immersion
+- **E6 (Rotation Tool)** and **E4 (Resize Tool)** implemented the features but not real-time sync
+
+**Current Behavior Problems**:
+- User A rotates shape → User B sees nothing until rotation completes (mouseup)
+- User A resizes shape → User B sees nothing until resize completes (mouseup)
+- Movement is smooth and instant, but rotation/resize feel laggy and disconnected
+- Inconsistent real-time experience across transform types
+
+**Implementation Plan**:
+
+**1. Current State Reference**:
+```javascript
+// Movement already works like this:
+onObjectMove() {
+  // Write to RTDB during drag
+  rtdb.ref(`canvases/${canvasId}/objects/${objectId}`).update({
+    x: newX,
+    y: newY,
+    lastUpdated: timestamp
+  });
+}
+
+// Other clients subscribe:
+rtdb.ref(`canvases/${canvasId}/objects`).on('value', (snapshot) => {
+  // Update local canvas immediately
+  updateObjectPosition(objectId, newX, newY);
+});
+```
+
+**2. Enhancements to Implement**:
+
+Add rotation and size attributes (`rotation`, `width`, `height`, `radius`) to the same real-time sync flow.
+
+**For Rotation (RotateTool.js)**:
+```javascript
+onMouseMove(e, stage, canvasObjects, setState, getState) {
+  const newRotation = calculateRotation(e);
+  
+  // Local immediate update
+  setState({ currentRotation: newRotation });
+  
+  // Real-time broadcast (throttled)
+  throttledUpdate(() => {
+    rtdb.ref(`canvases/${canvasId}/objects/${objectId}`).update({
+      rotation: newRotation,
+      lastUpdated: Date.now()
+    });
+  }, 30); // 30ms throttle
+}
+```
+
+**For Resize (ResizeTool.js)**:
+```javascript
+onMouseMove(e, stage, canvasObjects, setState, getState) {
+  const { width, height, radius } = calculateNewSize(e);
+  
+  // Local immediate update
+  setState({ currentWidth: width, currentHeight: height });
+  
+  // Real-time broadcast (throttled)
+  throttledUpdate(() => {
+    const updates = { lastUpdated: Date.now() };
+    if (width !== undefined) updates.width = width;
+    if (height !== undefined) updates.height = height;
+    if (radius !== undefined) updates.radius = radius;
+    
+    rtdb.ref(`canvases/${canvasId}/objects/${objectId}`).update(updates);
+  }, 30); // 30ms throttle
+}
+```
+
+**3. Ownership and Permissions**:
+- Maintain the same edit rules as movement:
+  - Only the owning user can perform real-time transforms
+  - Locked or foreign-owned shapes ignore local transform attempts
+  - Visual feedback ("Locked by [User Name]") shown when denied
+- Use existing `canEditObject()` checks before writing to RTDB
+- Lock object on transform start, unlock on transform end
+
+**4. Networking / Event Flow**:
+```javascript
+// Write operations (throttled during drag):
+onRotate(shapeId, newAngle) → rtdb.update({ rotation: newAngle, lastUpdated: timestamp })
+onResize(shapeId, newWidth, newHeight) → rtdb.update({ width: newWidth, height: newHeight, lastUpdated: timestamp })
+
+// Read operations (all clients):
+onSnapshot(change) → {
+  if (change.key === 'rotation') updateRotation(objectId, change.val());
+  if (change.key === 'width' || change.key === 'height') updateSize(objectId, change.val());
+}
+```
+
+**Conflict Resolution**:
+- Use `lastUpdated` timestamp for last-writer-wins
+- If multiple users somehow edit same object (shouldn't happen with locking), newest wins
+- Firestore remains source of truth for final state (written on mouseup)
+
+**5. Performance Considerations**:
+
+**Throttling Strategy**:
+```javascript
+// Throttle real-time updates to 30ms (33 FPS)
+const throttledRotationUpdate = throttle((objectId, rotation) => {
+  rtdb.ref(`canvases/${canvasId}/objects/${objectId}`).update({
+    rotation,
+    lastUpdated: Date.now()
+  });
+}, 30);
+
+// Batch multiple properties if updated in same frame
+const throttledTransformUpdate = throttle((objectId, updates) => {
+  rtdb.ref(`canvases/${canvasId}/objects/${objectId}`).update({
+    ...updates,
+    lastUpdated: Date.now()
+  });
+}, 30);
+```
+
+**Optimization Techniques**:
+- Throttle transform writes to 20–30ms to reduce DB load (same as cursor tracking)
+- Batch rotation and size updates with position if multiple transforms occur in one frame
+- Use transaction-safe updates to prevent overwriting ownership fields
+- Only sync transforms for objects currently being edited (not all objects)
+- Debounce final Firestore write on mouseup (already implemented)
+
+**Files to Modify**:
+- `src/tools/RotateTool.js` - Add real-time rotation sync during drag
+- `src/tools/ResizeTool.js` - Add real-time resize sync during drag
+- `src/services/canvas.service.js` - Add throttled RTDB update helpers
+- `src/hooks/useAdvancedThrottling.js` - May need to extend for transform sync
+- `src/components/canvas/Canvas.jsx` - Subscribe to rotation/resize changes in RTDB
+
+**Specific Implementation Steps**:
+
+**Step 1: Add RTDB Sync to RotateTool**
+```javascript
+// In RotateTool.js onMouseMove
+const newRotation = calculateRotation(mouseX, mouseY, centerX, centerY);
+
+// Update local state immediately
+setRotateState({ ...rotateState, currentRotation: newRotation });
+
+// Sync to RTDB (throttled)
+if (this.throttledRotationSync) {
+  this.throttledRotationSync(objectId, newRotation);
+}
+```
+
+**Step 2: Add RTDB Sync to ResizeTool**
+```javascript
+// In ResizeTool.js onMouseMove
+const { width, height, x, y } = calculateNewSize(handle, mouseX, mouseY);
+
+// Update local state immediately
+setResizeState({ currentWidth: width, currentHeight: height });
+
+// Sync to RTDB (throttled)
+if (this.throttledResizeSync) {
+  this.throttledResizeSync(objectId, { width, height, x, y });
+}
+```
+
+**Step 3: Create Throttled Sync Helpers**
+```javascript
+// In canvas.service.js or separate sync service
+export const syncTransformToRTDB = throttle((canvasId, objectId, updates) => {
+  const rtdbRef = rtdb.ref(`canvases/${canvasId}/activeObjects/${objectId}`);
+  return rtdbRef.update({
+    ...updates,
+    lastUpdated: Date.now()
+  });
+}, 30);
+```
+
+**Step 4: Subscribe to Transform Changes**
+```javascript
+// In Canvas.jsx useEffect
+useEffect(() => {
+  const rtdbRef = rtdb.ref(`canvases/${canvasId}/activeObjects`);
+  
+  const handleTransformChange = (snapshot) => {
+    const data = snapshot.val();
+    if (!data) return;
+    
+    Object.entries(data).forEach(([objectId, updates]) => {
+      // Skip if we own this object (local state is already updated)
+      if (doWeOwnObject(objectId)) return;
+      
+      // Apply rotation changes
+      if (updates.rotation !== undefined) {
+        updateLocalObjectRotation(objectId, updates.rotation);
+      }
+      
+      // Apply size changes
+      if (updates.width || updates.height || updates.radius) {
+        updateLocalObjectSize(objectId, {
+          width: updates.width,
+          height: updates.height,
+          radius: updates.radius
+        });
+      }
+    });
+  };
+  
+  rtdbRef.on('value', handleTransformChange);
+  
+  return () => rtdbRef.off('value', handleTransformChange);
+}, [canvasId, doWeOwnObject]);
+```
+
+**Acceptance Criteria**:
+- [ ] Rotation changes sync to other clients during drag (< 100ms perceived latency)
+- [ ] Resize changes sync to other clients during drag (< 100ms perceived latency)
+- [ ] Transform sync is throttled to ~30ms (matches cursor tracking)
+- [ ] Only object owner can trigger real-time updates
+- [ ] Locked objects show "Locked by [User]" when others attempt to transform
+- [ ] Final state written to Firestore on mouseup (existing behavior preserved)
+- [ ] No visual flicker or jitter during real-time updates
+- [ ] Performance remains smooth with 20+ concurrent transforms
+- [ ] Offline/reconnect scenarios handle gracefully (state resyncs)
+- [ ] No memory leaks from RTDB listeners
+- [ ] Batch updates when multiple transforms occur simultaneously
+
+**Testing Steps**:
+1. **Basic Rotation Sync**: Open canvas on two clients → User A rotates shape → User B sees rotation instantly (< 100ms)
+2. **Basic Resize Sync**: User A resizes shape → User B sees size change instantly
+3. **Ownership Check**: User A locks shape → User B attempts to rotate → Denied with "Locked by User A" message
+4. **Throttling Verification**: Monitor RTDB writes during rotation → Verify ~30ms intervals, not every mousemove
+5. **Multiple Objects**: Both users transform different shapes simultaneously → Verify no conflicts or dropped updates
+6. **Stress Test**: Create 20+ shapes → Multiple users transform concurrently → Verify smooth playback and minimal flicker
+7. **Network Issues**: Simulate temporary disconnect → Transform shape → Reconnect → Verify rotation/resize state resyncs correctly
+8. **All Shape Types**: Test with rectangles, circles, stars, text → Verify rotation and appropriate resize behavior
+9. **Firestore Consistency**: After real-time transform → Check Firestore → Verify final state matches
+10. **Memory Leaks**: Transform 100+ objects → Check memory usage → Verify no listener leaks
+
+**Edge Cases to Handle**:
+- What if user drags very fast (100+ mousemove events/sec)? → Throttling prevents DB overload
+- What if network latency is high (>500ms)? → Local state updates immediately, others catch up when possible
+- What if two users somehow edit same object? → Last-writer-wins via timestamp, but locking should prevent this
+- What if object is deleted during transform? → Listener cleanup, cancel transform, show error
+- What if user goes offline during transform? → Local state preserves, syncs on reconnect
+- What if RTDB quota is exceeded? → Graceful degradation, fall back to Firestore-only sync
+
+**Integration with Other Tasks**:
+- **Works with E6**: Rotation tool real-time sync
+- **Works with E4**: Resize tool real-time sync  
+- **Works with E5**: Respects ownership/locking system
+- **Works with E13/E14**: Unified selection model applies to real-time sync
+- **Works with E12**: Multi-selection doesn't affect sync (single object transforms only)
+
+**Why This Task Matters**:
+- **Achieves Complete Real-Time Parity**: Position, rotation, and size all live-sync across users
+- **Figma-Grade Responsiveness**: Aligns collaborative experience with industry standards
+- **Consistent Sync Mechanism**: All transform types use same real-time architecture
+- **Better Collaboration**: Users see exactly what teammates are doing in real-time
+- **Professional Feel**: No more laggy, disconnected transform updates
+
+**Visual Feedback**:
+- Transform in progress indicator (subtle pulsing outline)
+- Remote user's cursor visible during transform (from existing cursor tracking)
+- Smooth interpolation of remote transforms (no jarring jumps)
+- Loading state if network is slow (< 1% of cases)
+
+**Performance Benchmarks**:
+- Transform update latency: < 100ms perceived, < 50ms actual (network permitting)
+- RTDB write frequency: ~30ms intervals (33 FPS, matches cursor tracking)
+- CPU overhead: < 2% additional CPU usage for real-time sync
+- Memory overhead: < 10MB for RTDB listeners and throttle buffers
+- Network bandwidth: ~1KB/sec per active transform (negligible)
+
+**Priority**: 🟢 **Medium-High** - Completes real-time collaboration experience
+
+**Status**: ⏸️ Not Started
+
+**Dependencies**:
+- Requires E6 (Rotation Tool) ✅ Complete
+- Requires E4 (Resize fixes) ✅ Complete
+- Requires E5 (Ownership) ✅ Complete for locking checks
+- Uses existing RTDB infrastructure from cursor tracking
+- Works with E13/E14 unified selection model
+
+**Notes**:
+- This task completes the real-time sync story started with movement sync
+- After E15, all transform operations will have consistent real-time behavior
+- Consider adding visual "transform in progress" indicators for enhanced UX
+- Future: Could add interpolation/smoothing for ultra-smooth remote playback
+
+---
+
 ## Next Steps
 
-**Stage 3 Progress: 11/15 tasks complete**
+**Stage 3 Progress: 11/20 tasks complete** (Enhanced Tools section)
 
 **✅ Completed Enhanced Tools** (11 complete):
 - ✅ E1: Add Circle Creation Tool
@@ -2230,23 +2727,51 @@ Benefits:
 - ✅ E10: Enable Continuous Text Editing (Re-edit Existing Text)
 - ✅ E11: Comprehensive Testing Framework (96.7% passing - 491/508 tests)
 
-Remaining Advanced Features:
+**⏸️ Remaining Enhanced Tools** (4 not started):
+- ⏸️ E12: Multi-Object Selection System (foundation for E13, E14, B5)
+- ⏸️ E13: Tool Consolidation - Merge Select + Move Tools (depends on E12)
+- ⏸️ E14: Automatic Selection for Transform Tools (depends on E13, works with E12)
+- ⏸️ E15: Real-Time Sync for Rotation and Resizing (works with E6, E4, E5)
+
+**⏸️ Bug Fixes/Improvements** (5 not started):
+- ⏸️ B1: Redesign Toolbar with Figma-Compact Spacing
+- ⏸️ B2: Fix Rotation/Resize Tool Interaction Bug (✅ COMPLETE per user)
+- ⏸️ B3: Implement Object Deletion Tool (✅ COMPLETE per user)
+- ⏸️ B4: Fix Rotation/Resize Tool State Synchronization Bug
+- ⏸️ B5: Redesign Delete Tool as Click-to-Delete (works with E12/E13/E14)
+
+**⏸️ Advanced Features** (4 not started):
 - ⏸️ A1: Implement Canvas Export Functionality
-- ⏸️ A2: Add Undo/Redo System
+- ⏸️ A2: Add Undo/Redo System (6-sprint breakdown available)
 - ⏸️ A3: Enhance Toolbar Design
 - ⏸️ A4: Implement Object Deletion (depends on A2)
 
 Deferred (moved to end or separate stage):
 - ❌ A0: Performance Optimization & Monitoring
 
-**Recommended Order**:
+**Recommended Order** (Updated with new UX tasks):
+
+**Phase 1: Foundation** (✅ Complete)
 1. ✅ **E11 (Testing Framework)** - COMPLETE! 96.7% passing, testing infrastructure established
 2. ✅ **E5 (Ownership UI)** - COMPLETE! Visual ownership indicators and edit restrictions
-3. **A2 (Undo/Redo System)** - Critical safety net for destructive operations ← **NEXT**
-4. **A4 (Object Deletion)** - Delete key functionality (safe with undo/redo)
-5. **A1 (Canvas Export)** - PNG/SVG export functionality
-6. **A3 (Toolbar Design)** - Visual polish and refinement
-7. **A0 (Performance)** - Optimization and monitoring (deferred to end)
+
+**Phase 2: Modern UX Improvements** (Next Priority)
+3. **E12 (Multi-Object Selection)** - Foundation for E13, E14, B5 ← **START HERE**
+4. **E13 (Tool Consolidation)** - Merge Select + Move (depends on E12)
+5. **E14 (Auto-Select Transforms)** - Rotate/Resize auto-select (depends on E13)
+6. **B5 (Click-to-Delete Tool)** - Redesign delete UX (works with E12/E13/E14)
+7. **B4 (Fix Rotate/Resize Bug)** - Tool state synchronization fix
+8. **E15 (Real-Time Sync)** - Rotation/resize real-time sync (independent, can do anytime)
+
+**Phase 3: Safety & Stability** (Critical Features)
+9. **A2 (Undo/Redo System)** - Critical safety net for destructive operations (6 sprints)
+10. **A4 (Object Deletion Enhancement)** - Depends on A2 for undo support
+
+**Phase 4: Export & Polish** (Final Features)
+11. **A1 (Canvas Export)** - PNG/SVG export functionality
+12. **A3 (Toolbar Design)** - Visual polish and refinement (or integrate with E12-E14)
+13. **B1 (Figma-Compact Spacing)** - Toolbar spacing redesign (coordinate with A3)
+14. **A0 (Performance)** - Optimization and monitoring (deferred to end or Stage 4)
 
 **Why E11 Was First? (COMPLETED)**
 - ✅ Established testing foundation to prevent regressions
@@ -2264,10 +2789,32 @@ Deferred (moved to end or separate stage):
 - ✅ User-specific colored borders and hover tooltips implemented
 - ✅ Comprehensive unit tests with TDD approach
 
-**Why A2 Before A4?**
-- Undo/Redo is the safety net for deletion
+**Why Phase 2 (E12→E13→E14→B5→E15) Next?**
+- **E12 is the foundation**: Multi-selection unlocks modern design tool UX
+- **E13 builds on E12**: Select+Move consolidation requires multi-select working
+- **E14 completes the model**: Auto-select for transforms creates consistent interaction
+- **B5 benefits from all three**: Click-to-delete works beautifully with multi-select
+- **B4 can happen anytime**: Bug fix doesn't block others
+- **E15 is independent**: Real-time sync enhancement, can be done anytime in Phase 2 or even parallel
+- **User experience wins**: These tasks transform the app from "functional" to "professional"
+- **Logical progression**: Each task builds on the previous one (except E15 which is standalone)
+- **Single focus area**: All about selection, interaction, and collaboration
+
+**Why E15 in Phase 2?**
+- **Independent task**: Doesn't depend on E12-E14, can be done anytime
+- **Completes real-time story**: Movement sync exists, rotation/resize sync missing
+- **Collaboration enhancement**: Makes multi-user experience feel professional
+- **Can be done in parallel**: Junior engineer could work on E15 while senior works on E12-E14
+- **Small scope**: 1 sprint, focused technical enhancement
+- **High impact**: Figma-grade responsiveness for all transforms
+
+**Why A2 After Phase 2?**
+- Phase 2 improves daily UX; A2 is a safety net for mistakes
+- A2 is 6 sprints - too long to block UX improvements
+- Undo/Redo is the safety net for deletion (A4)
 - Without undo, accidental deletions are permanent (bad UX)
 - A4 explicitly depends on A2 per user requirements
+- Better to have great UX with temporary risk than mediocre UX with safety
 
 **Why A0 Deferred?**
 - Current performance is acceptable for typical use cases
