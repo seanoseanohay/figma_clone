@@ -68,6 +68,15 @@ const LoggedInLayout = ({ children }) => {
     }
   }, []);
 
+  const rotationHandlerRef = useRef(null);
+  
+  const handleRotationChange = useCallback((newRotation) => {
+    // Call the Canvas's rotation handler if it's available
+    if (rotationHandlerRef.current) {
+      rotationHandlerRef.current(newRotation);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Fixed Header - Always at top */}
@@ -87,6 +96,7 @@ const LoggedInLayout = ({ children }) => {
           selectedColor={selectedColor}
           onColorChange={handleColorChange}
           onZIndexChange={handleZIndexChange}
+          onRotationChange={handleRotationChange}
         />
       </div>
       
@@ -119,6 +129,7 @@ const LoggedInLayout = ({ children }) => {
             onColorChange: handleColorChange,
             onZIndexChange: handleZIndexChange,
             zIndexHandlerRef,
+            rotationHandlerRef,
             userColorChangeRef
           })}
         </div>
@@ -128,7 +139,7 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component - now just renders Canvas
-const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, userColorChangeRef }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
@@ -141,6 +152,7 @@ const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpd
       onColorChange={onColorChange}
       onZIndexChange={onZIndexChange}
       zIndexHandlerRef={zIndexHandlerRef}
+      rotationHandlerRef={rotationHandlerRef}
       onUserColorChange={userColorChangeRef}
     />
   );
@@ -179,7 +191,7 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, userColorChangeRef }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
                           onToolChange={onToolChange}
@@ -191,6 +203,7 @@ function App() {
                           onColorChange={onColorChange}
                           onZIndexChange={onZIndexChange}
                           zIndexHandlerRef={zIndexHandlerRef}
+                          rotationHandlerRef={rotationHandlerRef}
                           userColorChangeRef={userColorChangeRef}
                         />
                       )}

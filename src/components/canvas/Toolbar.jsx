@@ -170,7 +170,8 @@ const Toolbar = ({
   zoomLevel = 100,
   selectedColor = '#808080',
   onColorChange = () => {},
-  onZIndexChange = () => {}
+  onZIndexChange = () => {},
+  onRotationChange = () => {}
 }) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
@@ -229,6 +230,7 @@ const Toolbar = ({
       const textPreview = (obj.text || 'Text').substring(0, 20);
       const displayText = obj.text && obj.text.length > 20 ? `${textPreview}...` : textPreview;
       const fontSize = obj.fontSize || 24;
+      const fontFamily = obj.fontFamily || 'Arial';
       
       // Build formatting indicators
       const formatting = [];
@@ -237,7 +239,7 @@ const Toolbar = ({
       if (obj.underline) formatting.push('U');
       const formatStr = formatting.length > 0 ? ` [${formatting.join('')}]` : '';
       
-      return `Text: "${displayText}" • ${fontSize}px${formatStr} at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
+      return `Text: "${displayText}" • ${fontSize}px ${fontFamily}${formatStr} at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     }
     
     return null;
@@ -361,6 +363,42 @@ const Toolbar = ({
                 >
                   <span className="text-base">⬇️</span>
                 </button>
+                
+                {/* Rotation Input Field */}
+                <div className="mx-2 h-6 border-l border-gray-300"></div>
+                <div className="flex items-center space-x-1">
+                  <label className="text-xs text-gray-600 font-medium">Angle:</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="359"
+                    step="1"
+                    value={selectedObject ? Math.round(selectedObject.rotation || 0) : 0}
+                    onChange={(e) => {
+                      const value = parseInt(e.target.value) || 0;
+                      // Normalize to 0-359 range
+                      const normalizedValue = ((value % 360) + 360) % 360;
+                      onRotationChange(normalizedValue);
+                    }}
+                    onKeyDown={(e) => {
+                      // Allow up/down arrows for fine control
+                      if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        const current = selectedObject ? (selectedObject.rotation || 0) : 0;
+                        const newValue = (current + 1) % 360;
+                        onRotationChange(newValue);
+                      } else if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        const current = selectedObject ? (selectedObject.rotation || 0) : 0;
+                        const newValue = ((current - 1) + 360) % 360;
+                        onRotationChange(newValue);
+                      }
+                    }}
+                    className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-500"
+                    title="Rotation angle in degrees (0-359)"
+                  />
+                  <span className="text-xs text-gray-600">°</span>
+                </div>
               </>
             )}
           </div>

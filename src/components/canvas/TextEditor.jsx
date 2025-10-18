@@ -24,8 +24,8 @@ const TextEditor = ({
   const [bold, setBold] = useState(initialFormatting.bold || false);
   const [italic, setItalic] = useState(initialFormatting.italic || false);
   const [underline, setUnderline] = useState(initialFormatting.underline || false);
-  const [fontSize] = useState(initialFormatting.fontSize || 24);
-  const [fontFamily] = useState(initialFormatting.fontFamily || 'Arial');
+  const [fontSize, setFontSize] = useState(initialFormatting.fontSize || 24);
+  const [fontFamily, setFontFamily] = useState(initialFormatting.fontFamily || 'Arial');
   const [color, setColor] = useState(initialFormatting.fill || '#000000');
   
   const textAreaRef = useRef(null);
@@ -160,6 +160,47 @@ const TextEditor = ({
           className="w-8 h-6 rounded border border-gray-300 cursor-pointer"
           title="Text Color"
         />
+
+        {/* Divider */}
+        <div className="h-6 w-px bg-gray-300 mx-1" />
+
+        {/* Font Size Selector */}
+        <select 
+          value={fontSize} 
+          onChange={(e) => setFontSize(Number(e.target.value))}
+          className="px-2 py-1 text-xs rounded border border-gray-300 cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+          title="Font Size"
+        >
+          <option value="8">8px</option>
+          <option value="10">10px</option>
+          <option value="12">12px</option>
+          <option value="14">14px</option>
+          <option value="16">16px</option>
+          <option value="18">18px</option>
+          <option value="24">24px</option>
+          <option value="32">32px</option>
+          <option value="48">48px</option>
+          <option value="64">64px</option>
+          <option value="72">72px</option>
+        </select>
+
+        {/* Font Family Selector */}
+        <select 
+          value={fontFamily} 
+          onChange={(e) => setFontFamily(e.target.value)}
+          className="px-2 py-1 text-xs rounded border border-gray-300 cursor-pointer bg-white hover:bg-gray-50 transition-colors"
+          title="Font Family"
+          style={{ fontFamily: fontFamily }}
+        >
+          <option value="Arial" style={{ fontFamily: 'Arial' }}>Arial</option>
+          <option value="Times New Roman" style={{ fontFamily: 'Times New Roman' }}>Times New Roman</option>
+          <option value="Courier New" style={{ fontFamily: 'Courier New' }}>Courier New</option>
+          <option value="Georgia" style={{ fontFamily: 'Georgia' }}>Georgia</option>
+          <option value="Verdana" style={{ fontFamily: 'Verdana' }}>Verdana</option>
+          <option value="Comic Sans MS" style={{ fontFamily: 'Comic Sans MS' }}>Comic Sans MS</option>
+          <option value="Trebuchet MS" style={{ fontFamily: 'Trebuchet MS' }}>Trebuchet MS</option>
+          <option value="Impact" style={{ fontFamily: 'Impact' }}>Impact</option>
+        </select>
 
         {/* Divider */}
         <div className="h-6 w-px bg-gray-300 mx-1" />
