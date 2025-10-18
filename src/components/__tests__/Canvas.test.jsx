@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import Canvas from '../canvas/Canvas.jsx'
 import { TOOLS } from '../canvas/Toolbar.jsx'
+import { CanvasContext } from '../../contexts/CanvasContext.jsx'
 
 // Mock the constants
 vi.mock('../../constants/canvas.constants.js', () => ({
@@ -11,32 +12,54 @@ vi.mock('../../constants/canvas.constants.js', () => ({
   INITIAL_Y: 2500,
   INITIAL_ZOOM: 1,
   CANVAS_BACKGROUND: '#ffffff',
-  BOUNDARY_BACKGROUND: '#f0f0f0'
+  BOUNDARY_BACKGROUND: '#f0f0f0',
+  CURSOR_UPDATE_THROTTLE: 50,
+  FIREBASE_COLLECTIONS: {
+    USERS: 'users',
+    CANVAS_OBJECTS: 'canvasObjects',
+    PROJECTS: 'projects'
+  }
 }))
 
 describe('Canvas Component', () => {
   const mockOnToolChange = vi.fn()
+  
+  // Helper to render Canvas with required context
+  const renderCanvas = (props = {}) => {
+    const mockCanvasContext = {
+      canvasId: 'test-canvas-id',
+      canvasName: 'Test Canvas',
+      canvases: [{ id: 'test-canvas-id', name: 'Test Canvas' }],
+      loading: false
+    }
+    
+    return render(
+      <CanvasContext.Provider value={mockCanvasContext}>
+        <Canvas selectedTool={TOOLS.PAN} onToolChange={mockOnToolChange} {...props} />
+      </CanvasContext.Provider>
+    )
+  }
   
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
   it('renders Konva stage and layer', () => {
-    render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+    renderCanvas({ selectedTool: TOOLS.SELECT })
     
     expect(screen.getByTestId('konva-stage')).toBeInTheDocument()
     expect(screen.getByTestId('konva-layer')).toBeInTheDocument()
   })
 
   it('renders canvas boundary and main canvas area', () => {
-    render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+    renderCanvas({ selectedTool: TOOLS.SELECT })
     
     const rects = screen.getAllByTestId('konva-rect')
     expect(rects).toHaveLength(2) // Boundary background + main canvas
   })
 
   it('starts with no rectangles', () => {
-    render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+    renderCanvas({ selectedTool: TOOLS.SELECT })
     
     const rects = screen.getAllByTestId('konva-rect')
     // Should only have boundary and canvas background, no user rectangles
@@ -45,7 +68,7 @@ describe('Canvas Component', () => {
 
   describe('Tool-specific behavior', () => {
     it('handles Hand tool cursor changes', () => {
-      render(<Canvas selectedTool={TOOLS.HAND} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.PAN })
       
       const stage = screen.getByTestId('konva-stage')
       expect(stage).toBeInTheDocument()
@@ -53,14 +76,14 @@ describe('Canvas Component', () => {
     })
 
     it('handles Arrow tool for selection', () => {
-      render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.SELECT })
       
       const stage = screen.getByTestId('konva-stage')
       expect(stage).toBeInTheDocument()
     })
 
     it('handles Rectangle tool for creation', () => {
-      render(<Canvas selectedTool={TOOLS.RECTANGLE} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.RECTANGLE })
       
       const stage = screen.getByTestId('konva-stage')
       expect(stage).toBeInTheDocument()
@@ -69,7 +92,7 @@ describe('Canvas Component', () => {
 
   describe('Mouse event handling', () => {
     it('handles mouse down events', () => {
-      render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.SELECT })
       
       const stage = screen.getByTestId('konva-stage')
       
@@ -81,7 +104,7 @@ describe('Canvas Component', () => {
     })
 
     it('handles mouse move events', () => {
-      render(<Canvas selectedTool={TOOLS.HAND} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.PAN })
       
       const stage = screen.getByTestId('konva-stage')
       
@@ -92,7 +115,7 @@ describe('Canvas Component', () => {
     })
 
     it('handles mouse up events', () => {
-      render(<Canvas selectedTool={TOOLS.RECTANGLE} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.RECTANGLE })
       
       const stage = screen.getByTestId('konva-stage')
       
@@ -103,7 +126,7 @@ describe('Canvas Component', () => {
     })
 
     it('handles wheel events for zoom', () => {
-      render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.SELECT })
       
       const stage = screen.getByTestId('konva-stage')
       
@@ -116,7 +139,7 @@ describe('Canvas Component', () => {
 
   describe('Rectangle creation workflow', () => {
     it('switches to Arrow tool after rectangle creation', () => {
-      render(<Canvas selectedTool={TOOLS.RECTANGLE} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.RECTANGLE })
       
       const stage = screen.getByTestId('konva-stage')
       
@@ -126,13 +149,13 @@ describe('Canvas Component', () => {
       fireEvent.mouseUp(stage, { clientX: 200, clientY: 200 })
       
       // Should have called onToolChange to switch to Arrow tool
-      expect(mockOnToolChange).toHaveBeenCalledWith(TOOLS.ARROW)
+      expect(mockOnToolChange).toHaveBeenCalledWith(TOOLS.SELECT)
     })
   })
 
   describe('Boundary enforcement', () => {
     it('renders within canvas container', () => {
-      render(<Canvas selectedTool={TOOLS.ARROW} onToolChange={mockOnToolChange} />)
+      renderCanvas({ selectedTool: TOOLS.SELECT })
       
       const container = screen.getByRole('generic')
       expect(container).toHaveClass('canvas-container')

@@ -15,7 +15,12 @@ vi.mock('../../constants/canvas.constants.js', () => ({
   INITIAL_ZOOM: 1,
   CANVAS_BACKGROUND: '#ffffff',
   BOUNDARY_BACKGROUND: '#f0f0f0',
-  CURSOR_UPDATE_THROTTLE: 50
+  CURSOR_UPDATE_THROTTLE: 50,
+  FIREBASE_COLLECTIONS: {
+    USERS: 'users',
+    CANVAS_OBJECTS: 'canvasObjects',
+    PROJECTS: 'projects'
+  }
 }))
 
 // Integration component that combines Toolbar and Canvas like in App.jsx
@@ -62,17 +67,17 @@ describe('Canvas Integration Tests', () => {
       </BrowserRouter>
     )
     
-    // Initially Arrow tool should be selected
-    const arrowButton = screen.getByTitle('Select Tool (Press V)')
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    // Initially Pan tool should be selected
+    const panButton = screen.getByTitle('Pan Tool (Hold Space)')
+    const selectButton = screen.getByTitle('Select Tool (Press V)')
+    expect(panButton).toHaveStyle({ backgroundColor: '#2563eb' })
     
-    // Click Hand tool
-    const handButton = screen.getByTitle('Pan Tool (Hold Space)')
-    fireEvent.click(handButton)
+    // Click Select tool
+    fireEvent.click(selectButton)
     
-    // Hand tool should now be selected
-    expect(handButton).toHaveStyle({ backgroundColor: '#2563eb' })
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#ffffff' })
+    // Select tool should now be selected
+    expect(selectButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    expect(panButton).toHaveStyle({ backgroundColor: '#ffffff' })
   })
 
   it('handles complete rectangle creation workflow', () => {
