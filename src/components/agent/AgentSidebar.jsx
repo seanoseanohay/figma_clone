@@ -104,14 +104,14 @@ const AgentSidebar = ({ isOpen, onClose }) => {
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black bg-opacity-50 z-40 flex items-center justify-center p-4"
+        className="fixed inset-0 z-40 flex items-center justify-center p-4"
         onClick={onClose}
-        style={{ zIndex: 40 }}
+        style={{ zIndex: 40, backgroundColor: '#ffffff' }}
       >
         {/* Modal */}
         <div 
-          className="w-full max-w-lg bg-white rounded-lg shadow-2xl z-50 flex flex-col max-h-[80vh] transform transition-all duration-200 ease-out"
-          style={{ zIndex: 50 }}
+          className="w-full max-w-lg bg-white rounded-lg shadow-2xl border border-gray-200 z-50 flex flex-col max-h-[80vh] transform transition-all duration-200 ease-out"
+          style={{ zIndex: 50, backgroundColor: '#ffffff' }}
           onClick={(e) => e.stopPropagation()}
         >
         {/* Header */}
@@ -130,7 +130,7 @@ const AgentSidebar = ({ isOpen, onClose }) => {
             className="p-1 rounded-lg hover:bg-white/80 transition-colors"
             title="Close AI Assistant"
           >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
@@ -259,12 +259,12 @@ const AgentSidebar = ({ isOpen, onClose }) => {
                 className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors self-start mt-0"
               >
                 {isLoading ? (
-                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24" width="20" height="20">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
                 ) : (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" width="20" height="20">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                   </svg>
                 )}

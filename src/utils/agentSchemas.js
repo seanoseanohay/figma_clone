@@ -189,7 +189,7 @@ export const validateAgentResponse = (data) => {
       data: validatedData
     }
   } catch (error) {
-    const errors = error.errors?.map(err => 
+    const errors = error.issues?.map(err => 
       `${err.path.join('.')}: ${err.message}`
     ) || [error.message]
     
@@ -213,7 +213,7 @@ export const validateAgentRequest = (data) => {
       data: validatedData
     }
   } catch (error) {
-    const errors = error.errors?.map(err => 
+    const errors = error.issues?.map(err => 
       `${err.path.join('.')}: ${err.message}`
     ) || [error.message]
     
@@ -237,7 +237,7 @@ export const validateCommand = (command) => {
       data: validatedCommand
     }
   } catch (error) {
-    const errors = error.errors?.map(err => 
+    const errors = error.issues?.map(err => 
       `${err.path.join('.')}: ${err.message}`
     ) || [error.message]
     
