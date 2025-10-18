@@ -18,6 +18,7 @@ export class ResizeTool {
 
   /**
    * Find closest corner to click position (works for rectangles, circles, and stars)
+   * Now properly handles rotated objects by transforming corner positions
    */
   getClosestCorner(pos, obj) {
     // Calculate bounding box based on shape type
@@ -47,18 +48,53 @@ export class ResizeTool {
       }
     }
     
-    // Only detect corners if click is inside the bounds
-    if (pos.x < bounds.x || pos.x > bounds.x + bounds.width || 
-        pos.y < bounds.y || pos.y > bounds.y + bounds.height) {
-      return null
-    }
-    
-    const corners = [
+    // Define base corners (unrotated)
+    const baseCorners = [
       { name: 'nw', x: bounds.x, y: bounds.y },
       { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
       { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
       { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
     ]
+    
+    // Transform corners based on object rotation (if any)
+    const rotation = obj.rotation || 0
+    const corners = baseCorners.map(corner => {
+      if (rotation === 0) {
+        return corner // No transformation needed
+      }
+      
+      // Transform corner position based on rotation around object center
+      const centerX = bounds.x + bounds.width / 2
+      const centerY = bounds.y + bounds.height / 2
+      
+      // Translate to origin
+      const translatedX = corner.x - centerX
+      const translatedY = corner.y - centerY
+      
+      // Rotate
+      const rotationRad = (rotation * Math.PI) / 180
+      const rotatedX = translatedX * Math.cos(rotationRad) - translatedY * Math.sin(rotationRad)
+      const rotatedY = translatedX * Math.sin(rotationRad) + translatedY * Math.cos(rotationRad)
+      
+      // Translate back
+      return {
+        name: corner.name,
+        x: rotatedX + centerX,
+        y: rotatedY + centerY
+      }
+    })
+    
+    // Check if click is within reasonable distance of the object
+    const centerX = bounds.x + bounds.width / 2
+    const centerY = bounds.y + bounds.height / 2
+    const maxDistance = Math.max(bounds.width, bounds.height) * 0.75 // Allow some margin
+    const distanceFromCenter = Math.sqrt(
+      Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
+    )
+    
+    if (distanceFromCenter > maxDistance) {
+      return null
+    }
     
     let closestCorner = null
     let minDistance = Infinity
@@ -74,7 +110,7 @@ export class ResizeTool {
       }
     })
     
-    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type)
+    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type, 'rotation:', rotation + '°')
     return closestCorner
   }
 

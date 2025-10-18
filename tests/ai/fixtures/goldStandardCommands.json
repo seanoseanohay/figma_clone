@@ -1,0 +1,136 @@
+{
+  "version": "1.0.0",
+  "description": "Gold standard AI agent command baselines for regression testing",
+  "lastUpdated": "2025-01-18",
+  "testCases": [
+    {
+      "id": "text-basic-quoted",
+      "prompt": "Add a text layer that says 'hello world'",
+      "expected": {
+        "type": "createText",
+        "text": "hello world",
+        "fontSize": 24,
+        "fontFamily": "Arial",
+        "fill": "#000000"
+      },
+      "category": "text",
+      "priority": "high"
+    },
+    {
+      "id": "text-complex-punctuation",
+      "prompt": "Add a text layer that says, Hello, Melissa, can you see this?",
+      "expected": {
+        "type": "createText",
+        "text": "Hello, Melissa, can you see this",
+        "fontSize": 24,
+        "fontFamily": "Arial",
+        "fill": "#000000"
+      },
+      "category": "text",
+      "priority": "high"
+    },
+    {
+      "id": "resize-color-specific",
+      "prompt": "Resize purple rectangle to be twice as big",
+      "expected": {
+        "type": "resizeObject",
+        "objectId": "lastRectangle:#A855F7",
+        "scale": 2.0
+      },
+      "category": "resize",
+      "priority": "critical"
+    },
+    {
+      "id": "layout-grid-3x3",
+      "prompt": "Make a 3x3 grid of yellow stars",
+      "expected": {
+        "commandCount": 9,
+        "commands": [
+          {
+            "type": "createStar",
+            "fill": "#EAB308",
+            "position": { "x": 100, "y": 100 }
+          }
+        ]
+      },
+      "category": "layout",
+      "priority": "high"
+    },
+    {
+      "id": "layout-evenly-spaced",
+      "prompt": "Create 5 blue circles evenly spaced",
+      "expected": {
+        "commandCount": 5,
+        "type": "createCircle",
+        "fill": "#3B82F6",
+        "spacing": "even"
+      },
+      "category": "layout",  
+      "priority": "high"
+    },
+    {
+      "id": "color-parsing-red",
+      "prompt": "Create a red circle",
+      "expected": {
+        "type": "createCircle",
+        "fill": "#EF4444",
+        "radius": 60
+      },
+      "category": "color",
+      "priority": "medium"
+    },
+    {
+      "id": "color-parsing-blue",
+      "prompt": "Add blue rectangle",
+      "expected": {
+        "type": "createRectangle",
+        "fill": "#3B82F6"
+      },
+      "category": "color",
+      "priority": "medium"
+    },
+    {
+      "id": "priority-manipulation-over-creation",
+      "prompt": "Resize the rectangle to be bigger",
+      "expected": {
+        "type": "resizeObject",
+        "scale": 1.5,
+        "noCreationCommands": true
+      },
+      "category": "priority",
+      "priority": "critical"
+    },
+    {
+      "id": "fallback-empty-prompt",
+      "prompt": "",
+      "expected": {
+        "type": "createRectangle",
+        "fill": "#10b981"
+      },
+      "category": "fallback",
+      "priority": "medium"
+    },
+    {
+      "id": "complex-multi-command",
+      "prompt": "Create a login form with username and password fields",
+      "expected": {
+        "type": "createForm",
+        "formType": "login",
+        "fields": ["username", "password"]
+      },
+      "category": "complex",
+      "priority": "low"
+    }
+  ],
+  "performanceBenchmarks": {
+    "maxResponseTime": 1000,
+    "maxCommandCount": 10,
+    "minSuccessRate": 0.95
+  },
+  "regressionThresholds": {
+    "textExtractionAccuracy": 0.98,
+    "colorParsingAccuracy": 0.95,
+    "layoutPositioningTolerance": 5,
+    "commandTypeAccuracy": 1.0
+  }
+}

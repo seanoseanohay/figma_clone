@@ -886,6 +886,40 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         }
       }
 
+      // Delete/Backspace - delete selected object
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedObjectId) {
+        e.preventDefault();
+        const selectedObject = canvasObjects.find(obj => obj.id === selectedObjectId);
+        
+        if (selectedObject && canEditObject(selectedObjectId)) {
+          console.log('🗑️ Delete key pressed: Deleting object', selectedObjectId);
+          
+          try {
+            // Import deleteObject dynamically to avoid circular imports
+            import('../../services/canvas.service.js').then(({ deleteObject }) => {
+              deleteObject(selectedObjectId).then(() => {
+                console.log('✅ Object deleted successfully');
+                // Clear selection since object no longer exists
+                setSelectedObjectId(null);
+                setMoveSelectedId(null);
+                setResizeSelectedId(null);
+                setRotateSelectedId(null);
+                setTextSelectedId(null);
+              }).catch(error => {
+                console.error('❌ Failed to delete object:', error);
+                // Show user-friendly error message (could add toast notification here)
+              });
+            });
+          } catch (error) {
+            console.error('❌ Failed to import deleteObject:', error);
+          }
+        } else if (selectedObject) {
+          console.log('❌ Cannot delete: Object is locked or user lacks permissions');
+          // Could show toast notification: "Cannot delete: object is being edited by another user"
+        }
+        return;
+      }
+
       // Escape - deselect
       if (e.key === 'Escape' && selectedObjectId) {
         e.preventDefault();

@@ -171,7 +171,8 @@ const Toolbar = ({
   selectedColor = '#808080',
   onColorChange = () => {},
   onZIndexChange = () => {},
-  onRotationChange = () => {}
+  onRotationChange = () => {},
+  onDeleteObject = null
 }) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
@@ -198,6 +199,15 @@ const Toolbar = ({
   const handleMoveBackward = () => {
     if (hasSelection && selectedObject) {
       onZIndexChange('backward');
+    }
+  };
+
+  const handleDeleteObject = () => {
+    if (hasSelection && selectedObject) {
+      // Call the delete handler passed from parent
+      if (onDeleteObject) {
+        onDeleteObject(selectedObject.id);
+      }
     }
   };
 
@@ -362,6 +372,16 @@ const Toolbar = ({
                   title="Send to Back (Ctrl+Shift+[)"
                 >
                   <span className="text-base">⬇️</span>
+                </button>
+                
+                {/* Delete Button */}
+                <div className="mx-2 h-6 border-l border-gray-300"></div>
+                <button
+                  onClick={handleDeleteObject}
+                  className="flex items-center px-2 py-2 rounded-lg border border-red-300 bg-red-50 font-medium transition-all duration-150 hover:bg-red-100 hover:border-red-400"
+                  title="Delete Object (Delete key)"
+                >
+                  <span className="text-base text-red-600">🗑️</span>
                 </button>
                 
                 {/* Rotation Input Field */}

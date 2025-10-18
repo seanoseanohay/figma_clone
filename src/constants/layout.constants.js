@@ -10,10 +10,10 @@
 export const HEADER_HEIGHT = 90; // pixels
 
 // Toolbar container height (includes padding and content)
-export const TOOLBAR_HEIGHT = 110; // pixels
+export const TOOLBAR_HEIGHT = 80; // pixels (reduced from 110 to fix excessive spacing)
 
 // Total offset from top of viewport to start of interactive canvas area
-export const CANVAS_TOP_OFFSET = HEADER_HEIGHT + TOOLBAR_HEIGHT; // 200px
+export const CANVAS_TOP_OFFSET = HEADER_HEIGHT + TOOLBAR_HEIGHT; // 170px (90 + 80)
 
 // Z-index layers for stacking
 export const Z_INDEX = {

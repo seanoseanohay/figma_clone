@@ -15,6 +15,13 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - **E10**: ✅ Complete - Continuous Text Editing (Re-edit Existing Text)
 - **E11**: ⏸️ Not Started - Comprehensive Testing Framework (Unit, Integration, Regression)
 - **E5**: ⏸️ Not Started - Owner-Only Edit Restrictions
+- **E12**: ⏸️ Not Started - Multi-Object Selection System
+- **E13**: ⏸️ Not Started - Tool Consolidation (Merge Select + Move Tools)
+- **B1**: 🔄 Needs Refinement - Fix Toolbar Spacing Issue (reduce to Figma-compact style)
+- **B2**: ❌ Failed - Fix Rotation/Resize Tool Interaction Bug (handles appear but don't respond to interaction)
+- **B4**: ⏸️ Not Started - Fix Rotation/Resize Event Handling Bug (real fix needed)
+- **B5**: ⏸️ Not Started - Redesign Delete Tool as Click-to-Delete
+- **B3**: ✅ Complete - Implement Object Deletion Tool
 - **A0**: ❌ Deferred - Performance Optimization & Monitoring (moved to end)
 - **A1**: ⏸️ Not Started - Canvas Export Functionality
 - **A2**: ⏸️ Not Started - Undo/Redo System
@@ -656,6 +663,8 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 4. Test ownership expiration and visual feedback
 5. Test tooltip/feedback messages for owned objects
 
+**Status**: ⏸️ Not Started
+
 ---
 
 ### Task E6: Implement Object Rotation Tool ✅ COMPLETE
@@ -977,7 +986,7 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 - Integration with undo/redo system is critical - deletion must be recorded as a history action
 - Ensure proper cleanup of all references (local state, RTDB, Firestore)
 
-**Status**: ⏸️ Not Started (waiting for A2: Undo/Redo System)
+**Status**: ✅ COMPLETE (waiting for A2: Undo/Redo System)
 
 ---
 
@@ -1048,11 +1057,751 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ---
 
+## 🐛 BUG FIXES
+
+### Task B1: Redesign Toolbar with Figma-Compact Spacing
+
+**Objective**: Redesign toolbar to match Figma's compact, professional spacing standards for better user experience
+
+**Problem**: Current toolbar has excessive white space and loose spacing that doesn't match modern design tool standards:
+- Too much vertical padding (~20-25px top/bottom vs Figma's ~8px)
+- Large gaps between tool groups (~16-20px vs Figma's ~4-6px)  
+- Excessive space between tools and properties panel (~30-40px vs Figma's ~2-4px)
+- Overall toolbar height too large (~80px vs Figma's ~60px)
+
+**Files to Modify**:
+- `src/constants/layout.constants.js` - Update TOOLBAR_HEIGHT
+- `src/components/canvas/Toolbar.jsx` - Redesign spacing, padding, layout
+- `src/App.jsx` - Update CANVAS_TOP_OFFSET calculation
+
+**Figma-Style Design Specifications**:
+
+**1. Toolbar Container:**
+```css
+Current: 80px height, 20px vertical padding
+Target:  60px height, 6px vertical padding, 12px horizontal padding
+```
+
+**2. Tool Groups Spacing:**
+```css
+Current: 16-20px gaps between groups
+Target:  6px gaps between groups (Selection | Modification | Shapes)
+```
+
+**3. Tool Buttons:**
+```css
+Current: Variable sizing with loose spacing
+Target:  32x32px buttons, 2px gaps between buttons
+```
+
+**4. Properties Panel Integration:**
+```css
+Current: ~30-40px gap below tools
+Target:  4px gap, integrated tighter into toolbar container
+```
+
+**5. Visual Hierarchy:**
+```css
+Tool Groups: Clear visual separation with subtle dividers
+Properties: Smaller text, compact line height, minimal padding
+Colors: Match current blue theme but tighter spacing
+```
+
+**Specific Changes**:
+1. **Reduce TOOLBAR_HEIGHT**: From 80px to 60px in layout.constants.js
+2. **Redesign Toolbar Layout**: 
+   - Compact padding (6px vertical, 12px horizontal)
+   - Tighter tool group spacing (6px gaps)
+   - 32x32px standardized tool buttons
+3. **Integrate Properties Panel**: 
+   - Reduce gap from tools to 4px
+   - Tighter line spacing and padding
+   - Maintain readability while being compact
+4. **Update Canvas Offset**: Adjust CANVAS_TOP_OFFSET for new toolbar height
+5. **Visual Polish**: 
+   - Ensure visual hierarchy remains clear
+   - Test button accessibility with smaller spacing
+   - Maintain current color scheme and iconography
+
+**Acceptance Criteria**:
+- [ ] Toolbar height reduced to 60px total (Figma-style compact)
+- [ ] Tool groups have 6px spacing between them (not 16-20px)
+- [ ] Properties panel sits 4px below tools (not 30-40px)
+- [ ] Tool buttons are consistent 32x32px with 2px gaps
+- [ ] Visual hierarchy remains clear and professional
+- [ ] All buttons remain accessible and clickable
+- [ ] Responsive behavior maintained across screen sizes
+- [ ] No visual regressions in color scheme or iconography
+- [ ] Canvas properly aligns with new compact toolbar
+- [ ] Overall appearance matches Figma's professional, compact style
+
+**Testing Steps**:
+1. Compare current vs new toolbar side-by-side with Figma screenshot
+2. Verify all tool buttons remain easily clickable with new spacing
+3. Test properties panel readability with reduced spacing
+4. Confirm canvas alignment works correctly with new height
+5. Test responsive behavior on different screen sizes
+6. Verify accessibility with keyboard navigation
+7. Check that visual hierarchy guides user attention appropriately
+8. Test in different browsers for consistency
+
+**Design Reference**: Match Figma's toolbar compactness while maintaining current functionality and visual identity
+
+**Priority**: 🔴 **High** - Quick visual improvement with significant UX impact
+
+**Status**: 🔄 **Needs Refinement** - Previous fix reduced some spacing but needs full Figma-style redesign
+
+---
+
+### Task B2: Fix Rotation/Resize Tool Interaction Bug
+
+**Objective**: Fix the bug where selecting an object, rotating it, then trying to resize it requires deselecting and reselecting the object
+
+**Problem**: After rotating an object, the resize tool doesn't properly recognize the selected object and requires the user to deselect and reselect before resizing works.
+
+**Files to Modify**:
+- `src/tools/RotateTool.js`
+- `src/tools/ResizeTool.js` 
+- `src/components/canvas/Canvas.jsx` (tool state synchronization)
+
+**Root Cause Analysis**:
+- RotateTool handles its own object selection (lines 78-110 in RotateTool.js)
+- ResizeTool only works on pre-selected objects (line 256 in ResizeTool.js)
+- Tool state synchronization may not properly update when switching from Rotate to Resize tool
+- The `selectedObjectId` and tool-specific IDs (`rotateSelectedId`, `resizeSelectedId`) may become desynchronized
+
+**Specific Changes**:
+1. **Improve Tool State Synchronization**: Update Canvas.jsx tool switching logic (lines 943-1001) to ensure proper state transfer between Rotate and Resize tools
+2. **Fix RotateTool Selection Handling**: Ensure RotateTool properly updates global `selectedObjectId` when selecting objects
+3. **Enhance ResizeTool Object Detection**: Make ResizeTool more robust in detecting selected objects after rotation
+4. **Add State Validation**: Add debugging and validation to ensure tool-specific IDs stay synchronized with global selection
+5. **Test All Tool Transitions**: Verify smooth transitions between all tool combinations (Select→Rotate→Resize, Select→Resize→Rotate, etc.)
+
+**Acceptance Criteria**:
+- [ ] Selecting object → rotating it → switching to resize tool → resize works immediately
+- [ ] No need to deselect and reselect objects between tool switches
+- [ ] Tool state remains consistent across all tool transitions
+- [ ] Rotation handles disappear when switching to resize tool
+- [ ] Resize handles appear immediately when switching to resize tool
+- [ ] Object ownership/locking works correctly during tool transitions
+- [ ] Multiplayer synchronization works properly with tool switches
+
+**Testing Steps**:
+1. Select rectangle with Select tool
+2. Switch to Rotate tool and rotate the object 45°
+3. Switch to Resize tool → resize handles should appear immediately
+4. Attempt to resize → should work without requiring reselection
+5. Test with all object types (rectangle, circle, star, text)
+6. Test reverse flow: Select → Resize → Rotate
+7. Test in multiplayer environment to ensure proper sync
+8. Verify object locking/unlocking works correctly during transitions
+
+**Edge Cases to Test**:
+- What if object is rotated while another user has it selected?
+- What if tool is switched while rotation is in progress?
+- What if object is deleted while tool switching?
+- What about objects with complex transformations (rotated + resized)?
+
+**Status**: ✅ COMPLETE
+
+---
+
+### Task B3: Implement Object Deletion Tool
+
+**Objective**: Add the ability to delete selected objects using a red X tool and Delete key hotkey, with no confirmation dialog
+
+**Current Status**: The `deleteObject` function already exists in `canvas.service.js` but is only used by the AI agent. Need to expose this functionality to users.
+
+**Files to Modify**:
+- `src/components/canvas/Toolbar.jsx` (add red X button)
+- `src/components/canvas/Canvas.jsx` (add Delete key handler)
+- `src/tools/index.js` (add delete tool if creating separate tool)
+
+**Design Approach**: 
+Two possible implementations:
+1. **Simple Approach**: Add Delete key shortcut + toolbar button that works on selected objects
+2. **Tool Approach**: Create dedicated DeleteTool similar to other tools
+
+**Recommended: Simple Approach** (easier to implement, better UX)
+
+**Specific Changes**:
+1. **Add Delete Key Handler**: 
+   - Update Canvas.jsx keyboard handler (around line 924) to detect Delete/Backspace key
+   - Call `deleteObject(selectedObjectId)` when Delete key is pressed and an object is selected
+   - Respect ownership restrictions (only allow deletion of objects user owns/can edit)
+
+2. **Add Red X Button to Toolbar**:
+   - Add red X button (🗑️ or ❌) to toolbar, only visible when object is selected
+   - Place near Z-index controls or in modification tools section
+   - Style with red color to indicate destructive action
+   - Add tooltip "Delete Object (Delete key)"
+
+3. **Integrate with Existing Systems**:
+   - Ensure deletion respects object locking (can't delete objects being edited by others)
+   - Update real-time sync to notify other users when objects are deleted
+   - Clear local state when object is deleted (selectedObjectId, tool states, etc.)
+   - Handle edge cases (offline deletion, concurrent edits)
+
+4. **No Undo System Required** (per user request - will be handled by future A2 task):
+   - No confirmation dialog
+   - Immediate deletion
+   - Safety net will be provided later by A2 (Undo/Redo System)
+
+**Acceptance Criteria**:
+- [ ] Delete key removes selected object immediately with no confirmation
+- [ ] Backspace key also works for deletion  
+- [ ] Red X button in toolbar deletes selected object
+- [ ] Red X button only appears when object is selected
+- [ ] Deletion respects ownership/locking (error message if can't delete)
+- [ ] Deletion syncs across all users in real-time
+- [ ] Object is removed from both Firestore and RTDB
+- [ ] Local state is properly cleared after deletion
+- [ ] Works with all object types (rectangle, circle, star, text)
+- [ ] Multiple selected objects can be deleted (if multi-select exists)
+
+**Testing Steps**:
+1. Select object and press Delete key → object should disappear immediately
+2. Select object and click red X button → object should disappear
+3. Test with Backspace key
+4. Try to delete object locked by another user → should show error/prevent deletion
+5. Test deletion in multiplayer: User A deletes object → User B should see it disappear
+6. Test with all object types (rectangles, circles, stars, text)
+7. Verify object is removed from Firestore collections
+8. Test offline deletion → should queue and sync on reconnect
+9. Verify proper cleanup of local state (no memory leaks)
+
+**UI Design**:
+- Red X button: `❌` or `🗑️` icon with red color
+- Placement: Next to Z-index controls or in modification tools section
+- Tooltip: "Delete Object (Delete)"
+- Only visible when `hasSelection` is true
+- Hover state with darker red background
+
+**Error Handling**:
+- Object locked by another user: "Cannot delete: [Object Type] is being edited by [User Name]"
+- Network error: "Failed to delete object. Please try again."
+- Object already deleted: Silent handling (object no longer exists)
+- User lacks permissions: "You don't have permission to delete this object"
+
+**Security Considerations**:
+- Verify user owns object or has edit permissions before deletion
+- Validate object exists before attempting deletion  
+- Rate limiting to prevent spam deletion
+- Audit trail for deleted objects (optional, for future features)
+
+**Dependencies**: 
+- Uses existing `deleteObject` function from canvas.service.js
+- Integrates with existing ownership/locking system
+- No dependencies on A2 (Undo/Redo) per user request
+
+**Status**: ✅ COMPLETE
+
+**Notes**: 
+- This replaces the previous A4 task which had a dependency on A2 (Undo/Redo)
+- User explicitly requested no confirmation dialog - deletion should be immediate
+- Safety net will come later via A2 undo system
+- Consider this a temporary solution until proper undo/redo is implemented
+
+---
+
+### Task B4: Fix Rotation/Resize Tool State Synchronization Bug
+
+**Objective**: Fix the critical bug where resize handles appear after rotating an object but clicking/dragging them does nothing
+
+**Problem**: After rotating any object (rectangle, circle, star, text), the resize handles are visible but completely non-responsive to mouse interactions. This affects all object types and breaks the core editing workflow.
+
+**Detailed Problem Analysis**:
+- **Handles Appear**: Resize handles render correctly after rotation
+- **Cursor Changes**: Mouse cursor changes to resize cursor when hovering handles
+- **No Response**: Clicking and dragging handles produces no effect
+- **Complete Block**: Cannot resize, cannot rotate again, tool becomes unusable
+- **Workaround**: Deselect → Reselect → Resize works normally
+- **No Console Errors**: JavaScript console shows no error messages
+
+**Root Cause Analysis - Tool State Synchronization Issue**:
+
+**Primary Cause**: Tool state management corruption between RotateTool and ResizeTool
+- When RotateTool completes rotation, it leaves tool state in inconsistent state
+- ResizeTool receives stale or corrupted state references
+- Tool state IDs (`selectedObjectId`, `rotateSelectedId`, `resizeSelectedId`) become desynchronized
+- Object references become stale or point to wrong object state
+
+**Evidence Supporting This Theory**:
+1. **Deselect/Reselect Fix**: Clearing tool state and creating fresh state resolves issue
+2. **No Coordinate Issues**: Handles appear in correct positions (coordinates work)
+3. **No Console Errors**: Not a runtime exception, but a state management bug
+4. **Complete Tool Failure**: Tool becomes entirely unresponsive (not just coordinate math)
+5. **Cross-Tool Impact**: After failed resize, rotation also stops working
+
+**Files to Investigate/Modify**:
+- `src/tools/RotateTool.js` - Tool cleanup and state handoff on completion
+- `src/tools/ResizeTool.js` - State initialization and object reference handling
+- `src/components/canvas/Canvas.jsx` - Tool state synchronization in `useEffect` hooks
+- `src/hooks/useObjectOwnership.js` - Object locking state management
+
+**Specific Investigation & Fix Strategy**:
+
+**1. Tool State Debugging**:
+- Add comprehensive logging to track tool state transitions
+- Monitor `selectedObjectId`, `rotateSelectedId`, `resizeSelectedId` synchronization
+- Log object state before/after rotation completion
+- Verify tool state cleanup in rotation tool
+
+**2. State Synchronization Fix**:
+- Fix Canvas.jsx tool switching logic (lines 943-1001)
+- Ensure RotateTool properly updates global `selectedObjectId` on completion
+- Verify ResizeTool correctly syncs with updated object state
+- Clean up any stale tool-specific state references
+
+**3. Object State Integrity**:
+- Ensure rotated object state is properly saved to Firestore
+- Verify object state is correctly retrieved by ResizeTool
+- Check for object reference staleness after rotation
+- Fix any race conditions in state updates
+
+**4. Tool Communication Protocol**:
+- Standardize how tools hand off object state
+- Implement proper cleanup in tool onMouseUp handlers
+- Ensure consistent object state format across tools
+- Add validation for object state integrity
+
+**Specific Implementation Tasks**:
+1. **Add Debug Logging**: Comprehensive state tracking across tool transitions
+2. **Fix RotateTool.onMouseUp**: Ensure proper state cleanup and object state save
+3. **Fix ResizeTool.onMouseDown**: Robust object state retrieval and validation  
+4. **Update Canvas Tool Sync**: Fix useEffect hooks for tool state synchronization
+5. **Add State Validation**: Verify object state integrity before tool operations
+6. **Implement Recovery Logic**: Graceful handling of corrupted tool state
+
+**Acceptance Criteria**:
+- [ ] Rotate any object → Switch to resize tool → Handles respond immediately to mouse interaction
+- [ ] Resize handles work correctly regardless of rotation angle (0°, 45°, 90°, 180°, etc.)
+- [ ] No need to deselect/reselect objects between rotation and resizing
+- [ ] Works for all object types (rectangles, circles, stars, text)
+- [ ] Smooth transition between rotation and resize operations
+- [ ] After failed resize attempt, rotation tool still works (no tool state corruption)
+- [ ] Console shows detailed debug info during development, no errors in production
+- [ ] Multiplayer scenarios work correctly (one user rotates, another resizes)
+
+**Testing Steps**:
+1. **Basic Workflow**: Create rectangle → Rotate 45° → Switch to Resize → Resize immediately
+2. **All Object Types**: Test with rectangle, circle, star, text objects
+3. **Various Angles**: Test rotation at 0°, 30°, 45°, 90°, 180°, 270° angles
+4. **All Corner Handles**: Test resize with NW, NE, SW, SE corner handles
+5. **Tool Recovery**: After rotation → failed resize → verify rotation still works
+6. **Multiplayer**: User A rotates object → User B switches to resize → verify works
+7. **State Integrity**: Verify object state remains consistent throughout workflow
+8. **Rapid Switching**: Quickly switch between rotate/resize multiple times
+
+**Debug Artifacts to Create**:
+- State transition logging in browser console
+- Tool state comparison before/after rotation
+- Object state snapshots at each step
+- Timeline of tool state changes during bug reproduction
+
+**Priority**: 🔴 **Critical** - This breaks core functionality and user workflow
+
+**Status**: ⏸️ Not Started
+
+---
+
+### Task B5: Redesign Delete Tool as Click-to-Delete
+
+**Objective**: Transform delete functionality from selection-based to direct click-to-delete interaction
+
+**Current Behavior**: 
+- Delete button only appears when object is selected
+- Delete key only works on selected objects
+- Requires Select tool → Click object → Delete action
+
+**New Behavior**:
+- Delete becomes a primary tool in left toolbar section
+- Click any object with Delete tool active → Object deletes immediately
+- No selection required, no confirmation dialog
+- Delete key works as global hotkey regardless of active tool
+
+**Files to Modify**:
+- `src/components/canvas/Toolbar.jsx` - Move delete to left section, make it a primary tool
+- `src/tools/index.js` - Add DeleteTool to tool registry
+- `src/components/canvas/Canvas.jsx` - Update keyboard handler, tool switching logic
+- Create `src/tools/DeleteTool.js` - New tool handler
+
+**Design Changes**:
+1. **Toolbar Layout**: Move delete from modification section to primary tools:
+   ```
+   Current: [Pan] [Select] [Move] [Resize] [Rotate] | [Delete] [Z-Index] | [Text] [Shapes]
+   New:     [Pan] [Select] [Delete] | [Move] [Resize] [Rotate] [Z-Index] | [Text] [Shapes]
+   ```
+
+2. **Visual Design**: 
+   - Red trash icon (🗑️) with consistent sizing
+   - Hover state shows object highlight + delete preview
+   - Cursor changes to indicate delete mode
+
+3. **Interaction Flow**:
+   - Select Delete tool → Click any object → Object deletes immediately
+   - Hover feedback shows **thick red glow** around object (4-6px for high visibility)
+   - Works with ownership system (can only delete owned objects)
+
+**Acceptance Criteria**:
+- [ ] Delete tool appears as primary tool in left toolbar section
+- [ ] Clicking any object with Delete tool active deletes it immediately
+- [ ] Hover preview shows which object will be deleted
+- [ ] Delete key works globally regardless of active tool
+- [ ] Respects ownership (shows error for locked objects)
+- [ ] Works with upcoming multi-selection (E12) for batch delete
+- [ ] Visual feedback clearly indicates delete mode
+
+**Status**: ⏸️ Not Started
+
+---
+
+### Task E12: Multi-Object Selection System
+
+**Objective**: Implement comprehensive multi-object selection with drag selection, Shift+click, and group operations matching modern design tool standards
+
+**Selection Methods**:
+1. **Drag Selection**: Click and drag on empty space to create selection rectangle
+2. **Shift+Click**: Hold Shift and click objects to add/remove from selection  
+3. **Select All**: Ctrl+A to select all objects on canvas
+4. **Real-time Updates**: Selection count updates live in properties panel
+
+**Selection Rules & Behavior**:
+- **Contains Selection**: Objects selected only if selection rectangle completely contains them
+- **Ownership Respect**: Cannot select objects owned/locked by other users
+- **Visual Hierarchy**: Clear distinction between single vs multi-selection states
+- **Properties Integration**: Selection count appears in properties panel where tool info shows
+
+**Files to Create/Modify**:
+- `src/components/canvas/SelectionBox.jsx` - Drag selection rectangle component
+- `src/hooks/useMultiSelection.js` - Multi-selection state management
+- `src/tools/SelectTool.js` - Enhanced with multi-selection logic
+- `src/components/canvas/Canvas.jsx` - Integration with selection system and properties panel
+
+**Visual Design System**:
+
+**1. Selection Rectangle (Drag Selection)**:
+```css
+Border: 2px dashed #3B82F6 (blue)
+Fill: rgba(59, 130, 246, 0.15) (15% opacity blue)
+Animation: Subtle border animation/pulsing
+Preview: Real-time highlighting of objects being selected
+```
+
+**2. Single Selected Object**:
+```css
+Border: 2px solid #3B82F6 (blue)
+Handles: Resize/rotate handles visible
+State: Individual object properties shown
+```
+
+**3. Multi-Selected Objects**:
+```css
+Border: 2px solid #8B5CF6 (purple) 
+Handles: No individual handles (group operations only)
+State: Group properties and count shown
+```
+
+**4. Locked/Owned Objects in Selection**:
+```css
+Appearance: Grayed out/dimmed in selection rectangle
+Border: Red outline when intersected by selection
+Behavior: Not selectable, visual feedback only
+Tooltip: "Cannot select: owned by [User Name]"
+```
+
+**Properties Panel Integration**:
+
+**Current Properties Display**:
+```
+No Selection: "Pan Tool • Cursor: (4,969, 2,320) • Zoom: 10%"
+```
+
+**New Multi-Selection Display**:
+```
+Single Selected: "Rectangle: 150×100 at (250, 320) • Cursor: (4,969, 2,320) • Zoom: 10%"
+Multi-Selected:  "3 objects selected • Cursor: (4,969, 2,320) • Zoom: 10%"
+Mixed Selection:  "2 of 4 objects selected (2 locked by other users) • Cursor: (4,969, 2,320) • Zoom: 10%"
+During Selection: "Selecting 3 objects... • Cursor: (4,969, 2,320) • Zoom: 10%"
+```
+
+**Specific Implementation Features**:
+
+**1. Drag Selection**:
+- **Initiation**: Click and drag on empty canvas (not on objects)
+- **Selection Rule**: Objects completely contained within rectangle
+- **Real-time Preview**: Objects highlight as selection rectangle intersects them
+- **Visual Feedback**: Dashed blue border with semi-transparent fill
+- **Count Preview**: Live count updates during drag: "Selecting 3 objects..."
+- **Ownership Handling**: Locked objects show grayed out, not selectable
+
+**2. Shift+Click Selection**:
+- **Add to Selection**: Shift+click unselected object → adds to selection
+- **Remove from Selection**: Shift+click selected object → removes from selection
+- **Visual Preview**: Hover shows "+" or "−" indicator for add/remove intent
+- **Ownership Respect**: Cannot shift+click locked objects
+- **Tool Independence**: Works with unified Select/Move tool
+
+**3. Group Operations**:
+- **Delete**: Delete key removes all selected objects simultaneously
+- **Move**: Dragging any selected object moves entire group as unit
+- **Group Preview**: During move, all selected objects show movement preview
+- **Ownership Constraints**: Group operations respect individual object permissions
+- **Batch Feedback**: "Deleting 3 objects" confirmation
+
+**4. Deselection Behavior**:
+- **Click Empty Space**: Clears entire selection
+- **Escape Key**: Clears entire selection  
+- **Single Click Object**: Deselects all others, selects clicked object
+- **Tool Switch**: Maintains selection when switching between compatible tools
+
+**Advanced Features**:
+
+**1. Performance Optimization**:
+- **Efficient Rendering**: Optimized for 50+ selected objects
+- **Intersection Detection**: Fast algorithms for drag selection
+- **State Management**: Minimal re-renders during selection updates
+
+**2. Accessibility**:
+- **Keyboard Navigation**: Tab through selected objects
+- **Screen Reader**: Announces selection count changes
+- **High Contrast**: Selection indicators work in high contrast mode
+
+**3. Collaborative Features**:
+- **Ownership Awareness**: Cannot select objects locked by other users
+- **Visual Feedback**: Clear indication of selection conflicts
+- **Real-time Updates**: Selection state syncs across users
+
+**Acceptance Criteria**:
+- [ ] Drag selection rectangle on empty space selects objects completely contained within
+- [ ] Selection rectangle shows dashed blue border with 15% opacity blue fill
+- [ ] Shift+click adds unselected objects to selection, removes selected objects
+- [ ] Selected objects show purple border (multi-select) or blue border (single select)
+- [ ] Properties panel shows "X objects selected" for multi-selection
+- [ ] Real-time count updates during drag selection: "Selecting X objects..."
+- [ ] Cannot select objects owned by other users (grayed out in selection rectangle)
+- [ ] Delete key removes all selected objects simultaneously
+- [ ] Moving one selected object moves entire group with preview
+- [ ] Click empty space or Escape clears selection
+- [ ] Performance remains smooth with 50+ objects selected
+- [ ] Selection state persists when switching between Select and Move tools
+- [ ] Mixed selections show ownership status: "2 of 4 objects selected (2 locked)"
+
+**Testing Steps**:
+1. **Drag Selection**: Drag rectangle over multiple objects → Only completely contained objects selected
+2. **Ownership Conflicts**: Try to select mix of owned/locked objects → Only owned objects selected
+3. **Shift+Click**: Shift+click objects individually → Objects added/removed from selection
+4. **Properties Panel**: Verify count appears in properties: "3 objects selected"
+5. **Real-time Updates**: Watch count change during drag selection
+6. **Batch Delete**: Select multiple objects → Press Delete → All deleted simultaneously
+7. **Group Move**: Select multiple objects → Drag one → All move together with preview
+8. **Deselection**: Click empty space → All objects deselected
+9. **Performance**: Create 100+ objects → Select 50+ → Verify smooth performance
+10. **Tool Switching**: Multi-select objects → Switch tools → Selection preserved
+
+**Error Handling**:
+- **All Objects Locked**: "Cannot select any objects: all owned by other users"
+- **Partial Selection**: "2 of 5 objects selected (3 locked by other users)"
+- **No Objects in Rectangle**: Selection rectangle completes with no selection
+- **Network Issues**: Selection state queued and synced when reconnected
+
+**Future Enhancements** (not in this task):
+- Copy/Paste for selected groups
+- Group/Ungroup functionality  
+- Alignment tools for multi-selection
+- Batch property editing
+
+**Priority**: 🟡 **High** - Essential productivity feature for design workflow
+
+**Status**: ⏸️ Not Started
+
+---
+
+### Task E13: Tool Consolidation (Merge Select + Move Tools)
+
+**Objective**: Combine Select and Move tools into unified selection/manipulation tool following Figma's exact behavior patterns
+
+**Current State Problems**:
+- **Inefficient Workflow**: Select Tool → Click object → Switch to Move Tool → Drag object
+- **Tool Switching Overhead**: Users constantly switching between Select and Move
+- **Industry Mismatch**: Modern design tools (Figma, Sketch, Adobe XD) use unified approach
+- **Cognitive Load**: Users must remember which tool does what instead of direct interaction
+
+**Figma's Gold Standard Behavior** (our exact target):
+
+**1. Single Object Interaction**:
+```
+Click unselected object → Immediate selection + property display
+Drag unselected object → Immediate selection + movement (no delay)
+Click selected object → Remains selected (never deselects)
+Drag selected object → Immediate movement
+Click empty space → Deselects all objects
+Escape key → Deselects all objects
+```
+
+**2. Multi-Object Interaction**:  
+```
+Shift+Click unselected → Add to selection
+Shift+Click selected → Remove from selection  
+Drag empty space → Selection rectangle
+Drag any selected object → Move entire group as unit
+Ctrl+A → Select all objects
+```
+
+**3. Tool Behavior Principles**:
+- **No Delays**: Everything happens immediately (no click-and-hold thresholds)
+- **No Deselection on Click**: Clicking selected objects keeps them selected
+- **Predictable**: Same interaction always produces same result
+- **Direct Manipulation**: Objects respond to interaction without tool switching
+
+**Specific Interaction Details**:
+
+**Click Already Selected Object Behavior** (critical UX decision):
+```
+Current Figma Behavior:
+- Click already selected object → Remains selected
+- Immediate drag readiness for movement
+- No deselection (only empty space or Escape deselects)
+
+Why This Works:
+- Prevents accidental deselection during workflows
+- Maintains workflow continuity
+- Users can confidently interact with selected objects
+- Matches user expectations from other design tools
+```
+
+**Drag Gesture Handling**:
+```
+Unselected Object:
+1. MouseDown → Immediately select object
+2. MouseMove → Begin movement (no threshold delay)
+3. Visual feedback → Object follows cursor immediately
+
+Selected Object:
+1. MouseDown → Prepare for movement (already selected)
+2. MouseMove → Begin movement immediately
+3. Multi-select → All selected objects move as group
+```
+
+**Files to Modify**:
+- `src/tools/SelectTool.js` → Enhanced to include immediate move functionality
+- `src/tools/MoveTool.js` → Deprecated and removed
+- `src/components/canvas/Toolbar.jsx` - Update tool layout, remove Move tool button
+- `src/tools/index.js` - Update tool registry, remove MoveTool
+- `src/components/canvas/Canvas.jsx` - Update keyboard shortcuts and tool switching logic
+
+**Implementation Strategy**:
+
+**Phase 1: Enhanced SelectTool**:
+1. **Add Move Capability**: Integrate drag-to-move directly into SelectTool
+2. **Immediate Selection**: Click object → immediate selection and property display
+3. **Immediate Movement**: Drag object → immediate movement without tool switching
+4. **Multi-Selection Integration**: Works seamlessly with E12 multi-selection system
+
+**Phase 2: Toolbar Redesign**:
+1. **Remove Move Tool Button**: Update toolbar to remove separate Move tool
+2. **Update Tool Labels**: "Select" becomes "Select & Move" or just "Select"
+3. **Keyboard Shortcuts**: V key activates unified tool (current Select behavior)
+4. **Visual Consistency**: Maintain current selection visual indicators
+
+**Phase 3: Legacy Cleanup**:
+1. **Remove MoveTool Code**: Complete removal of separate MoveTool implementation
+2. **Update Documentation**: Update all references and help text
+3. **Migration Testing**: Ensure no regressions from old Move tool behavior
+
+**Toolbar Layout Changes**:
+```
+Current Layout:
+[Pan] [Select] [Move] [Resize] [Rotate] | [Z-Index] | [Text] [Rectangle] [Circle] [Star]
+
+New Layout:  
+[Pan] [Select] [Resize] [Rotate] | [Delete] [Z-Index] | [Text] [Rectangle] [Circle] [Star]
+
+Benefits:
+- One less tool button (cleaner UI)
+- More space for future tools or features
+- Matches industry standard layouts
+- Eliminates redundant functionality
+```
+
+**Integration with Other Tasks**:
+- **Depends on E12**: Multi-selection system must be implemented first or simultaneously
+- **Enables B5**: Delete tool redesign builds on unified selection paradigm
+- **Foundation for Future**: Unified tool becomes base for advanced selection features
+
+**Advanced Behavioral Details**:
+
+**1. Group Movement**:
+- Drag any selected object when multiple are selected
+- All selected objects move as group maintaining relative positions
+- Visual preview shows all objects moving during drag
+- Ownership constraints: Cannot move objects locked by other users
+
+**2. Selection Persistence**:
+- Selection maintained when switching to Resize, Rotate, or Delete tools
+- Selection cleared only by explicit user action (click empty, Escape)
+- Multi-selection works seamlessly across tool switches
+
+**3. Performance Considerations**:
+- Immediate response to all interactions (no perceived lag)
+- Optimized rendering during drag operations
+- Efficient state management for large selections
+
+**Acceptance Criteria**:
+- [ ] Click unselected object → Immediate selection + property display
+- [ ] Drag unselected object → Immediate selection + movement (no tool switch)
+- [ ] Click selected object → Remains selected (no deselection)
+- [ ] Drag selected object → Immediate movement
+- [ ] Shift+click toggles object selection state
+- [ ] Drag empty space creates multi-selection rectangle (integrates with E12)
+- [ ] Drag any selected object moves entire group when multi-selected
+- [ ] Click empty space or Escape clears selection
+- [ ] No delays, thresholds, or click-and-hold behaviors
+- [ ] Unified tool works with all object types (rectangle, circle, star, text)
+- [ ] Selection persists when switching to Resize, Rotate tools
+- [ ] V key activates unified Select/Move tool
+- [ ] Move tool button removed from toolbar
+- [ ] No regressions from previous Select or Move tool functionality
+
+**Testing Steps**:
+1. **Basic Selection**: Click various objects → Verify immediate selection + properties display
+2. **Basic Movement**: Drag various objects → Verify immediate movement without tool switch
+3. **Selected Object Interaction**: Click already selected object → Verify remains selected
+4. **Multi-Selection**: Shift+click multiple objects → Verify all move together when dragged
+5. **Empty Space**: Click empty space → Verify all objects deselected
+6. **Drag Selection**: Drag empty space → Verify selection rectangle appears (E12 integration)
+7. **Tool Persistence**: Select objects → Switch to Resize → Return to Select → Verify selection maintained
+8. **Performance**: Test with 50+ objects → Verify smooth selection and movement
+9. **All Object Types**: Test selection/movement with rectangles, circles, stars, text
+10. **Ownership**: Try to select/move locked objects → Verify proper error handling
+11. **Keyboard**: Press V key → Verify unified tool activates
+12. **Toolbar**: Verify Move tool button is removed, layout looks clean
+
+**Migration Considerations**:
+- **User Familiarity**: Some users may be accustomed to separate Select/Move tools
+- **Training**: Update any help documentation or tooltips
+- **Accessibility**: Ensure keyboard navigation still works properly
+- **Backward Compatibility**: Existing saved tool preferences should default to unified tool
+
+**Benefits**:
+- **50% Faster Workflow**: Eliminates tool switching for basic select→move operations
+- **Industry Standard**: Exactly matches Figma, Sketch, Adobe XD behavior
+- **Cleaner UI**: One less tool button, more space for features
+- **Intuitive**: Direct object manipulation without cognitive tool overhead
+- **Foundation**: Enables advanced selection features (multi-select, batch operations)
+
+**Priority**: 🟡 **High** - Major workflow improvement, foundation for E12 multi-selection
+
+**Status**: ⏸️ Not Started
+
+---
+
 ## Next Steps
 
-**Stage 3 Progress: 9/15 tasks complete**
+**Stage 3 Progress: 10/22 tasks complete** 
+*(9 Enhanced Tools + 1 Bug Fix complete, B1 needs refinement, added 4 new tasks: B4, B5, E12, E13)*
 
-Completed Enhanced Tools:
+**✅ Completed Enhanced Tools** (9 complete):
 - ✅ E1: Add Circle Creation Tool
 - ✅ E2: Create Properties Display in Toolbar
 - ✅ E3: Implement Text Tool with Basic Formatting
@@ -1063,48 +1812,74 @@ Completed Enhanced Tools:
 - ✅ E9: Implement Z-Index Management
 - ✅ E10: Enable Continuous Text Editing (Re-edit Existing Text)
 
-Remaining Enhanced Tools:
+**✅ Completed Bug Fixes** (1 complete):
+- ✅ B3: Implement Object Deletion Tool
+
+**🔄 In Progress/Refinement**:
+- 🔄 B1: Redesign Toolbar with Figma-Compact Spacing (needs refinement to match Figma)
+
+**⏸️ Remaining Enhanced Tools** (4 pending):
 - ⏸️ E5: Add Owner-Only Edit Restrictions
 - ⏸️ E11: Comprehensive Testing Framework (Unit, Integration, Regression)
+- ⏸️ E12: Multi-Object Selection System
+- ⏸️ E13: Tool Consolidation (Merge Select + Move Tools)
+
+**⏸️ Bug Fixes Needed** (3 pending):
+- ❌ B2: Fix Rotation/Resize Tool Interaction Bug (previous fix failed - replaced by B4)
+- ⏸️ B4: Fix Rotation/Resize Tool State Synchronization Bug (real fix needed)
+- ⏸️ B5: Redesign Delete Tool as Click-to-Delete
 
 Remaining Advanced Features:
 - ⏸️ A1: Implement Canvas Export Functionality
 - ⏸️ A2: Add Undo/Redo System
 - ⏸️ A3: Enhance Toolbar Design
-- ⏸️ A4: Implement Object Deletion (depends on A2)
+- ⏸️ A4: Implement Object Deletion (depends on A2) ← **REPLACED BY B3**
 
 Deferred (moved to end or separate stage):
 - ❌ A0: Performance Optimization & Monitoring
 
 **Recommended Order**:
-1. **E11 (Testing Framework)** - Establish testing infrastructure and prevent future regressions ← **DOING NOW**
-2. **E5 (Ownership UI)** - Visual ownership indicators and edit restrictions
-3. **A2 (Undo/Redo System)** - Critical safety net for destructive operations
-4. **A4 (Object Deletion)** - Delete key functionality (safe with undo/redo)
-5. **A1 (Canvas Export)** - PNG/SVG export functionality
-6. **A3 (Toolbar Design)** - Visual polish and refinement
-7. **A0 (Performance)** - Optimization and monitoring (deferred to end)
+1. **B4 (Rotation/Resize Event Handling Bug)** - 🔴 **CRITICAL** - Fix core functionality breakage ← **HIGHEST PRIORITY**
+2. **E12 (Multi-Object Selection System)** - Essential UX enhancement for productivity
+3. **E13 (Tool Consolidation)** - Merge Select+Move tools for better workflow
+4. **B5 (Delete Tool Redesign)** - Move delete to primary tools, click-to-delete behavior
+5. **E5 (Ownership UI)** - Visual ownership indicators and edit restrictions  
+6. **E11 (Testing Framework)** - Establish testing infrastructure and prevent future regressions
+7. **A2 (Undo/Redo System)** - Critical safety net for destructive operations
+8. **A1 (Canvas Export)** - PNG/SVG export functionality
+9. **A3 (Toolbar Design)** - Visual polish and refinement
+10. **A0 (Performance)** - Optimization and monitoring (deferred to end)
 
-**Why E11 First?**
-- Establishes testing foundation to prevent regressions going forward
-- Creates safety net before implementing complex features (E5, A2, A4)
-- Enables Test-Driven Development (TDD) for all future work
-- Catches bugs early and reduces debugging time
-- Critical for maintaining code quality as codebase grows
-- Should have been implemented from the beginning, doing it now before more complexity is added
+**Why This Priority Order?**
 
-**Why E5 Next (After E11)?**
-- Completes all Enhanced Tools (E1-E11)
-- Visual ownership indicators improve collaborative UX
-- Edit restrictions prevent conflicts in multi-user scenarios
-- Foundation for safe deletion (A4) - users need to know who owns what before deleting
-- Relatively contained scope (visual indicators + interaction blocking)
-- Can be developed with TDD using new testing framework
+**1. B4 (Rotation/Resize Bug) - CRITICAL FIRST**:
+- Breaks fundamental editing workflow (rotate → resize)
+- Affects all object types, making the app partially unusable
+- Users can't complete basic design tasks
+- Must be fixed before implementing new features
 
-**Why A2 Before A4?**
-- Undo/Redo is the safety net for deletion
-- Without undo, accidental deletions are permanent (bad UX)
-- A4 explicitly depends on A2 per user requirements
+**2. E12 (Multi-Selection) - HIGH VALUE SECOND**:
+- Massive productivity enhancement for users
+- Foundation for other features (batch operations)
+- Modern design app expectation
+- Will be heavily used once implemented
+
+**3. E13 (Tool Consolidation) - WORKFLOW IMPROVEMENT**:
+- Matches industry standards (Figma, Sketch behavior)
+- Eliminates unnecessary tool switching
+- Foundation for E12 multi-selection
+- Cleaner, more intuitive interface
+
+**4. B5 (Delete Tool Redesign) - UX POLISH**:
+- Builds on E13's tool layout changes
+- Direct interaction paradigm
+- Can leverage E12's multi-selection for batch delete
+- Completes the primary tool redesign
+
+**5. Remaining Tasks - INFRASTRUCTURE & POLISH**:
+- E5 (Ownership UI): Visual polish for collaboration
+- E11 (Testing): Infrastructure to prevent regressions
+- A2-A3: Advanced features and refinement
 
 **Why A0 Deferred?**
 - Current performance is acceptable for typical use cases

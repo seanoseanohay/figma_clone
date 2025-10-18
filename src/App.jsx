@@ -77,6 +77,24 @@ const LoggedInLayout = ({ children }) => {
     }
   }, []);
 
+  const handleDeleteObject = useCallback(async (objectId) => {
+    try {
+      // Import deleteObject dynamically
+      const { deleteObject } = await import('./services/canvas.service.js');
+      
+      await deleteObject(objectId);
+      console.log('✅ Object deleted successfully from App.jsx');
+      
+      // Clear selection since object no longer exists
+      setHasSelection(false);
+      setSelectedObject(null);
+      
+    } catch (error) {
+      console.error('❌ Failed to delete object from App.jsx:', error);
+      // Could show toast notification here in the future
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Fixed Header - Always at top */}
@@ -97,6 +115,7 @@ const LoggedInLayout = ({ children }) => {
           onColorChange={handleColorChange}
           onZIndexChange={handleZIndexChange}
           onRotationChange={handleRotationChange}
+          onDeleteObject={handleDeleteObject}
         />
       </div>
       
