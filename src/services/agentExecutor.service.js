@@ -23,8 +23,8 @@ import { broadcastAgentAction, setAgentStatus, clearAgentStatus, createAgentActi
  */
 
 /**
- * Resolve special object IDs like "lastCreated" to actual Firestore document IDs
- * @param {string} objectId - Object ID (may be "lastCreated" or actual ID)
+ * Resolve special object IDs like "lastCreated", "lastRectangle", "lastCircle:red" to actual Firestore document IDs
+ * @param {string} objectId - Object ID (may be "lastCreated", "lastRectangle:red", or actual ID)
  * @param {string} canvasId - Current canvas ID
  * @returns {Promise<string|null>} - Resolved object ID or null if not found
  */
@@ -35,28 +35,85 @@ async function resolveObjectId(objectId, canvasId) {
       return objectId
     }
 
-    // Otherwise, fetch the latest created object for this canvas
+    // Parse color filter if present (e.g., "lastRectangle:red")
+    const [baseObjectId, colorFilter] = objectId.split(':')
+    
+    // Fetch all objects from the canvas
     const objects = await getCanvasObjects(canvasId)
     if (!objects || objects.length === 0) {
-      console.warn('No objects found on canvas to resolve "lastCreated"')
+      console.warn(`No objects found on canvas to resolve "${objectId}"`)
+      return null
+    }
+
+    // Filter objects based on the special identifier
+    let filteredObjects = objects
+    
+    if (baseObjectId === 'lastRectangle') {
+      filteredObjects = objects.filter(obj => obj.type === 'rectangle')
+    } else if (baseObjectId === 'lastCircle') {
+      filteredObjects = objects.filter(obj => obj.type === 'circle')
+    } else if (baseObjectId === 'lastStar') {
+      filteredObjects = objects.filter(obj => obj.type === 'star')
+    } else if (baseObjectId === 'lastText') {
+      filteredObjects = objects.filter(obj => obj.type === 'text')
+    }
+    // For "lastCreated", we use all objects (no additional filtering)
+    
+    // Apply color filter if specified
+    if (colorFilter) {
+      const targetColor = normalizeColor(colorFilter)
+      filteredObjects = filteredObjects.filter(obj => {
+        const objColor = normalizeColor(obj.fill || obj.color)
+        return objColor === targetColor
+      })
+    }
+
+    if (filteredObjects.length === 0) {
+      console.warn(`No matching objects found for "${objectId}"`)
       return null
     }
 
     // Sort by creation time and pick the last one (most recently created)
-    const sortedObjects = objects.sort((a, b) => {
+    const sortedObjects = filteredObjects.sort((a, b) => {
       const timeA = a.createdAt?.seconds || 0
       const timeB = b.createdAt?.seconds || 0
       return timeB - timeA // Most recent first
     })
     
     const lastObject = sortedObjects[0]
-    console.log(`Resolved "${objectId}" to object ID: ${lastObject.id}`)
+    console.log(`Resolved "${objectId}" to object ID: ${lastObject.id} (${lastObject.type})`)
     return lastObject.id
     
   } catch (error) {
     console.error('Error resolving object ID:', error)
     return null
   }
+}
+
+/**
+ * Normalize color values for comparison
+ * @param {string} color - Color value (name, hex, etc.)
+ * @returns {string} - Normalized color value
+ */
+function normalizeColor(color) {
+  if (!color) return ''
+  
+  const colorMap = {
+    red: '#EF4444',
+    blue: '#3B82F6', 
+    green: '#22C55E',
+    purple: '#A855F7',
+    yellow: '#EAB308',
+    orange: '#f97316',
+    pink: '#ec4899',
+    black: '#000000',
+    white: '#ffffff',
+    gray: '#6b7280',
+    grey: '#6b7280'
+  }
+  
+  const lowerColor = color.toLowerCase()
+  return colorMap[lowerColor] || color.toUpperCase()
 }
 
 /**
@@ -501,21 +558,49 @@ const executeMoveObject = async (command, canvasId) => {
  * Execute resizeObject command
  */
 const executeResizeObject = async (command, canvasId) => {
-  const { objectId, size, animate } = command
+  const { objectId, size, scale, animate } = command
   
-  const updates = {}
-  
-  if (size.width !== undefined) {
-    updates.width = size.width
-  }
-  if (size.height !== undefined) {
-    updates.height = size.height
-  }
-  if (size.radius !== undefined) {
-    updates.radius = size.radius
+  // Resolve special object IDs like "lastRectangle:purple"
+  const resolvedObjectId = await resolveObjectId(objectId, canvasId)
+  if (!resolvedObjectId) {
+    throw new Error(`Could not resolve object ID: ${objectId}`)
   }
   
-  await updateObject(objectId, updates)
+  let updates = {}
+  
+  if (size) {
+    // Direct size specification
+    if (size.width !== undefined) {
+      updates.width = size.width
+    }
+    if (size.height !== undefined) {
+      updates.height = size.height
+    }
+    if (size.radius !== undefined) {
+      updates.radius = size.radius
+    }
+  } else if (scale) {
+    // Scale-based resizing - need to fetch current object first
+    const objects = await getCanvasObjects(canvasId)
+    const targetObject = objects.find(obj => obj.id === resolvedObjectId)
+    
+    if (!targetObject) {
+      throw new Error(`Object not found: ${resolvedObjectId}`)
+    }
+    
+    // Apply scale to current dimensions
+    if (targetObject.type === 'circle') {
+      updates.radius = Math.round((targetObject.radius || 50) * scale)
+    } else {
+      // For rectangles, stars, etc.
+      updates.width = Math.round((targetObject.width || 100) * scale)
+      updates.height = Math.round((targetObject.height || 100) * scale)
+    }
+    
+    console.log(`Scaling ${targetObject.type} by ${scale}x: ${JSON.stringify(updates)}`)
+  }
+  
+  await updateObject(resolvedObjectId, updates)
   
   // TODO: Handle animation if requested
   if (animate) {

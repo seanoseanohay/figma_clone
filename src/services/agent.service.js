@@ -120,20 +120,67 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   // === QUANTITY DETECTION ===
   
   /**
-   * Extract numeric context from prompt, distinguishing between counts vs measurements
+   * Extract position coordinates from prompt
+   * @param {string} prompt - The user prompt
+   * @returns {Object|null} - Position object {x, y} or null if no coordinates found
+   */
+  function extractPosition(prompt) {
+    // Check for center/middle first
+    const lowerPrompt = prompt.toLowerCase()
+    if (lowerPrompt.includes('center') || lowerPrompt.includes('middle')) {
+      return { x: 2500, y: 2500 } // Canvas center
+    }
+    
+    // Match patterns like "at 100,200" or "of position 100-200"
+    const match = prompt.match(/(?:at|position)\s*(\d+)[,\-\s]+(\d+)/i)
+    if (!match) return null // default will be handled by caller
+    return { x: parseInt(match[1]), y: parseInt(match[2]) }
+  }
+  
+  /**
+   * Extract count from prompt, only considering explicit creation commands
+   * @param {string} prompt - The user prompt
+   * @returns {number} - Count of objects to create
+   */
+  function extractCount(prompt) {
+    // consider 'create N', 'add N', 'arrange N', or 'make N'
+    const match = prompt.match(/\b(?:create|add|arrange|make)\s+(\d+)\b/i)
+    return match ? parseInt(match[1]) : 1
+  }
+  
+  /**
+   * Extract layout type from prompt
+   * @param {string} prompt - The user prompt
+   * @returns {string|null} - Layout type: 'grid', 'row', 'column', 'even', or null
+   */
+  function extractLayoutType(prompt) {
+    if (/grid/i.test(prompt)) return "grid";
+    if (/row|horizontal/i.test(prompt)) return "row";
+    if (/column|vertical/i.test(prompt)) return "column";
+    if (/evenly spaced/i.test(prompt)) return "even";
+    return null;
+  }
+  
+  /**
+   * Extract grid dimensions from prompt
+   * @param {string} prompt - The user prompt
+   * @returns {Object|null} - Grid dimensions {rows, cols} or null
+   */
+  function extractGridDimensions(prompt) {
+    // Match patterns like "3x3 grid" or "4 by 5 grid"
+    const match = prompt.match(/(\d+)\s*(?:x|by)\s*(\d+)/i);
+    if (!match) return null;
+    return { rows: parseInt(match[1]), cols: parseInt(match[2]) };
+  }
+  
+  /**
+   * Extract numeric context from prompt, distinguishing between counts vs measurements (DEPRECATED)
    * @param {string} prompt - The user prompt
    * @returns {number|null} - Count if it's a quantity, null if it's a measurement
    */
   function extractNumericContext(prompt) {
-    // If prompt includes measurement units, it's NOT a count
-    if (/\b(px|pixels?|degrees?|units?|points?)\b/i.test(prompt)) return null
-    
-    // If it's a movement/transformation command, numbers are measurements not counts
-    if (/\b(move|rotate|resize|scale|shift)\b/i.test(prompt)) return null
-    
-    // Otherwise, treat the first number as a possible count
-    const num = prompt.match(/\b(\d+)\b/)
-    return num ? parseInt(num[1]) : null
+    // Deprecated - use extractCount() instead
+    return extractCount(prompt)
   }
   
   const numberWords = {
@@ -141,20 +188,27 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
     six: 6, seven: 7, eight: 8, nine: 9, ten: 10
   }
   
-  const rawCount = extractNumericContext(prompt)
-  let count = rawCount ?? 1
+  const count = extractCount(prompt)
+  const layout = extractLayoutType(prompt)
+  const grid = extractGridDimensions(prompt)
   
-  // Check for word quantities if no numeric count was found
-  if (rawCount === null) {
+  // Check for word quantities if no numeric count was found from extractCount
+  let finalCount = count
+  if (count === 1) {
     const wordMatch = prompt.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/i)
     if (wordMatch && !/\b(move|rotate|resize|scale|shift)\b/i.test(prompt)) {
-      count = numberWords[wordMatch[1].toLowerCase()]
+      finalCount = numberWords[wordMatch[1].toLowerCase()]
     }
+  }
+  
+  // For grid layouts, calculate count from dimensions if not explicitly specified
+  if (layout === "grid" && grid && count === 1) {
+    finalCount = grid.rows * grid.cols
   }
   
   // Base layout logic for multiple objects
   const canvasWidth = 1000
-  const spacing = canvasWidth / (count + 1)
+  const spacing = 100 // Default gap between shapes
   const isEvenlySpaced = /evenly|row|across|grid/i.test(prompt)
   
   // Determine vertical positioning
@@ -166,15 +220,19 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   // Check if this is a manipulation command (not creation)
   const isManipulationCommand = lowerPrompt.includes('move') || lowerPrompt.includes('rotate') || 
                               lowerPrompt.includes('resize') || lowerPrompt.includes('scale') || 
-                              lowerPrompt.includes('delete') || lowerPrompt.includes('remove')
+                              lowerPrompt.includes('delete') || lowerPrompt.includes('remove') ||
+                              lowerPrompt.includes('make bigger') || lowerPrompt.includes('make smaller') ||
+                              lowerPrompt.includes('twice the size') || lowerPrompt.includes('half the size') ||
+                              (lowerPrompt.includes('make') && (lowerPrompt.includes('bigger') || lowerPrompt.includes('smaller') || lowerPrompt.includes('larger')))
 
   // === CREATION COMMANDS ===
   // Skip creation if this is a manipulation command
   if (!isManipulationCommand) {
     
     // Text creation
-    if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text')) {
-    const textMatch = prompt.match(/['"](.*?)['"]/) || prompt.match(/says?\s+([^.!?]+)/i)
+    if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text') || 
+        lowerPrompt.includes('text layer') || lowerPrompt.includes('add a text')) {
+    const textMatch = prompt.match(/['"](.*?)['"]/) || prompt.match(/says?[,\s]+(.+?)(?:[.!?]|$)/i)
     const text = textMatch ? textMatch[1] : 'Hello World'
     
     let position
@@ -203,55 +261,141 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
     
     let fill = extractColor(prompt, '#3b82f6')
     
-    for (let i = 0; i < count; i++) {
-      let position
-      if (isEvenlySpaced) {
-        position = { x: spacing * (i + 1), y: baseY }
-      } else {
-        // When position keywords are used (top, bottom, center), align on that Y even without "evenly"
-        const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
-        position = extractPosition(prompt) || { 
-          x: 100 + i * 120, 
-          y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+    if (layout === "grid" && grid) {
+      // Grid layout for rectangles
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          const x = 100 + c * spacing
+          const y = 100 + r * spacing
+          commands.push({
+            type: 'createRectangle',
+            position: { x, y },
+            size: { width: Math.min(width, 1000), height: Math.min(height, 1000) },
+            fill,
+            strokeWidth: 0
+          })
         }
       }
-      
-      commands.push({
-        type: 'createRectangle',
-        position,
-        size: { width: Math.min(width, 1000), height: Math.min(height, 1000) },
-        fill,
-        strokeWidth: 0
-      })
+    } else if (layout === "row" || layout === "even") {
+      // Row/horizontal layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = 100 + i * spacing
+        const y = extractPosition(prompt)?.y || baseY
+        commands.push({
+          type: 'createRectangle',
+          position: { x, y },
+          size: { width: Math.min(width, 1000), height: Math.min(height, 1000) },
+          fill,
+          strokeWidth: 0
+        })
+      }
+    } else if (layout === "column") {
+      // Column/vertical layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = extractPosition(prompt)?.x || 100
+        const y = 100 + i * spacing
+        commands.push({
+          type: 'createRectangle',
+          position: { x, y },
+          size: { width: Math.min(width, 1000), height: Math.min(height, 1000) },
+          fill,
+          strokeWidth: 0
+        })
+      }
+    } else {
+      // Default/single shape layout
+      for (let i = 0; i < finalCount; i++) {
+        let position
+        if (isEvenlySpaced) {
+          position = { x: 100 + i * spacing, y: baseY }
+        } else {
+          const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
+          position = extractPosition(prompt) || { 
+            x: 100 + i * 120, 
+            y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+          }
+        }
+        
+        commands.push({
+          type: 'createRectangle',
+          position,
+          size: { width: Math.min(width, 1000), height: Math.min(height, 1000) },
+          fill,
+          strokeWidth: 0
+        })
+      }
     }
   }
 
   // Circle creation
   if (lowerPrompt.includes('circle') || lowerPrompt.includes('oval')) {
-    let fill = extractColor(prompt, '#ef4444')
-    const sizeMatch = prompt.match(/(\d+)\s*(?:pixel|px|wide|radius)/i)
-    const radius = sizeMatch ? Math.min(parseInt(sizeMatch[1]), 500) : 60
+    const extractedPosition = extractPosition(prompt)
+    const color = extractColor(prompt) || '#EF4444'
+    const radius = extractRadius(prompt) || 60
     
-    for (let i = 0; i < count; i++) {
-      let position
-      if (isEvenlySpaced) {
-        position = { x: spacing * (i + 1), y: baseY }
-      } else {
-        // When position keywords are used (top, bottom, center), align on that Y even without "evenly"
-        const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
-        position = extractPosition(prompt) || { 
-          x: 200 + i * 100, 
-          y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+    if (layout === "grid" && grid) {
+      // Grid layout for circles
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          const x = 100 + c * spacing
+          const y = 100 + r * spacing
+          commands.push({
+            type: 'createCircle',
+            position: { x, y },
+            radius,
+            fill: color,
+            strokeWidth: 0
+          })
         }
       }
-      
-      commands.push({
-        type: 'createCircle',
-        position,
-        radius,
-        fill,
-        strokeWidth: 0
-      })
+    } else if (layout === "row" || layout === "even") {
+      // Row/horizontal layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = 100 + i * spacing
+        const y = extractedPosition?.y || baseY
+        commands.push({
+          type: 'createCircle',
+          position: { x, y },
+          radius,
+          fill: color,
+          strokeWidth: 0
+        })
+      }
+    } else if (layout === "column") {
+      // Column/vertical layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = extractedPosition?.x || 100
+        const y = 100 + i * spacing
+        commands.push({
+          type: 'createCircle',
+          position: { x, y },
+          radius,
+          fill: color,
+          strokeWidth: 0
+        })
+      }
+    } else {
+      // Default/single shape layout
+      for (let i = 0; i < finalCount; i++) {
+        let position
+        if (isEvenlySpaced) {
+          position = { x: 100 + i * spacing, y: baseY }
+        } else {
+          const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
+          position = extractedPosition || { 
+            x: 200 + i * 100, 
+            y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+          }
+        }
+        
+        commands.push({
+          type: 'createCircle',
+          position,
+          radius,
+          fill: color,
+          strokeWidth: 0
+        })
+      }
     }
   }
 
@@ -259,28 +403,77 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   if (lowerPrompt.includes('star')) {
     let fill = extractColor(prompt, '#f59e0b')
     
-    for (let i = 0; i < count; i++) {
-      let position
-      if (isEvenlySpaced) {
-        position = { x: spacing * (i + 1), y: baseY }
-      } else {
-        // When position keywords are used (top, bottom, center), align on that Y even without "evenly"
-        const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
-        position = extractPosition(prompt) || { 
-          x: 300 + i * 120, 
-          y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+    if (layout === "grid" && grid) {
+      // Grid layout for stars
+      for (let r = 0; r < grid.rows; r++) {
+        for (let c = 0; c < grid.cols; c++) {
+          const x = 100 + c * spacing
+          const y = 100 + r * spacing
+          commands.push({
+            type: 'createStar',
+            position: { x, y },
+            numPoints: 5,
+            innerRadius: 30,
+            outerRadius: 80,
+            fill,
+            strokeWidth: 0
+          })
         }
       }
-      
-      commands.push({
-        type: 'createStar',
-        position,
-        numPoints: 5,
-        innerRadius: 30,
-        outerRadius: 80,
-        fill,
-        strokeWidth: 0
-      })
+    } else if (layout === "row" || layout === "even") {
+      // Row/horizontal layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = 100 + i * spacing
+        const y = extractPosition(prompt)?.y || baseY
+        commands.push({
+          type: 'createStar',
+          position: { x, y },
+          numPoints: 5,
+          innerRadius: 30,
+          outerRadius: 80,
+          fill,
+          strokeWidth: 0
+        })
+      }
+    } else if (layout === "column") {
+      // Column/vertical layout
+      for (let i = 0; i < finalCount; i++) {
+        const x = extractPosition(prompt)?.x || 100
+        const y = 100 + i * spacing
+        commands.push({
+          type: 'createStar',
+          position: { x, y },
+          numPoints: 5,
+          innerRadius: 30,
+          outerRadius: 80,
+          fill,
+          strokeWidth: 0
+        })
+      }
+    } else {
+      // Default/single shape layout
+      for (let i = 0; i < finalCount; i++) {
+        let position
+        if (isEvenlySpaced) {
+          position = { x: 100 + i * spacing, y: baseY }
+        } else {
+          const hasPositionKeyword = /top|bottom|center|middle/i.test(prompt)
+          position = extractPosition(prompt) || { 
+            x: 300 + i * 120, 
+            y: hasPositionKeyword ? baseY : baseY + Math.random() * 50 
+          }
+        }
+        
+        commands.push({
+          type: 'createStar',
+          position,
+          numPoints: 5,
+          innerRadius: 30,
+          outerRadius: 80,
+          fill,
+          strokeWidth: 0
+        })
+      }
     }
   }
   
@@ -325,17 +518,46 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   }
 
   // Resize commands
-  if (lowerPrompt.includes('resize') && canvasState.selectedObjectIds?.length > 0) {
+  if (lowerPrompt.includes('resize') || lowerPrompt.includes('twice the size') || lowerPrompt.includes('half the size') || 
+      lowerPrompt.includes('make bigger') || lowerPrompt.includes('make smaller') || 
+      (lowerPrompt.includes('make') && (lowerPrompt.includes('bigger') || lowerPrompt.includes('smaller') || lowerPrompt.includes('larger')))) {
     let scale = 1.5
-    if (lowerPrompt.includes('twice') || lowerPrompt.includes('2x')) scale = 2.0
-    if (lowerPrompt.includes('smaller') || lowerPrompt.includes('shrink')) scale = 0.5
-    if (lowerPrompt.includes('bigger') || lowerPrompt.includes('larger')) scale = 1.5
+    if (lowerPrompt.includes('twice') || lowerPrompt.includes('2x') || lowerPrompt.includes('twice the size')) scale = 2.0
+    if (lowerPrompt.includes('smaller') || lowerPrompt.includes('shrink') || lowerPrompt.includes('half the size')) scale = 0.5
+    if (lowerPrompt.includes('bigger') || lowerPrompt.includes('larger') || lowerPrompt.includes('make bigger')) scale = 1.5
     
-    canvasState.selectedObjectIds.forEach(objectId => {
+    // Handle both selected objects and objects identified in the prompt
+    let targetObjects = []
+    
+    if (canvasState.selectedObjectIds?.length > 0) {
+      targetObjects = canvasState.selectedObjectIds
+    } else {
+      // Try to identify target objects from the prompt
+      if (lowerPrompt.includes('rectangle') || lowerPrompt.includes('square')) {
+        targetObjects = ['lastRectangle'] // Special identifier for most recent rectangle
+      } else if (lowerPrompt.includes('circle')) {
+        targetObjects = ['lastCircle'] // Special identifier for most recent circle
+      } else if (lowerPrompt.includes('star')) {
+        targetObjects = ['lastStar'] // Special identifier for most recent star
+      } else if (lowerPrompt.includes('text')) {
+        targetObjects = ['lastText'] // Special identifier for most recent text
+      } else {
+        targetObjects = ['lastCreated'] // Special identifier for most recently created object
+      }
+      
+      // Add color filtering if color is mentioned
+      const mentionedColor = extractColor(prompt)
+      if (mentionedColor) {
+        // This would be handled by the executor to find objects matching the color
+        targetObjects = targetObjects.map(id => `${id}:${mentionedColor}`)
+      }
+    }
+    
+    targetObjects.forEach(objectId => {
       commands.push({
-        type: 'resizeShape',
-        targetId: objectId,
-        scale
+        type: 'resizeObject',
+        objectId: objectId,
+        scale: scale  // We'll handle scaling in the executor since schema expects actual size
       })
     })
   }
@@ -462,22 +684,33 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
  * Helper function to extract color from prompt
  */
 const extractColor = (prompt, defaultColor) => {
-  const lowerPrompt = prompt.toLowerCase()
-  if (lowerPrompt.includes('red')) return '#ef4444'
-  if (lowerPrompt.includes('blue')) return '#3b82f6'
-  if (lowerPrompt.includes('green')) return '#10b981'
-  if (lowerPrompt.includes('yellow')) return '#f59e0b'
-  if (lowerPrompt.includes('purple')) return '#8b5cf6'
-  if (lowerPrompt.includes('orange')) return '#f97316'
-  if (lowerPrompt.includes('pink')) return '#ec4899'
-  if (lowerPrompt.includes('black')) return '#000000'
-  if (lowerPrompt.includes('white')) return '#ffffff'
-  if (lowerPrompt.includes('gray') || lowerPrompt.includes('grey')) return '#6b7280'
-  return defaultColor
+  const colors = {
+    red: '#EF4444',
+    blue: '#3B82F6',
+    green: '#22C55E',
+    purple: '#A855F7',
+    yellow: '#EAB308',
+    orange: '#f97316',
+    pink: '#ec4899',
+    black: '#000000',
+    white: '#ffffff',
+    gray: '#6b7280',
+    grey: '#6b7280'
+  }
+  const found = Object.keys(colors).find(c => prompt.toLowerCase().includes(c))
+  return found ? colors[found] : defaultColor
 }
 
 /**
- * Helper function to extract position from prompt
+ * Helper function to extract radius from prompt
+ */
+const extractRadius = (prompt) => {
+  const match = prompt.match(/radius\s*(\d+)/i)
+  return match ? parseInt(match[1]) : 60
+}
+
+/**
+ * Helper function to extract position from prompt (legacy version, kept for compatibility)
  */
 const extractPosition = (prompt) => {
   const lowerPrompt = prompt.toLowerCase()
