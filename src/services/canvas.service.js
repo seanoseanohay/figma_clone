@@ -75,7 +75,12 @@ export const createObject = async (type, position, canvasId, properties = {}) =>
       lastModifiedBy: auth.currentUser.uid
     }
 
-    const docRef = await addDoc(collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS), objectData)
+    // Sanitize data to remove undefined fields before writing to Firestore
+    const cleanData = Object.fromEntries(
+      Object.entries(objectData).filter(([_, v]) => v !== undefined)
+    )
+
+    const docRef = await addDoc(collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS), cleanData)
     console.log('Canvas object created:', docRef.id)
     return docRef.id
   } catch (error) {

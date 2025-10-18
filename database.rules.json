@@ -18,7 +18,26 @@
             ".write": "auth != null",
             ".validate": "!newData.exists() || newData.hasChildren(['x', 'y', 'isBeingDragged', 'draggedBy', 'lastUpdate'])"
           }
+        },
+        "agentStatus": {
+          ".read": true,
+          "$uid": {
+            ".read": true,
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "agentActions": {
+          "$actionId": {
+            ".read": true,
+            ".write": "auth != null"
+          }
         }
+      }
+    },
+    "agentTokens": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
       }
     },
     ".read": false,

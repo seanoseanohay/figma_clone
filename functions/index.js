@@ -14,9 +14,28 @@ admin.initializeApp();
 // Create Express app
 const app = express();
 
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174', 
+    'http://localhost:5175',
+    'http://localhost:5176',
+    'http://localhost:5177', // Current dev port
+    'https://figma-clone-default.web.app', // Production domain
+    'https://figma-clone-default.firebaseapp.com' // Firebase hosting domain
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
 // Middleware
-app.use(cors({ origin: true })); // Enable CORS for all origins in development
+app.use(cors(corsOptions)); // Enable CORS with specific origins
 app.use(express.json()); // Parse JSON bodies
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Import route handlers
 const canvasesRoutes = require('./src/api/canvases');

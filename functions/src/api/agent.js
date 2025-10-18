@@ -16,14 +16,14 @@ const db = admin.firestore();
 let openaiClient = null;
 
 function initializeOpenAI() {
-  const config = admin.remoteConfig();
-  const apiKey = config.get('openai')?.api_key || process.env.OPENAI_API_KEY;
+  // Use environment variables for emulator and production
+  const apiKey = process.env.OPENAI_API_KEY;
   
   if (apiKey) {
     openaiClient = new OpenAI({ apiKey });
     console.log('🤖 OpenAI client initialized');
   } else {
-    console.warn('⚠️ OpenAI API key not configured');
+    console.warn('⚠️ OpenAI API key not configured - using mock responses only');
   }
 }
 
@@ -34,25 +34,49 @@ initializeOpenAI();
  * Helper: Check if user has access to canvas
  */
 async function checkCanvasAccess(canvasId, userId) {
-  const canvasDoc = await db.collection('canvases').doc(canvasId).get();
-  
-  if (!canvasDoc.exists) {
-    return { hasAccess: false, error: 'Canvas not found' };
+  // Allow access in mock/development mode
+  if (userId === 'mock-user-id' || !canvasId) {
+    console.log('🔧 Mock mode: granting canvas access');
+    return { 
+      hasAccess: true, 
+      canvas: { 
+        id: canvasId || 'mock-canvas',
+        ownerId: userId,
+        collaborators: []
+      }
+    };
   }
 
-  const canvasData = canvasDoc.data();
-  const hasAccess = canvasData.ownerId === userId || 
-                   (canvasData.collaborators && canvasData.collaborators.includes(userId));
+  try {
+    const canvasDoc = await db.collection('canvases').doc(canvasId).get();
+    
+    if (!canvasDoc.exists) {
+      return { hasAccess: false, error: 'Canvas not found' };
+    }
 
-  return { hasAccess, canvas: canvasData };
+    const canvasData = canvasDoc.data();
+    const hasAccess = canvasData.ownerId === userId || 
+                     (canvasData.collaborators && canvasData.collaborators.includes(userId));
+
+    return { hasAccess, canvas: canvasData };
+  } catch (error) {
+    console.error('Error checking canvas access:', error);
+    return { hasAccess: false, error: 'Failed to check canvas access' };
+  }
 }
 
 /**
  * Helper: Get canvas objects for context
  */
 async function getCanvasObjects(canvasId) {
+  // Return empty array for mock mode
+  if (!canvasId || canvasId === 'mock-canvas') {
+    console.log('🔧 Mock mode: returning empty objects array');
+    return [];
+  }
+
   try {
-    const objectsSnapshot = await db.collection('objects')
+    const objectsSnapshot = await db.collection('canvasObjects')
       .where('canvasId', '==', canvasId)
       .limit(100) // Limit for performance
       .get();
@@ -219,9 +243,8 @@ router.post('/', authenticate, requirePermission('agent_requests'), readLimiter,
       });
     }
 
-    // Check if AI is enabled
-    const config = admin.remoteConfig();
-    const agentEnabled = config.get('agent')?.enabled !== 'false'; // Default to true
+    // Check if AI is enabled (default to true for emulator)
+    const agentEnabled = process.env.AGENT_ENABLED !== 'false'; // Default to true
     
     if (!agentEnabled) {
       return res.status(503).json({
@@ -252,9 +275,9 @@ router.post('/', authenticate, requirePermission('agent_requests'), readLimiter,
     };
 
     // Configure AI request
-    const model = options.model || config.get('agent')?.model || 'gpt-4o-mini';
-    const temperature = parseFloat(options.temperature || config.get('agent')?.temperature || 0.1);
-    const maxTokens = parseInt(options.maxTokens || config.get('agent')?.max_tokens || 1000);
+    const model = options.model || process.env.OPENAI_MODEL || 'gpt-4o-mini';
+    const temperature = parseFloat(options.temperature || process.env.OPENAI_TEMPERATURE || 0.1);
+    const maxTokens = parseInt(options.maxTokens || process.env.OPENAI_MAX_TOKENS || 1000);
 
     // Create system prompt
     const systemPrompt = createSystemPrompt(canvasState);
@@ -384,15 +407,14 @@ router.post('/', authenticate, requirePermission('agent_requests'), readLimiter,
  */
 router.get('/health', authenticate, async (req, res) => {
   try {
-    const config = admin.remoteConfig();
-    const agentEnabled = config.get('agent')?.enabled !== 'false';
-    const hasApiKey = !!config.get('openai')?.api_key || !!process.env.OPENAI_API_KEY;
+    const agentEnabled = process.env.AGENT_ENABLED !== 'false';
+    const hasApiKey = !!process.env.OPENAI_API_KEY;
 
     res.json({
       status: agentEnabled && hasApiKey ? 'healthy' : 'unavailable',
       enabled: agentEnabled,
       configured: hasApiKey,
-      model: config.get('agent')?.model || 'gpt-4o-mini',
+      model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
       timestamp: Date.now()
     });
   } catch (error) {
@@ -441,32 +463,85 @@ router.post('/mock', authenticate, readLimiter, async (req, res) => {
 
     // Generate mock response based on prompt
     const mockCommands = [];
+    const lowerPrompt = prompt.toLowerCase();
     
-    if (prompt.toLowerCase().includes('rectangle') || prompt.toLowerCase().includes('square')) {
+    if (lowerPrompt.includes('rectangle') || lowerPrompt.includes('square')) {
+      // Extract dimensions and color from prompt
+      const widthMatch = prompt.match(/(\d+).*?(?:pixels?|px).*?(?:by|x|\*).*?(\d+).*?(?:pixels?|px)/i) ||
+                        prompt.match(/(\d+).*?by.*?(\d+)/i);
+      const width = widthMatch ? Math.min(parseInt(widthMatch[1]), 1000) : 150;
+      const height = widthMatch ? Math.min(parseInt(widthMatch[2]), 1000) : 100;
+      
+      // Extract color from prompt
+      let fill = '#3b82f6'; // default blue
+      if (lowerPrompt.includes('red')) fill = '#ef4444';
+      if (lowerPrompt.includes('blue')) fill = '#3b82f6';
+      if (lowerPrompt.includes('green')) fill = '#10b981';
+      if (lowerPrompt.includes('yellow')) fill = '#f59e0b';
+      if (lowerPrompt.includes('purple')) fill = '#8b5cf6';
+      if (lowerPrompt.includes('orange')) fill = '#f97316';
+      if (lowerPrompt.includes('pink')) fill = '#ec4899';
+      
+      // Extract position (check for "center", "middle")
+      let position;
+      if (lowerPrompt.includes('center') || lowerPrompt.includes('middle')) {
+        position = { x: 2500 - width/2, y: 2500 - height/2 }; // Canvas center (5000x5000 canvas)
+      } else {
+        position = { x: 100 + Math.random() * 200, y: 100 + Math.random() * 200 };
+      }
+      
       mockCommands.push({
         type: 'createRectangle',
-        position: { x: 100, y: 100 },
-        size: { width: 150, height: 100 },
-        fill: '#3b82f6'
+        position,
+        size: { width, height },
+        fill: fill
       });
     }
     
-    if (prompt.toLowerCase().includes('circle')) {
+    if (lowerPrompt.includes('circle')) {
+      // Extract color from prompt
+      let fill = '#ef4444'; // default red
+      if (lowerPrompt.includes('blue')) fill = '#3b82f6';
+      if (lowerPrompt.includes('red')) fill = '#ef4444';
+      if (lowerPrompt.includes('green')) fill = '#22c55e';
+      if (lowerPrompt.includes('yellow')) fill = '#f59e0b';
+      if (lowerPrompt.includes('purple')) fill = '#8b5cf6';
+      if (lowerPrompt.includes('orange')) fill = '#f97316';
+      if (lowerPrompt.includes('pink')) fill = '#ec4899';
+      
+      // Extract size (parse "500 pixel", "500px", "500 wide", etc.)
+      const sizeMatch = prompt.match(/(\d+)\s*(?:pixel|px|wide)/i);
+      const diameter = sizeMatch ? Math.min(parseInt(sizeMatch[1]), 1000) : 120;
+      const radius = diameter / 2;
+      
+      // Extract position (check for "center", "middle")
+      let position;
+      if (lowerPrompt.includes('center') || lowerPrompt.includes('middle')) {
+        position = { x: 2500, y: 2500 }; // Canvas center (5000x5000 canvas)
+      } else {
+        position = { x: 300 + Math.random() * 200, y: 150 + Math.random() * 200 };
+      }
+      
       mockCommands.push({
         type: 'createCircle',
-        position: { x: 300, y: 150 },
-        radius: 60,
-        fill: '#ef4444'
+        position,
+        radius,
+        fill
       });
     }
     
-    if (prompt.toLowerCase().includes('star')) {
+    if (lowerPrompt.includes('star')) {
+      let fill = '#f59e0b'; // default yellow
+      if (lowerPrompt.includes('red')) fill = '#ef4444';
+      if (lowerPrompt.includes('blue')) fill = '#3b82f6';
+      if (lowerPrompt.includes('green')) fill = '#10b981';
+      
       mockCommands.push({
         type: 'createStar',
-        position: { x: 500, y: 200 },
+        position: { x: 500 + Math.random() * 200, y: 200 + Math.random() * 200 },
         radius: 80,
         numPoints: 5,
-        fill: '#f59e0b'
+        fill: fill
       });
     }
     

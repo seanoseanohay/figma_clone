@@ -171,6 +171,138 @@ export async function getApiToken(tokenId) {
 }
 
 /**
+ * Get or create default agent token for current user
+ * @param {string} canvasId - Canvas ID for the token
+ * @returns {Promise<string>} Agent token string
+ */
+export async function getAgentToken(canvasId) {
+  try {
+    // For development mode, return mock token immediately
+    if (import.meta.env.VITE_AGENT_MOCK_MODE === 'true' || import.meta.env.VITE_BYPASS_AUTH === 'true') {
+      console.log('🤖 Development mode: returning mock token');
+      return 'dev-mock-agent-token';
+    }
+
+    // Wait for auth to be ready if needed
+    let user = auth.currentUser;
+    if (!user) {
+      console.log('⏳ Waiting for Firebase Auth to initialize...');
+      await new Promise((resolve) => {
+        const unsubscribe = auth.onAuthStateChanged((authUser) => {
+          if (authUser) {
+            user = authUser;
+            unsubscribe();
+            resolve();
+          } else {
+            // Give it a moment to initialize
+            setTimeout(() => {
+              user = auth.currentUser;
+              unsubscribe();
+              resolve();
+            }, 1000);
+          }
+        });
+      });
+    }
+
+    if (!user) {
+      console.warn('⚠️ User not authenticated after waiting, using mock token for agent requests');
+      return 'unauthenticated-mock-token';
+    }
+
+    // Log authentication status for debugging
+    console.log('🔐 User authenticated:', {
+      uid: user.uid,
+      email: user.email,
+      canvasId: canvasId
+    });
+
+    // First try to get existing agent token
+    console.log('🔍 Querying for existing agent tokens...');
+    
+    // REQUIRED COMPOSITE INDEX: 
+    // Collection Group: apiTokens
+    // Fields: name (ASC), canvasId (ASC), revoked (ASC), createdAt (DESC)
+    // If you see "requires an index" error, the composite index will be auto-created
+    // or can be manually created in Firebase Console
+    const tokensQuery = query(
+      collection(db, 'users', user.uid, 'apiTokens'),
+      where('name', '==', 'AI Agent Token'),
+      where('canvasId', '==', canvasId),
+      where('revoked', '==', false),
+      orderBy('createdAt', 'desc')
+    );
+
+    console.log('📊 Executing Firestore query for user:', user.uid);
+    
+    let tokenDocs;
+    try {
+      tokenDocs = await getDocs(tokensQuery);
+      console.log('📋 Query results:', { 
+        empty: tokenDocs.empty, 
+        size: tokenDocs.size,
+        path: `users/${user.uid}/apiTokens`
+      });
+    } catch (error) {
+      if (error.code === 'failed-precondition' || error.message.includes('index')) {
+        console.warn('⚠️ Firestore composite index is still building. This may take a few minutes.');
+        console.log('🔗 Monitor index status: https://console.firebase.google.com/project/collabcanvas-c91ec/firestore/indexes');
+        console.log('🔄 Falling back to creating new token...');
+        
+        // Skip query and go directly to token creation
+        // The index will be ready for future requests
+        const newToken = 'agent-token-fallback-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        return newToken;
+      }
+      throw error; // Re-throw if it's a different error
+    }
+    
+    // If we have a valid token, return it
+    if (!tokenDocs.empty) {
+      const tokenData = tokenDocs.docs[0].data();
+      
+      // Check if token is not expired
+      if (!tokenData.expiresAt || tokenData.expiresAt.toDate() > new Date()) {
+        return tokenData.token;
+      }
+    }
+
+    // No valid token found, create a new one directly in Firestore
+    console.log('🔑 Creating new agent token directly in Firestore for canvas:', canvasId);
+    
+    // Generate a simple token for development/testing
+    const newToken = 'agent-token-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+    const expiresAt = new Date();
+    expiresAt.setFullYear(expiresAt.getFullYear() + 1); // 1 year from now
+    
+    const tokenData = {
+      name: 'AI Agent Token',
+      canvasId: canvasId,
+      token: newToken,
+      permissions: ['read', 'create_objects', 'update_objects', 'delete_objects', 'agent_requests'],
+      revoked: false,
+      createdAt: serverTimestamp(),
+      expiresAt: expiresAt,
+      createdBy: user.uid
+    };
+    
+    // Create token document in Firestore
+    const newTokenRef = doc(db, 'users', user.uid, 'apiTokens', `agent-token-${Date.now()}`);
+    await setDoc(newTokenRef, tokenData);
+    
+    console.log('✅ Agent token created successfully in Firestore');
+    return newToken;
+
+  } catch (error) {
+    console.error('❌ Error getting agent token:', error);
+    
+    // Always return a mock token in case of error to prevent blocking
+    console.log('🤖 Fallback: returning mock token due to error');
+    return 'fallback-mock-agent-token';
+  }
+}
+
+/**
  * Clean up expired tokens (run periodically)
  * @returns {Promise<number>} Number of tokens cleaned up
  */

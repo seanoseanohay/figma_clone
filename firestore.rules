@@ -125,6 +125,39 @@ service cloud.firestore {
       );
     }
     
+    // API Tokens subcollection for users
+    match /users/{userId}/apiTokens/{tokenId} {
+      // Allow read/write/list/create only for the token owner
+      allow read, write, list, create: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Allow queries on the entire apiTokens collection for the user
+    match /users/{userId}/apiTokens {
+      // Allow list operations (queries) only for the token owner
+      allow list: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Agent tokens collection (for easier access)
+    match /agentTokens/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // Canvas agent status for presence and activity tracking
+    match /canvases/{canvasId}/agentStatus/{uid} {
+      // Anyone can read agent status for awareness
+      allow read: if true;
+      // Only the user can write their own agent status
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+    
+    // Agent presence and activity logs
+    match /agentActivity/{activityId} {
+      // Allow read for canvas collaborators
+      allow read: if request.auth != null;
+      // Allow write for authenticated users
+      allow create: if request.auth != null;
+    }
+    
     // Deny all other access
     match /{document=**} {
       allow read, write: if false;

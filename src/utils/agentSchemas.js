@@ -237,6 +237,7 @@ export const validateCommand = (command) => {
       data: validatedCommand
     }
   } catch (error) {
+    console.error('❌ Command validation failed for:', command.type, error)
     const errors = error.issues?.map(err => 
       `${err.path.join('.')}: ${err.message}`
     ) || [error.message]
