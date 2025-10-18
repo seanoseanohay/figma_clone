@@ -1,5 +1,6 @@
 import { createObject } from '../services/canvas.service.js'
 import { CANVAS_WIDTH, CANVAS_HEIGHT } from '../constants/canvas.constants.js'
+import { ACTION_TYPES } from '../hooks/useHistory.js'
 
 /**
  * RectangleTool - Handles rectangle creation by dragging
@@ -55,7 +56,7 @@ export class RectangleTool {
    * Handle mouse up - finalize and save rectangle
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers
+    const { canvasId, recordAction } = helpers
     const { 
       isDrawing, 
       currentRect, 
@@ -79,12 +80,18 @@ export class RectangleTool {
         const clampedRect = clampRectToCanvas(finalRect)
 
         try {
-          // Save rectangle to Firestore with selected color
-          await createObject('rectangle', clampedRect, canvasId, {
-            fill: selectedColor || '#808080',
-            stroke: '#333333',
-            strokeWidth: 1
-          })
+          // Save rectangle to Firestore with undo/redo support
+          await createObject(
+            'rectangle', 
+            clampedRect, 
+            canvasId, 
+            {
+              fill: selectedColor || '#808080',
+              stroke: '#333333',
+              strokeWidth: 1
+            },
+            recordAction // Pass recordAction callback for undo/redo
+          )
           console.log('Rectangle created and saved to Firestore with color:', selectedColor)
         } catch (error) {
           console.error('Failed to save rectangle:', error)

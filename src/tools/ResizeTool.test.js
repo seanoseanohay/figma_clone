@@ -602,6 +602,90 @@ describe('ResizeTool', () => {
     });
   });
 
+  describe('Post-Rotation State Fallback', () => {
+    it('should use localRectUpdates when object not found in canvasObjects', async () => {
+      // Simulate post-rotation state: object missing from canvasObjects but in localUpdates
+      mockState.canvasObjects = []; // Empty - object not synced from Firestore yet
+      mockState.localRectUpdates = {
+        'star-1': {
+          ...testStar,
+          rotation: 45, // Rotated star state
+          innerRadius: 25,
+          outerRadius: 50
+        }
+      };
+
+      mockHelpers.pos = { x: 540, y: 480 }; // Near corner
+
+      // Should not throw - should use fallback
+      await expect(tool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
+
+      // Should successfully initialize resize with merged data
+      expect(mockState.setIsResizing).toHaveBeenCalledWith(true);
+      expect(mockState.setResizeStartData).toHaveBeenCalled();
+      
+      // Verify the merged object includes both Firestore and local data
+      const resizeData = mockState.setResizeStartData.mock.calls[0][0];
+      expect(resizeData.object).toMatchObject({
+        id: 'star-1',
+        rotation: 45,
+        innerRadius: 25,
+        outerRadius: 50
+      });
+    });
+
+    it('should merge canvasObjects with localRectUpdates when both exist', async () => {
+      // Object exists in both canvasObjects (stale) and localUpdates (fresh)
+      mockState.canvasObjects = [{ ...testStar, rotation: 0 }]; // Stale Firestore data
+      mockState.localRectUpdates = {
+        'star-1': {
+          rotation: 90, // Fresh rotation from local updates
+          innerRadius: 30 // Updated radius
+        }
+      };
+
+      mockHelpers.pos = { x: 540, y: 480 };
+
+      await tool.onMouseDown({}, mockState, mockHelpers);
+
+      // Should merge the data correctly
+      const resizeData = mockState.setResizeStartData.mock.calls[0][0];
+      expect(resizeData.object).toMatchObject({
+        id: 'star-1',
+        x: 500,
+        y: 500,
+        rotation: 90, // From local updates
+        innerRadius: 30, // From local updates  
+        outerRadius: 60 // From canvasObjects (unchanged)
+      });
+    });
+
+    it('should log appropriate debug info for missing objects', async () => {
+      const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+      
+      // Object completely missing
+      mockState.canvasObjects = [];
+      mockState.localRectUpdates = {};
+      
+      mockHelpers.pos = { x: 540, y: 480 };
+
+      await tool.onMouseDown({}, mockState, mockHelpers);
+
+      // Should log debug information
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Selected object not found')
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Available objects:', []
+      );
+      expect(consoleSpy).toHaveBeenCalledWith(
+        'Local updates:', []
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('onMouseMove - Text Resize', () => {
     beforeEach(() => {
       mockState.isResizing = true;

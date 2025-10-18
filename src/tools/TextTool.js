@@ -3,6 +3,7 @@ import {
   lockObject, 
   unlockObject 
 } from '../services/canvas.service.js';
+import { ACTION_TYPES } from '../hooks/useHistory.js';
 
 /**
  * TextTool - Handles text creation and inline editing
@@ -92,7 +93,7 @@ export class TextTool {
   /**
    * Create a new text object after user finishes editing
    */
-  async createTextObject(canvasId, pos, text, formatting = {}) {
+  async createTextObject(canvasId, pos, text, formatting = {}, recordAction = null) {
     const {
       bold = false,
       italic = false,
@@ -127,6 +128,26 @@ export class TextTool {
 
     try {
       const textId = await createObject('text', position, canvasId, properties);
+      
+      // Record creation action for undo/redo
+      if (recordAction && textId) {
+        const createdText = {
+          id: textId,
+          type: 'text',
+          x: position.x,
+          y: position.y,
+          ...properties
+        };
+        
+        recordAction(
+          ACTION_TYPES.CREATE_OBJECT,
+          textId,
+          null, // No before state for creation
+          createdText,
+          { objectType: 'Text' }
+        );
+      }
+      
       console.log('✅ Text object created:', textId);
       return textId;
     } catch (error) {

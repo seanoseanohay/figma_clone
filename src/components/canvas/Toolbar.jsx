@@ -174,7 +174,13 @@ const Toolbar = ({
   onColorChange = () => {},
   onZIndexChange = () => {},
   onRotationChange = () => {},
-  onDeleteObject = null
+  onDeleteObject = null,
+  onUndo = null,
+  onRedo = null,
+  canUndo = false,
+  canRedo = false,
+  undoDescription = null,
+  redoDescription = null
 }) => {
   const handleToolSelect = (tool) => {
     onToolChange(tool);
@@ -383,6 +389,28 @@ const Toolbar = ({
               </Box>
             </>
           )}
+          
+          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+          
+          {/* Undo/Redo Controls */}
+          <ButtonGroup size="small" variant="outlined">
+            <Button
+              onClick={onUndo}
+              disabled={!canUndo}
+              title={undoDescription ? `${undoDescription} (Ctrl+Z)` : 'Nothing to undo (Ctrl+Z)'}
+              sx={{ minWidth: 'auto', px: 1.5, py: 1 }}
+            >
+              ↶
+            </Button>
+            <Button
+              onClick={onRedo}
+              disabled={!canRedo}
+              title={redoDescription ? `${redoDescription} (Ctrl+Y)` : 'Nothing to redo (Ctrl+Y)'}
+              sx={{ minWidth: 'auto', px: 1.5, py: 1 }}
+            >
+              ↷
+            </Button>
+          </ButtonGroup>
           
           <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
           

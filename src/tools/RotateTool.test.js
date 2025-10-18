@@ -630,5 +630,160 @@ describe('RotateTool', () => {
       });
     });
   });
+
+  describe('RTDB Updates with Shape-Specific Properties', () => {
+    it('should include rectangle properties in RTDB updates during rotation', () => {
+      mockState.isRotating = true;
+      mockState.rotateSelectedId = 'rect-1';
+      mockState.rotateStartData = {
+        object: testRect,
+        startPos: { x: 400, y: 270 },
+        startAngle: 0,
+        initialRotation: 0,
+      };
+      
+      mockHelpers.pos = { x: 410, y: 280 };
+      const evt = { evt: { shiftKey: false } };
+
+      tool.onMouseMove(evt, mockState, mockHelpers);
+
+      expect(updateActiveObjectPosition).toHaveBeenCalledWith(
+        'test-canvas',
+        'rect-1',
+        expect.objectContaining({
+          x: 400,
+          y: 300,
+          rotation: expect.any(Number),
+          width: 200,
+          height: 150
+        })
+      );
+    });
+
+    it('should include circle properties in RTDB updates during rotation', () => {
+      mockState.isRotating = true;
+      mockState.rotateSelectedId = 'circle-1';
+      mockState.rotateStartData = {
+        object: testCircle,
+        startPos: { x: 300, y: 270 },
+        startAngle: 0,
+        initialRotation: 0,
+      };
+      
+      mockHelpers.pos = { x: 310, y: 280 };
+      const evt = { evt: { shiftKey: false } };
+
+      tool.onMouseMove(evt, mockState, mockHelpers);
+
+      expect(updateActiveObjectPosition).toHaveBeenCalledWith(
+        'test-canvas',
+        'circle-1',
+        expect.objectContaining({
+          x: 300,
+          y: 300,
+          rotation: expect.any(Number),
+          radius: 50
+        })
+      );
+    });
+
+    it('should include star properties in RTDB updates during rotation', () => {
+      mockState.isRotating = true;
+      mockState.rotateSelectedId = 'star-1';
+      mockState.rotateStartData = {
+        object: testStar,
+        startPos: { x: 500, y: 220 },
+        startAngle: 0,
+        initialRotation: 0,
+      };
+      
+      mockHelpers.pos = { x: 510, y: 230 };
+      const evt = { evt: { shiftKey: false } };
+
+      tool.onMouseMove(evt, mockState, mockHelpers);
+
+      expect(updateActiveObjectPosition).toHaveBeenCalledWith(
+        'test-canvas',
+        'star-1',
+        expect.objectContaining({
+          x: 500,
+          y: 250,
+          rotation: expect.any(Number),
+          innerRadius: 30,
+          outerRadius: 60
+        })
+      );
+    });
+
+    it('should include text properties in RTDB updates during rotation', () => {
+      mockState.isRotating = true;
+      mockState.rotateSelectedId = 'text-1';
+      mockState.rotateStartData = {
+        object: testText,
+        startPos: { x: 200, y: 170 },
+        startAngle: 0,
+        initialRotation: 0,
+      };
+      
+      mockHelpers.pos = { x: 210, y: 180 };
+      const evt = { evt: { shiftKey: false } };
+
+      tool.onMouseMove(evt, mockState, mockHelpers);
+
+      expect(updateActiveObjectPosition).toHaveBeenCalledWith(
+        'test-canvas',
+        'text-1',
+        expect.objectContaining({
+          x: 200,
+          y: 200,
+          rotation: expect.any(Number),
+          width: 150
+        })
+      );
+    });
+
+    it('should handle unknown shape types gracefully', () => {
+      const unknownShape = {
+        id: 'unknown-1',
+        type: 'unknown',
+        x: 100,
+        y: 100
+      };
+
+      mockState.isRotating = true;
+      mockState.rotateSelectedId = 'unknown-1';
+      mockState.rotateStartData = {
+        object: unknownShape,
+        startPos: { x: 100, y: 70 },
+        startAngle: 0,
+        initialRotation: 0,
+      };
+      
+      mockHelpers.pos = { x: 110, y: 80 };
+      const evt = { evt: { shiftKey: false } };
+
+      // Should not throw error
+      expect(() => tool.onMouseMove(evt, mockState, mockHelpers)).not.toThrow();
+
+      // Should include basic properties only
+      expect(updateActiveObjectPosition).toHaveBeenCalledWith(
+        'test-canvas',
+        'unknown-1',
+        expect.objectContaining({
+          x: 100,
+          y: 100,
+          rotation: expect.any(Number)
+        })
+      );
+      
+      // Should not include any shape-specific properties
+      const callArgs = updateActiveObjectPosition.mock.calls[0][2];
+      expect(callArgs).not.toHaveProperty('width');
+      expect(callArgs).not.toHaveProperty('height');
+      expect(callArgs).not.toHaveProperty('radius');
+      expect(callArgs).not.toHaveProperty('innerRadius');
+      expect(callArgs).not.toHaveProperty('outerRadius');
+    });
+  });
 });
 

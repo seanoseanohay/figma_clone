@@ -4,6 +4,7 @@ import {
   updateObjectPosition,
   clearActiveObject
 } from '../services/canvas.service.js'
+import { ACTION_TYPES } from '../hooks/useHistory.js'
 
 /**
  * ResizeTool - Handles object resizing via corner handles for PRE-SELECTED objects
@@ -279,6 +280,7 @@ export class ResizeTool {
     const {
       selectedObjectId,
       canvasObjects,
+      localRectUpdates,
       isResizing,
       setResizeSelectedId,
       setIsResizing,
@@ -294,19 +296,55 @@ export class ResizeTool {
       return
     }
 
-    // Find the selected object
-    const selectedObject = canvasObjects.find(o => o.id === selectedObjectId)
+    // Find the selected object - with fallback to local updates for post-rotation state
+    let selectedObject = canvasObjects.find(o => o.id === selectedObjectId)
+    
+    // CRITICAL FIX: If object not found in canvasObjects (stale after rotation),
+    // try to use local updates as fallback
+    if (!selectedObject && localRectUpdates[selectedObjectId]) {
+      console.log('🔧 Using local updates for object not yet synced from Firestore')
+      selectedObject = localRectUpdates[selectedObjectId]
+    }
+    
     if (!selectedObject) {
-      console.log('Resize tool: Selected object not found')
+      console.log('Resize tool: Selected object not found in canvasObjects or localUpdates')
+      console.log('Available objects:', canvasObjects.map(o => o.id))
+      console.log('Local updates:', Object.keys(localRectUpdates))
       return
     }
+    
+    // If we have both Firestore data and local updates, merge them
+    // (local updates take precedence for immediate post-rotation state) 
+    if (localRectUpdates[selectedObjectId]) {
+      selectedObject = {
+        ...selectedObject,
+        ...localRectUpdates[selectedObjectId]
+      }
+      console.log('🔧 Merged object with local updates for resize:', {
+        id: selectedObject.id,
+        rotation: selectedObject.rotation
+      })
+    }
 
-    console.log('=== OBJECT DATA DEBUG ===')
+    console.log('=== RESIZE TOOL OBJECT DEBUG ===')
     console.log('Selected object ID:', selectedObjectId)
     console.log('Object type:', selectedObject.type)
     console.log('Object locked by:', selectedObject.lockedBy)
     console.log('Current user:', auth.currentUser?.uid)
-    console.log('=== END OBJECT DEBUG ===')
+    
+    // STAR-SPECIFIC DEBUG
+    if (selectedObject.type === 'star') {
+      console.log('Star properties:', {
+        x: selectedObject.x,
+        y: selectedObject.y,
+        innerRadius: selectedObject.innerRadius,
+        outerRadius: selectedObject.outerRadius,
+        rotation: selectedObject.rotation,
+        numPoints: selectedObject.numPoints
+      });
+    }
+    
+    console.log('=== END RESIZE DEBUG ===')
 
     // Check if we clicked on a resize handle
     const handle = this.getClosestCorner(pos, selectedObject)
@@ -554,10 +592,11 @@ export class ResizeTool {
    * Handle mouse up - finalize resize (object stays selected and locked)
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers
+    const { canvasId, recordAction } = helpers
     const {
       isResizing,
       resizeSelectedId,
+      resizeStartData,
       localRectUpdates,
       doWeOwnObject,
       setIsResizing,
@@ -595,6 +634,20 @@ export class ResizeTool {
 
         // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)
         await updateObjectPosition(resizeSelectedId, updateData, false) // false = keep locked since object is still selected
+
+        // Record resize action for undo/redo
+        if (recordAction && resizeStartData) {
+          const beforeState = { ...resizeStartData.object }
+          const afterState = { ...finalObject }
+          
+          recordAction(
+            ACTION_TYPES.RESIZE_OBJECT,
+            resizeSelectedId,
+            beforeState,
+            afterState,
+            { objectType: finalObject.type || 'Object' }
+          )
+        }
 
         console.log('Resize: Object resize synced, staying selected')
       } catch (error) {
