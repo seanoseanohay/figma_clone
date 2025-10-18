@@ -36,7 +36,7 @@ const getPresencePath = (canvasId, userId = null) => {
  * @param {string} userId - User ID
  * @returns {string} Hex color code
  */
-const getUserCursorColor = (userId) => {
+export const getUserCursorColor = (userId) => {
   const colors = [
     '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', 
     '#06b6d4', '#f97316', '#84cc16', '#ec4899', '#6b7280'

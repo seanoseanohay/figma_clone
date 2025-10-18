@@ -7,11 +7,13 @@ import UserCursor from './UserCursor.jsx';
 import EmptyState from './EmptyState.jsx';
 import ConnectionBanner from './ConnectionBanner.jsx';
 import TextEditor from './TextEditor.jsx';
+import OwnershipTooltip from './OwnershipTooltip.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
 import { useCanvas } from '../../hooks/useCanvas.js';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js';
+import { getUserCursorColor } from '../../services/presence.service.js';
 import { getToolHandler } from '../../tools/index.js';
 import { 
   createObject, 
@@ -113,6 +115,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   
   // Active objects being dragged by other users (from RTDB for real-time movement)
   const [activeObjects, setActiveObjects] = useState({});
+  
+  // Hover state for ownership tooltips
+  const [hoveredLockedObject, setHoveredLockedObject] = useState(null);
+  const [hoverPosition, setHoverPosition] = useState({ x: 0, y: 0 });
   
   // Constants
   const DRAG_THRESHOLD = 5;
@@ -1170,6 +1176,20 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       updateCursor(pos);
     }
     
+    // Check for hover over locked objects (for tooltip display)
+    if (!isMoving && !isResizing && !isRotating && !isDrawing && !isPanning) {
+      const hoveredObj = findObjectAt(pos);
+      if (hoveredObj && hoveredObj.isLockedByOther) {
+        setHoveredLockedObject(hoveredObj);
+        setHoverPosition(pos);
+      } else {
+        setHoveredLockedObject(null);
+      }
+    } else {
+      // Clear hover when manipulating objects
+      setHoveredLockedObject(null);
+    }
+    
     // Get tool handler and execute
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
@@ -1180,7 +1200,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate]);
+  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate, findObjectAt]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
@@ -1335,15 +1355,20 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             const isSelected = selectedObjectId === shape.id;
             const shouldAttachRef = isSelected && selectedTool === TOOLS.RESIZE && shape.rotation;
             
+            // Get owner's color if locked by another user
+            const ownerColor = shape.isLockedByOther && shape.lockedBy 
+              ? getUserCursorColor(shape.lockedBy) 
+              : null;
+            
             const commonProps = {
               fill: shape.fill,
               stroke: shape.isLockedByOther 
-                ? "#f59e0b" // Orange border for locked objects
+                ? ownerColor // Use owner's color for locked objects
                 : isSelected 
                   ? "#2563eb" // Blue border for selected
                   : "#333333", // Default border
-              strokeWidth: shape.isLockedByOther || isSelected ? 2 : 1,
-              opacity: shape.isLockedByOther ? 0.7 : 1.0,
+              strokeWidth: shape.isLockedByOther || isSelected ? 3 : 1, // Thicker border for locked/selected
+              opacity: shape.isLockedByOther ? 0.8 : 1.0, // Slightly less dim for better visibility
               rotation: shape.rotation || 0,
               listening: false, // Disable events - handle via Stage only
               draggable: false,
@@ -1409,11 +1434,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                   width={shape.width || 200}
                   align={shape.align || 'left'}
                   stroke={shape.isLockedByOther 
-                    ? "#f59e0b" // Orange border for locked objects
+                    ? ownerColor // Use owner's color for locked text
                     : isSelected 
                       ? "#2563eb" // Blue border for selected
                       : "transparent"} // No border for unselected text
-                  strokeWidth={shape.isLockedByOther || isSelected ? 1 : 0}
+                  strokeWidth={shape.isLockedByOther || isSelected ? 1.5 : 0}
                 />
               );
             }
@@ -1891,6 +1916,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               stageScale={stageScale}
             />
           ))}
+          
+          {/* Render ownership tooltip for locked objects */}
+          {hoveredLockedObject && (
+            <OwnershipTooltip
+              x={hoverPosition.x}
+              y={hoverPosition.y}
+              ownerName={hoveredLockedObject.lockedByName || 'Unknown User'}
+              ownerColor={getUserCursorColor(hoveredLockedObject.lockedBy)}
+              stageScale={stageScale}
+            />
+          )}
         </Layer>
         </Stage>
       </div>

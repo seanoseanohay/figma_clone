@@ -166,7 +166,8 @@ export const useObjectOwnership = (canvasId) => {
       hash = userId.charCodeAt(i) + ((hash << 5) - hash)
     }
     
-    const hue = hash % 360
+    // Ensure positive hue value (0-360)
+    const hue = Math.abs(hash) % 360
     return `hsl(${hue}, 70%, 50%)`
   }, [])
 
