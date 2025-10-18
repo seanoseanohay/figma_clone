@@ -2,6 +2,8 @@ import { PanTool } from './PanTool.js'
 import { SelectTool } from './SelectTool.js'
 import { MoveTool } from './MoveTool.js'
 import { ResizeTool } from './ResizeTool.js'
+import { RotateTool } from './RotateTool.js'
+import { TextTool } from './TextTool.js'
 import { RectangleTool } from './RectangleTool.js'
 import { CircleTool } from './CircleTool.js'
 import { StarTool } from './StarTool.js'
@@ -15,6 +17,8 @@ export const toolRegistry = {
   [TOOLS.SELECT]: new SelectTool(),
   [TOOLS.MOVE]: new MoveTool(),
   [TOOLS.RESIZE]: new ResizeTool(),
+  [TOOLS.ROTATE]: new RotateTool(),
+  [TOOLS.TEXT]: new TextTool(),
   [TOOLS.RECTANGLE]: new RectangleTool(),
   [TOOLS.CIRCLE]: new CircleTool(),
   [TOOLS.STAR]: new StarTool()
@@ -27,7 +31,7 @@ export const getToolHandler = (toolType) => {
   return toolRegistry[toolType] || null
 }
 
-export { PanTool, SelectTool, MoveTool, ResizeTool, RectangleTool, CircleTool, StarTool }
+export { PanTool, SelectTool, MoveTool, ResizeTool, RotateTool, TextTool, RectangleTool, CircleTool, StarTool }
 
 
 

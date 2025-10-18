@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Stage, Layer, Rect, Circle, Star } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Star, Arc, Line, Transformer } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
@@ -39,6 +39,8 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   
   // All hooks must be called before any conditional returns
   const stageRef = useRef(null);
+  const transformerRef = useRef(null);
+  const selectedShapeRef = useRef(null);
   const [stagePos, setStagePos] = useState({ x: 0, y: 0 });
   const [stageScale, setStageScale] = useState(1);
   
@@ -91,6 +93,15 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   const [resizeHandle, setResizeHandle] = useState(null);
   const [resizeStartData, setResizeStartData] = useState(null);
   
+  // Rotate tool state (clean separation)
+  const [rotateSelectedId, setRotateSelectedId] = useState(null);
+  const [isRotating, setIsRotating] = useState(false);
+  const [rotateStartData, setRotateStartData] = useState(null);
+  
+  // Transformer state for rotation-aware resizing
+  const [isTransforming, setIsTransforming] = useState(false);
+  const [transformStartData, setTransformStartData] = useState(null);
+  
   // Local rectangle state during operations (for immediate visual feedback)
   const [localRectUpdates, setLocalRectUpdates] = useState({});
   
@@ -105,6 +116,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   const getSelectedObjectId = () => {
     if (selectedTool === TOOLS.MOVE) return moveSelectedId;
     if (selectedTool === TOOLS.RESIZE) return resizeSelectedId;
+    if (selectedTool === TOOLS.ROTATE) return rotateSelectedId;
     return null;
   };
 
@@ -162,6 +174,36 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       zIndexHandlerRef.current = handleZIndexChange;
     }
   }, [handleZIndexChange, zIndexHandlerRef]);
+
+  // Attach transformer to selected shape when in resize mode and object has rotation
+  useEffect(() => {
+    // Small delay to ensure DOM is updated before attaching transformer
+    const timeoutId = setTimeout(() => {
+      if (transformerRef.current && selectedShapeRef.current && selectedTool === TOOLS.RESIZE && resizeSelectedId) {
+        const selectedObj = canvasObjects.find(obj => obj.id === resizeSelectedId);
+        
+        // Only use transformer if object has rotation
+        if (selectedObj && selectedObj.rotation && selectedObj.rotation !== 0) {
+          console.log('Attaching Transformer to rotated object:', resizeSelectedId, 'rotation:', selectedObj.rotation);
+          transformerRef.current.nodes([selectedShapeRef.current]);
+          transformerRef.current.getLayer().batchDraw();
+          transformerRef.current.forceUpdate();
+        } else if (transformerRef.current.nodes().length > 0) {
+          // Clear transformer if no rotation (use custom handles instead)
+          console.log('Clearing Transformer (no rotation)');
+          transformerRef.current.nodes([]);
+          transformerRef.current.getLayer().batchDraw();
+        }
+      } else if (transformerRef.current && transformerRef.current.nodes().length > 0) {
+        // Clear transformer when not in resize mode
+        console.log('Clearing Transformer (not in resize mode)');
+        transformerRef.current.nodes([]);
+        transformerRef.current.getLayer().batchDraw();
+      }
+    }, 10); // Small delay to ensure refs are set
+    
+    return () => clearTimeout(timeoutId);
+  }, [selectedTool, resizeSelectedId, canvasObjects]);
 
   // Filter rectangles from canvas objects and merge with local updates
   // Memoized to prevent unnecessary re-renders during drag operations
@@ -694,6 +736,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             e.preventDefault();
             if (selectedObjectId) onToolChange(TOOLS.RESIZE);
             break;
+          case 't':
+            e.preventDefault();
+            if (selectedObjectId) onToolChange(TOOLS.ROTATE);
+            break;
           default:
             break;
         }
@@ -732,6 +778,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       }
       setMoveSelectedId(null);
       setResizeSelectedId(null);
+      setRotateSelectedId(null);
       setLocalRectUpdates({});
     }
     
@@ -747,6 +794,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       // When switching to Move tool, sync moveSelectedId with selectedObjectId
       setMoveSelectedId(selectedObjectId);
       console.log('Move tool: Synced moveSelectedId with selection:', selectedObjectId);
+    }
+    
+    // Sync rotate tool state with current selection
+    if (selectedTool === TOOLS.ROTATE && selectedObjectId) {
+      // When switching to Rotate tool, sync rotateSelectedId with selectedObjectId
+      setRotateSelectedId(selectedObjectId);
+      console.log('Rotate tool: Synced rotateSelectedId with selection:', selectedObjectId);
     }
     
     // Pan tool doesn't deselect
@@ -777,9 +831,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     selectedObjectId,
     moveSelectedId,
     resizeSelectedId,
+    rotateSelectedId,
     isPanning,
     isMoving,
     isResizing,
+    isRotating,
     isDrawing,
     currentRect,
     currentCircle,
@@ -791,6 +847,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     moveOriginalPos,
     resizeHandle,
     resizeStartData,
+    rotateStartData,
     canvasObjects,
     rectangles,
     circles,
@@ -802,9 +859,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     setSelectedObjectId,
     setMoveSelectedId,
     setResizeSelectedId,
+    setRotateSelectedId,
     setIsPanning,
     setIsMoving,
     setIsResizing,
+    setIsRotating,
     setIsDrawing,
     setCurrentRect,
     setCurrentCircle,
@@ -816,6 +875,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     setMoveOriginalPos,
     setResizeHandle,
     setResizeStartData,
+    setRotateStartData,
     setLocalRectUpdates,
     setStagePos,
     
@@ -837,9 +897,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     onToolChange,
     TOOLS
   }), [
-    selectedObjectId, moveSelectedId, resizeSelectedId, isPanning, isMoving, isResizing, isDrawing,
+    selectedObjectId, moveSelectedId, resizeSelectedId, rotateSelectedId, isPanning, isMoving, isResizing, isRotating, isDrawing,
     currentRect, currentCircle, currentStar, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
-    resizeHandle, resizeStartData, canvasObjects, rectangles, circles, stars, localRectUpdates, selectedColor,
+    resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, localRectUpdates, selectedColor,
     findRectAt, findCircleAt, findStarAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
     clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange
   ])
@@ -889,7 +949,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     
     // Update cursor position for multiplayer (only when not actively manipulating)
     if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT &&
-        !isMoving && !isResizing && !isDrawing && !isPanning) {
+        !isMoving && !isResizing && !isRotating && !isDrawing && !isPanning) {
       updateCursor(pos);
     }
     
@@ -903,7 +963,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, isMoving, isResizing, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate]);
+  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
@@ -938,6 +998,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           break;
         case TOOLS.RESIZE:
           container.style.cursor = 'nw-resize';
+          break;
+        case TOOLS.ROTATE:
+          container.style.cursor = 'crosshair';
           break;
         case TOOLS.RECTANGLE:
           container.style.cursor = 'crosshair';
@@ -1050,6 +1113,8 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           {/* Render all shapes sorted by z-index */}
           {allShapesSorted.map((shape) => {
             const isSelected = selectedObjectId === shape.id;
+            const shouldAttachRef = isSelected && selectedTool === TOOLS.RESIZE && shape.rotation;
+            
             const commonProps = {
               fill: shape.fill,
               stroke: shape.isLockedByOther 
@@ -1060,21 +1125,27 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               strokeWidth: shape.isLockedByOther || isSelected ? 2 : 1,
               opacity: shape.isLockedByOther ? 0.7 : 1.0,
               rotation: shape.rotation || 0,
-              listening: false // Disable events - handle via Stage only
+              listening: false, // Disable events - handle via Stage only
+              draggable: false,
+              ...(shouldAttachRef ? { ref: selectedShapeRef } : {})
             };
             
             // Render based on shape type
             if (shape.shapeType === 'rectangle') {
+              // For rotation to work around center, set offset to center and adjust position
+              const centerX = shape.x + shape.width / 2;
+              const centerY = shape.y + shape.height / 2;
+              
               return (
                 <Rect
                   key={shape.id}
                   {...commonProps}
-                  x={shape.x}
-                  y={shape.y}
+                  x={centerX}
+                  y={centerY}
                   width={shape.width}
                   height={shape.height}
-                  offsetX={0}
-                  offsetY={0}
+                  offsetX={shape.width / 2}
+                  offsetY={shape.height / 2}
                 />
               );
             } else if (shape.shapeType === 'circle') {
@@ -1103,12 +1174,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             return null;
           })}
           
-          {/* Render resize handles for selected rectangle (RESIZE tool only) */}
+          {/* Render resize handles for selected rectangle (RESIZE tool only, NON-ROTATED) */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && rectangles.find(r => r.id === resizeSelectedId) && (() => {
             const selectedRect = rectangles.find(r => r.id === resizeSelectedId);
             
             // Don't show handles if object is locked by another user
             if (selectedRect.isLockedByOther) {
+              return null;
+            }
+            
+            // Don't show custom handles if object has rotation (Transformer handles that)
+            if (selectedRect.rotation && selectedRect.rotation !== 0) {
               return null;
             }
             
@@ -1151,12 +1227,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           )}
 
 
-          {/* Render resize handles for selected circle (RESIZE tool only) */}
+          {/* Render resize handles for selected circle (RESIZE tool only, NON-ROTATED) */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && circles.find(c => c.id === resizeSelectedId) && (() => {
             const selectedCircle = circles.find(c => c.id === resizeSelectedId);
             
             // Don't show handles if object is locked by another user
             if (selectedCircle.isLockedByOther) {
+              return null;
+            }
+            
+            // Don't show custom handles if object has rotation (Transformer handles that)
+            if (selectedCircle.rotation && selectedCircle.rotation !== 0) {
               return null;
             }
             
@@ -1205,12 +1286,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           )}
 
 
-          {/* Render resize handles for selected star (RESIZE tool only) */}
+          {/* Render resize handles for selected star (RESIZE tool only, NON-ROTATED) */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && stars.find(s => s.id === resizeSelectedId) && (() => {
             const selectedStar = stars.find(s => s.id === resizeSelectedId);
             
             // Don't show handles if object is locked by another user
             if (selectedStar.isLockedByOther) {
+              return null;
+            }
+            
+            // Don't show custom handles if object has rotation (Transformer handles that)
+            if (selectedStar.rotation && selectedStar.rotation !== 0) {
               return null;
             }
             
@@ -1259,6 +1345,218 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               opacity={0.7}
             />
           )}
+
+          {/* Render rotation handle for selected object (ROTATE tool only) */}
+          {selectedTool === TOOLS.ROTATE && rotateSelectedId && (() => {
+            const selectedObj = [...rectangles, ...circles, ...stars].find(obj => obj.id === rotateSelectedId);
+            
+            if (!selectedObj || selectedObj.isLockedByOther) {
+              return null;
+            }
+            
+            // Calculate rotation handle position (30px above object center, adjusted for rotation)
+            const ROTATION_HANDLE_OFFSET = 30;
+            const ROTATION_HANDLE_RADIUS = 12;
+            const rotation = selectedObj.rotation || 0;
+            const rotationRad = (rotation * Math.PI) / 180;
+            
+            const handleX = selectedObj.x - ROTATION_HANDLE_OFFSET * Math.sin(rotationRad);
+            const handleY = selectedObj.y - ROTATION_HANDLE_OFFSET * Math.cos(rotationRad);
+            
+            return (
+              <>
+                {/* Line connecting object center to rotation handle */}
+                <Line
+                  points={[selectedObj.x, selectedObj.y, handleX, handleY]}
+                  stroke="#2563eb"
+                  strokeWidth={2}
+                  dash={[5, 5]}
+                  listening={false}
+                />
+                
+                {/* Rotation handle (circular) */}
+                <Circle
+                  x={handleX}
+                  y={handleY}
+                  radius={ROTATION_HANDLE_RADIUS}
+                  fill="#2563eb"
+                  stroke="#ffffff"
+                  strokeWidth={2}
+                  listening={false}
+                />
+                
+                {/* Rotation icon inside handle */}
+                <Arc
+                  x={handleX}
+                  y={handleY}
+                  innerRadius={ROTATION_HANDLE_RADIUS - 6}
+                  outerRadius={ROTATION_HANDLE_RADIUS - 4}
+                  angle={270}
+                  rotation={rotation + 45}
+                  fill="#ffffff"
+                  listening={false}
+                />
+              </>
+            );
+          })()}
+
+          {/* Konva Transformer for rotation-aware resizing */}
+          {selectedTool === TOOLS.RESIZE && resizeSelectedId && (() => {
+            const selectedObj = [...rectangles, ...circles, ...stars].find(obj => obj.id === resizeSelectedId);
+            
+            // Only show Transformer if object has rotation
+            if (!selectedObj || !selectedObj.rotation || selectedObj.rotation === 0 || selectedObj.isLockedByOther) {
+              return null;
+            }
+            
+            return (
+              <Transformer
+                ref={transformerRef}
+                rotateEnabled={false}
+                enabledAnchors={['top-left', 'top-right', 'bottom-left', 'bottom-right']}
+                boundBoxFunc={(oldBox, newBox) => {
+                  // Enforce minimum size
+                  if (newBox.width < 10 || newBox.height < 10) {
+                    return oldBox;
+                  }
+                  
+                  // Enforce canvas boundaries
+                  if (newBox.x < 0 || newBox.y < 0 || 
+                      newBox.x + newBox.width > CANVAS_WIDTH || 
+                      newBox.y + newBox.height > CANVAS_HEIGHT) {
+                    return oldBox;
+                  }
+                  
+                  return newBox;
+                }}
+                onTransform={(e) => {
+                  const node = e.target;
+                  
+                  // Get the transformation values
+                  const scaleX = node.scaleX();
+                  const scaleY = node.scaleY();
+                  
+                  // Calculate new dimensions
+                  if (selectedObj.type === 'rectangle') {
+                    const newWidth = Math.max(10, node.width() * scaleX);
+                    const newHeight = Math.max(10, node.height() * scaleY);
+                    
+                    // node.x() and node.y() are the CENTER position (due to our offset)
+                    // Convert back to top-left corner position for storage
+                    const centerX = node.x();
+                    const centerY = node.y();
+                    const topLeftX = centerX - newWidth / 2;
+                    const topLeftY = centerY - newHeight / 2;
+                    
+                    // Update local state for immediate feedback
+                    setLocalRectUpdates(prev => ({
+                      ...prev,
+                      [resizeSelectedId]: {
+                        ...selectedObj,
+                        x: topLeftX,
+                        y: topLeftY,
+                        width: newWidth,
+                        height: newHeight,
+                        rotation: node.rotation()
+                      }
+                    }));
+                    
+                    // Reset scale to prevent double scaling
+                    node.scaleX(1);
+                    node.scaleY(1);
+                    node.width(newWidth);
+                    node.height(newHeight);
+                  } else if (selectedObj.type === 'circle') {
+                    const newRadius = Math.max(5, selectedObj.radius * Math.max(scaleX, scaleY));
+                    
+                    // Update local state for immediate feedback
+                    setLocalRectUpdates(prev => ({
+                      ...prev,
+                      [resizeSelectedId]: {
+                        ...selectedObj,
+                        x: node.x(),
+                        y: node.y(),
+                        radius: newRadius,
+                        rotation: node.rotation()
+                      }
+                    }));
+                    
+                    // Reset scale
+                    node.scaleX(1);
+                    node.scaleY(1);
+                  } else if (selectedObj.type === 'star') {
+                    const avgScale = (scaleX + scaleY) / 2;
+                    const newOuterRadius = Math.max(10, selectedObj.outerRadius * avgScale);
+                    const newInnerRadius = Math.max(5, selectedObj.innerRadius * avgScale);
+                    
+                    // Update local state for immediate feedback
+                    setLocalRectUpdates(prev => ({
+                      ...prev,
+                      [resizeSelectedId]: {
+                        ...selectedObj,
+                        x: node.x(),
+                        y: node.y(),
+                        outerRadius: newOuterRadius,
+                        innerRadius: newInnerRadius,
+                        rotation: node.rotation()
+                      }
+                    }));
+                    
+                    // Reset scale
+                    node.scaleX(1);
+                    node.scaleY(1);
+                  }
+                  
+                  // Send real-time updates
+                  if (doWeOwnObject(resizeSelectedId) && canvasId) {
+                    const updates = localRectUpdates[resizeSelectedId];
+                    if (updates) {
+                      updateActiveObjectPosition(canvasId, resizeSelectedId, updates);
+                    }
+                  }
+                }}
+                onTransformEnd={async (e) => {
+                  console.log('Transform end - syncing to Firestore');
+                  
+                  const finalState = localRectUpdates[resizeSelectedId];
+                  if (finalState && doWeOwnObject(resizeSelectedId)) {
+                    try {
+                      // Clear RTDB
+                      await clearActiveObject(canvasId, resizeSelectedId);
+                      
+                      // Update Firestore with final values
+                      const updateData = {
+                        x: finalState.x,
+                        y: finalState.y,
+                        rotation: finalState.rotation
+                      };
+                      
+                      if (finalState.type === 'rectangle') {
+                        updateData.width = finalState.width;
+                        updateData.height = finalState.height;
+                      } else if (finalState.type === 'circle') {
+                        updateData.radius = finalState.radius;
+                      } else if (finalState.type === 'star') {
+                        updateData.outerRadius = finalState.outerRadius;
+                        updateData.innerRadius = finalState.innerRadius;
+                      }
+                      
+                      await updateObjectPosition(resizeSelectedId, updateData, false);
+                      
+                      // Clear local updates
+                      setLocalRectUpdates(prev => {
+                        const updated = { ...prev };
+                        delete updated[resizeSelectedId];
+                        return updated;
+                      });
+                    } catch (error) {
+                      console.error('Failed to sync transform:', error);
+                    }
+                  }
+                }}
+              />
+            );
+          })()}
 
           {/* Render other users' cursors */}
           {usersWithCursors.map((user) => (
