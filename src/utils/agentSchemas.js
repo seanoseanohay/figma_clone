@@ -54,6 +54,18 @@ const CreateStarSchema = z.object({
   rotation: z.number().min(-360).max(360).optional().default(0)
 })
 
+const CreateTextSchema = z.object({
+  type: z.literal('createText'),
+  position: PositionSchema,
+  text: z.string().min(1).max(500),
+  fontSize: z.number().min(8).max(200).optional().default(24),
+  fontFamily: z.string().optional().default('Arial'),
+  fill: ColorSchema.optional().default('#000000'),
+  fontWeight: z.enum(['normal', 'bold']).optional().default('normal'),
+  fontStyle: z.enum(['normal', 'italic']).optional().default('normal'),
+  rotation: z.number().min(-360).max(360).optional().default(0)
+})
+
 // Object modification commands
 const MoveObjectSchema = z.object({
   type: z.literal('moveObject'),
@@ -147,6 +159,7 @@ const AgentCommandSchema = z.union([
   CreateRectangleSchema,
   CreateCircleSchema,
   CreateStarSchema,
+  CreateTextSchema,
   MoveObjectSchema,
   ResizeObjectSchema,
   RotateObjectSchema,
@@ -177,12 +190,15 @@ const CanvasStateSchema = z.object({
   canvasId: z.string().min(1),
   objects: z.array(z.object({
     id: z.string(),
-    type: z.enum(['rectangle', 'circle', 'star']),
+    type: z.enum(['rectangle', 'circle', 'star', 'text']),
     x: z.number(),
     y: z.number(),
     width: z.number().optional(),
     height: z.number().optional(),
     radius: z.number().optional(),
+    text: z.string().optional(),
+    fontSize: z.number().optional(),
+    fontFamily: z.string().optional(),
     fill: z.string().optional(),
     stroke: z.string().optional(),
     rotation: z.number().optional()

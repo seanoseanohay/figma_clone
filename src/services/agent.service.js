@@ -230,8 +230,9 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   if (!isManipulationCommand) {
     
     // Text creation
-    if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text')) {
-    const textMatch = prompt.match(/['"](.*?)['"]/) || prompt.match(/says?\s+([^.!?]+)/i)
+    if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text') || 
+        lowerPrompt.includes('text layer') || lowerPrompt.includes('add a text')) {
+    const textMatch = prompt.match(/['"](.*?)['"]/) || prompt.match(/says?[,\s]+(.+?)(?:[.!?]|$)/i)
     const text = textMatch ? textMatch[1] : 'Hello World'
     
     let position
