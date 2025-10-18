@@ -34,7 +34,7 @@ import {
 } from '../../constants/canvas.constants.js';
 import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, onUserColorChange }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, onUserColorChange }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -181,6 +181,31 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       zIndexHandlerRef.current = handleZIndexChange;
     }
   }, [handleZIndexChange, zIndexHandlerRef]);
+
+  // Handle rotation changes from manual input
+  const handleRotationChange = useCallback(async (newRotation) => {
+    if (!selectedObjectId) return;
+
+    const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+    if (!selectedObj) return;
+
+    // Normalize rotation to 0-359 range
+    const normalizedRotation = ((newRotation % 360) + 360) % 360;
+
+    try {
+      await updateObject(selectedObjectId, { rotation: normalizedRotation });
+      console.log(`✅ Rotation updated to ${normalizedRotation}°`);
+    } catch (error) {
+      console.error('Failed to update rotation:', error);
+    }
+  }, [selectedObjectId, canvasObjects]);
+
+  // Expose handleRotationChange to parent via ref
+  useEffect(() => {
+    if (rotationHandlerRef) {
+      rotationHandlerRef.current = handleRotationChange;
+    }
+  }, [handleRotationChange, rotationHandlerRef]);
 
   // Attach transformer to selected shape when in resize mode and object has rotation
   useEffect(() => {
@@ -836,6 +861,31 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         return;
       }
 
+      // Enter - edit text (if text is selected)
+      if (e.key === 'Enter' && selectedObjectId) {
+        const selectedObject = canvasObjects.find(obj => obj.id === selectedObjectId);
+        if (selectedObject && selectedObject.type === 'text' && canEditObject(selectedObjectId)) {
+          e.preventDefault();
+          console.log('⌨️ Enter pressed: Editing text object', selectedObjectId);
+          
+          // Lock the text for editing (it should already be locked)
+          lockObject(selectedObjectId).then(() => {
+            console.log('✅ Text locked for editing');
+            
+            // Trigger text editing mode
+            setTextSelectedId(selectedObjectId);
+            setIsEditingText(true);
+            setTextEditData({
+              object: selectedObject,
+              originalText: selectedObject.text || ''
+            });
+          }).catch(error => {
+            console.error('Failed to lock text:', error);
+          });
+          return;
+        }
+      }
+
       // Escape - deselect
       if (e.key === 'Escape' && selectedObjectId) {
         e.preventDefault();
@@ -888,7 +938,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange]);
+  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData]);
 
   // Clear/manage state when switching tools
   useEffect(() => {
@@ -1839,6 +1889,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                 
                 // Unlock the text
                 await unlockObject(textEditData.object.id);
+                
+                // Keep the text selected so user can immediately use other tools (resize, rotate, etc.)
+                setTextSelectedId(textEditData.object.id);
+                setSelectedObjectId(textEditData.object.id);
               }
               
               // Clear editing state

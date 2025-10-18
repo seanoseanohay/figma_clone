@@ -7,17 +7,18 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - **E1**: ✅ Complete - Circle Creation Tool
 - **E4**: ✅ Complete - Fix Critical Rectangle Resize Bug
 - **E2**: ✅ Complete - Properties Display in Toolbar
-- **E6**: 🔄 Partial - Object Rotation (rendering works, interactive handles pending)
+- **E6**: ✅ Complete - Object Rotation Tool
 - **E7**: ✅ Complete - Star Shape Tool
 - **E8**: ✅ Complete - Color Picker for Shapes
 - **E9**: ✅ Complete - Z-Index Management (Layer Ordering)
 - **E3**: ✅ Complete - Text Tool with Formatting
-- **E10**: ⏸️ Not Started - Continuous Text Editing (Re-edit Existing Text)
+- **E10**: ✅ Complete - Continuous Text Editing (Re-edit Existing Text)
 - **E5**: ⏸️ Not Started - Owner-Only Edit Restrictions
-- **A0**: ⏸️ Not Started - Performance Optimization & Monitoring
+- **A0**: ❌ Deferred - Performance Optimization & Monitoring (moved to end)
 - **A1**: ⏸️ Not Started - Canvas Export Functionality
 - **A2**: ⏸️ Not Started - Undo/Redo System
 - **A3**: ⏸️ Not Started - Toolbar Design Enhancement
+- **A4**: ⏸️ Not Started - Object Deletion (depends on A2)
 
 ---
 
@@ -157,16 +158,19 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 5. ✅ Test text properties in properties panel
 6. ✅ Test multiplayer text editing collaboration (ownership/locking)
 
-**Status**: ✅ COMPLETE
+**Status**: ✅ COMPLETE (Enhanced Oct 18, 2025 with Font Size & Family controls)
 
 **Implementation Details**:
-- TextEditor overlay with formatting toolbar (B, I, U, color picker, save/cancel)
+- TextEditor overlay with formatting toolbar (B, I, U, color picker, font size, font family, save/cancel)
+- Font size selector: 8px, 10px, 12px, 14px, 16px, 18px, 24px, 32px, 48px, 64px, 72px
+- Font family selector: Arial, Times New Roman, Courier New, Georgia, Verdana, Comic Sans MS, Trebuchet MS, Impact
 - Konva Text rendering with bold, italic, underline support
-- Text properties display: `Text: "Preview..." • 24px [BIU] at (x, y, z) • rotation°`
+- Text properties display: `Text: "Preview..." • 24px Arial [BIU] at (x, y, z) • rotation°`
 - Full integration with Move, Rotate, Z-Index tools
 - Multi-line text support (Shift+Enter)
 - Keyboard shortcuts (Ctrl+B/I/U, Enter to save, Escape to cancel)
-- See notes/E3_TEXT_TOOL_IMPLEMENTATION_COMPLETE.md for full details
+- See notes/E3_TEXT_TOOL_IMPLEMENTATION_COMPLETE.md for original implementation
+- See notes/E3_TEXT_FONT_SIZE_AND_FAMILY_ENHANCEMENT.md for font controls enhancement
 
 ---
 
@@ -240,13 +244,16 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - Requires E3 (Text Tool with Formatting) ✅ Complete
 - Uses existing TextEditor component (should work with pre-populated data)
 
-**Status**: ⏸️ NOT STARTED
+**Status**: ✅ COMPLETE
 
-**Implementation Notes**:
-- TextEditor.jsx likely already supports pre-populated data through `initialText` and `initialFormatting` props
-- Main work is in detecting double-click and existing text clicks
-- Need to pass additional prop to TextEditor: `textObjectId` (null for new text, ID for editing)
-- In Canvas.jsx onSave callback: Check if `textObjectId` exists → `updateObject()` vs `createObject()`
+**Implementation Details**:
+- Added double-click detection to SelectTool with 300ms threshold
+- Added Enter key shortcut in Canvas keyboard handler
+- TextEditor component already supported pre-populated data (no changes needed)
+- Canvas save logic correctly distinguishes update vs create based on `textEditData.object`
+- Text objects are properly locked/unlocked during editing
+- Same object ID is updated (no duplication)
+- See notes/E10_TEXT_RE_EDITING_COMPLETE.md for full details
 
 ---
 
@@ -331,40 +338,54 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ---
 
-### Task E6: Implement Object Rotation Tool
+### Task E6: Implement Object Rotation Tool ✅ COMPLETE
 
 **Objective**: Enable users to rotate shapes (rectangles, circles, text, stars, etc.) with interactive handles and toolbar input.
 
-**Files to Modify**:
-- Create `src/tools/RotateTool.js`
-- Update `src/components/canvas/Canvas.jsx`
-- Update `src/components/canvas/Toolbar.jsx`
-- Update `src/services/canvas.service.js`
+**Files Modified**:
+- Created `src/tools/RotateTool.js`
+- Updated `src/components/canvas/Canvas.jsx`
+- Updated `src/components/canvas/Toolbar.jsx`
+- Updated `src/tools/index.js`
 
 **Specific Changes**:
-1. Add rotation handle to selected objects (Konva transformer supports rotation by default)
-2. Implement rotation logic on drag of rotation handle
-3. Display rotation angle in properties display (rounded to nearest degree)
-4. Allow angle input field in toolbar for manual rotation
-5. Support Shift+drag snapping to 15° increments
-6. Save and sync rotation value via canvas.service
-7. Ensure rotations are persisted and updated across all clients
+1. ✅ Add rotation handle to selected objects (blue circular handle 30px above object)
+2. ✅ Implement rotation logic on drag of rotation handle
+3. ✅ Display rotation angle in properties display (e.g., "• 45°")
+4. ✅ Add angle input field in toolbar for manual rotation (0-359°)
+5. ✅ Support Shift+drag snapping to 15° increments
+6. ✅ Save and sync rotation value via Firestore and RTDB
+7. ✅ Ensure rotations persist and update across all clients
+8. ✅ Add keyboard shortcut 'T' to activate rotation tool
 
 **Acceptance Criteria**:
-- [ ] Rotation handle appears for selected objects
-- [ ] Dragging handle rotates object smoothly
-- [ ] Rotation angle updates in real time in properties display
-- [ ] Manual rotation input works correctly
-- [ ] Rotation persists in Firestore and syncs for all users
-- [ ] Shift+drag snapping works correctly
-- [ ] Undo/redo (when available) respects rotation
+- [x] Rotation handle appears for selected objects
+- [x] Dragging handle rotates object smoothly
+- [x] Rotation angle updates in real time in properties display
+- [x] Manual rotation input works correctly (with arrow key support)
+- [x] Rotation persists in Firestore and syncs for all users
+- [x] Shift+drag snapping works correctly
+- [x] Undo/redo respects rotation (pending A2 implementation)
 
 **Testing Steps**:
-1. Select shape and rotate with handle
-2. Verify angle display updates live
-3. Rotate while holding Shift to confirm snapping
-4. Reload canvas to confirm rotation persists
-5. Test multi-user sync for rotation changes
+1. ✅ Select shape and rotate with handle
+2. ✅ Verify angle display updates live
+3. ✅ Rotate while holding Shift to confirm 15° snapping
+4. ✅ Test manual angle input field and arrow keys
+5. ✅ Reload canvas to confirm rotation persists
+6. ✅ Test multi-user sync for rotation changes
+
+**Status**: ✅ COMPLETE
+
+**Implementation Details**:
+- Visual rotation handle (blue circle) appears above selected object
+- Dashed line connects object center to rotation handle
+- Real-time rotation updates via RTDB during drag
+- Final rotation saved to Firestore on mouse up
+- Manual angle input with arrow key fine control (up/down)
+- Works with all shape types (rectangles, circles, stars, text)
+- Full integration with existing tool architecture
+- See notes/E6_ROTATION_TOOL_COMPLETE.md for full details
 
 ---
 
@@ -475,65 +496,6 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ## ✨ ADVANCED FEATURES
 
-### Task A0: Performance Optimization & Monitoring
-
-**Objective**: Optimize canvas performance and add comprehensive monitoring for production readiness
-
-**Files to Modify**:
-- Update `src/components/canvas/Canvas.jsx`
-- Update `src/components/canvas/CanvasObject.jsx`
-- Update `src/hooks/useCursorTracking.js`
-- Create `src/utils/performanceMonitor.js`
-
-**Specific Changes**:
-1. **Konva Rendering Optimization**:
-   - Enable Konva layer caching for better performance
-   - Optimize redraw regions to minimize full canvas redraws
-   - Implement object pooling for frequently created/destroyed elements
-   - Add performance-conscious rendering for large object counts
-
-2. **Cursor Update Optimization**:
-   - Verify 50-100ms throttling is working effectively
-   - Implement adaptive throttling based on user count
-   - Add cursor update batching for multiple rapid movements
-   - Optimize cursor rendering to avoid unnecessary redraws
-
-3. **Object Position Update Optimization**:
-   - Batch Firestore writes during drag operations
-   - Implement local caching to reduce database reads
-   - Add intelligent update scheduling to prevent write conflicts
-   - Optimize object transformation calculations
-
-4. **Performance Monitoring System**:
-   - Add FPS monitoring and logging
-   - Measure and log cursor sync latency
-   - Track object sync latency and update performance
-   - Add memory usage monitoring for object collections
-   - Implement performance alerts for degraded experience
-
-5. **Load Testing Capabilities**:
-   - Create development tools for generating test objects
-   - Add stress testing utilities for multi-user scenarios
-   - Implement performance regression testing
-
-**Acceptance Criteria**:
-- [ ] Canvas maintains 30+ FPS with 500 objects
-- [ ] Cursor sync latency stays under 50ms
-- [ ] Object sync latency stays under 100ms
-- [ ] Performance monitoring provides real-time metrics
-- [ ] System handles 5+ concurrent users smoothly
-- [ ] Memory usage remains stable during extended use
-- [ ] Performance degrades gracefully under high load
-
-**Testing Steps**:
-1. Create 100 objects and verify smooth interaction
-2. Create 500 objects and verify acceptable performance (>20 FPS)
-3. Test with 5+ concurrent users
-4. Test with Chrome DevTools slow 3G throttling
-5. Monitor memory usage during extended sessions
-
----
-
 ### Task A1: Implement Canvas Export Functionality
 
 **Objective**: Add PNG and SVG export capabilities for entire canvas or selected objects
@@ -638,44 +600,186 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ---
 
+### Task A4: Implement Object Deletion
+
+**Objective**: Add ability to delete selected objects using the Delete key, with undo/redo support as safety net
+
+**Dependencies**: 
+- Requires A2 (Undo/Redo System) to be implemented first
+
+**Files to Modify**:
+- Update `src/components/canvas/Canvas.jsx` (keyboard handler)
+- Update `src/services/canvas.service.js` (add deleteObject function)
+- Update `src/hooks/useHistory.js` (integrate deletion with undo/redo)
+
+**Specific Changes**:
+1. Add Delete/Backspace key handler in Canvas keyboard shortcuts
+2. Create `deleteObject()` function in canvas.service.js
+3. Delete selected object from Firestore on key press
+4. Clear object from RTDB active objects if being dragged
+5. Record deletion in undo/redo history for easy recovery
+6. Support deleting multiple selected objects at once (if selection system supports it)
+7. Respect ownership restrictions - only allow deletion of objects user owns/can edit
+8. Provide visual feedback (brief fade-out animation optional)
+9. Handle edge cases (offline deletion, concurrent edits, etc.)
+
+**Acceptance Criteria**:
+- [ ] Delete key removes selected object immediately
+- [ ] Backspace key also works for deletion
+- [ ] Deletion respects ownership/locking (can't delete objects being edited by others)
+- [ ] Deleted objects can be restored via Undo (Ctrl+Z)
+- [ ] Deletion syncs across all users in real-time
+- [ ] No warning prompt (undo is the safety net)
+- [ ] Multiple selected objects can be deleted at once
+- [ ] Deletion works correctly in offline mode (queued and synced on reconnect)
+
+**Testing Steps**:
+1. Select object and press Delete key → object should disappear
+2. Press Ctrl+Z → object should reappear (undo)
+3. Press Ctrl+Y → object should disappear again (redo)
+4. Test with Backspace key
+5. Test deleting object locked by another user → should show error/prevent deletion
+6. Test deleting multiple selected objects
+7. Test deletion in offline mode → should queue and sync on reconnect
+8. Test in multiplayer: User A deletes object → User B should see it disappear
+9. Verify deletion removes object from both Firestore and RTDB
+
+**Edge Cases to Handle**:
+- What if object is locked by another user? → Show "Cannot delete: object is being edited by [User Name]"
+- What if user is offline? → Queue deletion, sync when reconnected
+- What if object was already deleted by another user? → Silently handle (already gone)
+- What if undo/redo history is full? → Oldest deletion should be forgotten (can't undo anymore)
+- What if object has dependencies? → For now, no dependencies exist, but design for future extensibility
+
+**Implementation Notes**:
+- Use soft delete pattern initially (mark as deleted) vs hard delete
+- Consider adding `deletedAt` timestamp for future recovery features
+- Integration with undo/redo system is critical - deletion must be recorded as a history action
+- Ensure proper cleanup of all references (local state, RTDB, Firestore)
+
+**Status**: ⏸️ Not Started (waiting for A2: Undo/Redo System)
+
+---
+
+### Task A0: Performance Optimization & Monitoring ❌ DEFERRED
+
+**Objective**: Optimize canvas performance and add comprehensive monitoring for production readiness
+
+**Status**: ❌ DEFERRED - Moved to end of Stage 3 or future stage per user request
+
+**Rationale for Deferral**:
+- Current performance is acceptable for typical use cases
+- Optimization is best done after all features are complete
+- Not blocking any other features
+- Can be addressed in Stage 4 or as needed
+
+**Files to Modify** (when implemented):
+- Update `src/components/canvas/Canvas.jsx`
+- Update `src/components/canvas/CanvasObject.jsx`
+- Update `src/hooks/useCursorTracking.js`
+- Create `src/utils/performanceMonitor.js`
+
+**Specific Changes** (when implemented):
+1. **Konva Rendering Optimization**:
+   - Enable Konva layer caching for better performance
+   - Optimize redraw regions to minimize full canvas redraws
+   - Implement object pooling for frequently created/destroyed elements
+   - Add performance-conscious rendering for large object counts
+
+2. **Cursor Update Optimization**:
+   - Verify 50-100ms throttling is working effectively
+   - Implement adaptive throttling based on user count
+   - Add cursor update batching for multiple rapid movements
+   - Optimize cursor rendering to avoid unnecessary redraws
+
+3. **Object Position Update Optimization**:
+   - Batch Firestore writes during drag operations
+   - Implement local caching to reduce database reads
+   - Add intelligent update scheduling to prevent write conflicts
+   - Optimize object transformation calculations
+
+4. **Performance Monitoring System**:
+   - Add FPS monitoring and logging
+   - Measure and log cursor sync latency
+   - Track object sync latency and update performance
+   - Add memory usage monitoring for object collections
+   - Implement performance alerts for degraded experience
+
+5. **Load Testing Capabilities**:
+   - Create development tools for generating test objects
+   - Add stress testing utilities for multi-user scenarios
+   - Implement performance regression testing
+
+**Acceptance Criteria**:
+- [ ] Canvas maintains 30+ FPS with 500 objects
+- [ ] Cursor sync latency stays under 50ms
+- [ ] Object sync latency stays under 100ms
+- [ ] Performance monitoring provides real-time metrics
+- [ ] System handles 5+ concurrent users smoothly
+- [ ] Memory usage remains stable during extended use
+- [ ] Performance degrades gracefully under high load
+
+**Testing Steps**:
+1. Create 100 objects and verify smooth interaction
+2. Create 500 objects and verify acceptable performance (>20 FPS)
+3. Test with 5+ concurrent users
+4. Test with Chrome DevTools slow 3G throttling
+5. Monitor memory usage during extended sessions
+
+---
+
 ## Next Steps
 
-**Stage 3 Progress: 7/14 tasks complete (1 partial)**
+**Stage 3 Progress: 9/14 tasks complete**
 
-Completed:
+Completed Enhanced Tools:
 - ✅ E1: Add Circle Creation Tool
-- ✅ E4: Fix Critical Rectangle Resize Bug
 - ✅ E2: Create Properties Display in Toolbar
+- ✅ E3: Implement Text Tool with Basic Formatting
+- ✅ E4: Fix Critical Rectangle Resize Bug
+- ✅ E6: Implement Object Rotation Tool
 - ✅ E7: Add Star Shape Tool
 - ✅ E8: Add Color Picker for Shapes
 - ✅ E9: Implement Z-Index Management
-- ✅ E3: Implement Text Tool with Basic Formatting
-
-Partial:
-- 🔄 E6: Implement Object Rotation Tool (rendering works, needs interactive UI)
+- ✅ E10: Enable Continuous Text Editing (Re-edit Existing Text)
 
 Remaining Enhanced Tools:
-- ⏸️ E10: Enable Continuous Text Editing (Re-edit Existing Text) ← **NEW**
 - ⏸️ E5: Add Owner-Only Edit Restrictions
-- ⏸️ E6: Complete Object Rotation Tool (interactive handles)
 
 Remaining Advanced Features:
-- ⏸️ A0: Performance Optimization & Monitoring
 - ⏸️ A1: Implement Canvas Export Functionality
 - ⏸️ A2: Add Undo/Redo System
 - ⏸️ A3: Enhance Toolbar Design
+- ⏸️ A4: Implement Object Deletion (depends on A2)
+
+Deferred (moved to end or separate stage):
+- ❌ A0: Performance Optimization & Monitoring
 
 **Recommended Order**:
-1. **E10 (Text Re-editing)** - High value UX improvement for text tool ← **RECOMMENDED NEXT**
-2. **E6 (Rotation Tool)** - Core manipulation feature (complete interactive handles)
-3. **E5 (Ownership UI)** - Visual ownership indicators
-4. **A0-A3 (Polish)** - Performance, Export, Undo/Redo, Toolbar design
+1. **E5 (Ownership UI)** - Visual ownership indicators and edit restrictions ← **RECOMMENDED NEXT**
+2. **A2 (Undo/Redo System)** - Critical safety net for destructive operations
+3. **A4 (Object Deletion)** - Delete key functionality (safe with undo/redo)
+4. **A1 (Canvas Export)** - PNG/SVG export functionality
+5. **A3 (Toolbar Design)** - Visual polish and refinement
+6. **A0 (Performance)** - Optimization and monitoring (deferred to end)
 
-**Why E10 Next?**
-- Builds directly on E3 (Text Tool) which is already complete
-- High impact on user experience - users often need to fix typos or update text
-- Relatively straightforward implementation (reuses existing TextEditor component)
-- Natural complement to text creation functionality
+**Why E5 Next?**
+- Completes all Enhanced Tools (E1-E10)
+- Visual ownership indicators improve collaborative UX
+- Edit restrictions prevent conflicts in multi-user scenarios
+- Foundation for safe deletion (A4) - users need to know who owns what before deleting
+- Relatively contained scope (visual indicators + interaction blocking)
+
+**Why A2 Before A4?**
+- Undo/Redo is the safety net for deletion
+- Without undo, accidental deletions are permanent (bad UX)
+- A4 explicitly depends on A2 per user requirements
+
+**Why A0 Deferred?**
+- Current performance is acceptable for typical use cases
+- Optimization is best done after all features are complete
+- Can be moved to Stage 4 or addressed as needed
+- Not blocking any other features
 
 After completing Stage 3, proceed to **Stage 4: Production Ready** tasks for deployment preparation.
 

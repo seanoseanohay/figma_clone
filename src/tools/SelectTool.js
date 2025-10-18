@@ -15,10 +15,14 @@ import { lockObject, unlockObject } from '../services/canvas.service.js'
 export class SelectTool {
   constructor() {
     this.name = 'select'
+    this.lastClickTime = 0
+    this.lastClickedObjectId = null
+    this.DOUBLE_CLICK_THRESHOLD = 300 // milliseconds
   }
 
   /**
    * Handle mouse down - select or deselect object
+   * Also detects double-click to edit text objects
    */
   async onMouseDown(e, state, helpers) {
     const { pos, canvasId } = helpers
@@ -26,11 +30,52 @@ export class SelectTool {
       findObjectAt, 
       canEditObject,
       selectedObjectId,
-      setSelectedObjectId
+      setSelectedObjectId,
+      setIsEditingText,
+      setTextEditData,
+      setTextSelectedId
     } = state
 
     // Check if user clicked on an object
     const clickedObject = findObjectAt(pos)
+
+    // Detect double-click on text objects
+    const now = Date.now()
+    const isDoubleClick = 
+      clickedObject && 
+      clickedObject.id === this.lastClickedObjectId && 
+      (now - this.lastClickTime) < this.DOUBLE_CLICK_THRESHOLD
+
+    if (isDoubleClick && clickedObject.type === 'text' && canEditObject(clickedObject.id)) {
+      console.log('🖱️ Double-click detected on text object:', clickedObject.id)
+      
+      // Lock the text for editing (it should already be locked from first click)
+      try {
+        await lockObject(clickedObject.id)
+        console.log('✅ Text locked for editing')
+      } catch (error) {
+        console.error('Failed to lock text:', error)
+        return
+      }
+
+      // Trigger text editing mode
+      setSelectedObjectId(clickedObject.id)
+      setTextSelectedId(clickedObject.id)
+      setIsEditingText(true)
+      setTextEditData({
+        object: clickedObject,
+        originalText: clickedObject.text || ''
+      })
+      
+      // Reset double-click tracking
+      this.lastClickTime = 0
+      this.lastClickedObjectId = null
+      return
+    }
+
+    // Track click for double-click detection
+    this.lastClickTime = now
+    this.lastClickedObjectId = clickedObject?.id || null
 
     // Clicking empty space = deselect
     if (!clickedObject) {
