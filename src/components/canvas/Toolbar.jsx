@@ -7,6 +7,8 @@ export const TOOLS = {
   SELECT: 'select',
   MOVE: 'move', 
   RESIZE: 'resize',
+  ROTATE: 'rotate',
+  TEXT: 'text',
   RECTANGLE: 'rectangle',
   CIRCLE: 'circle',
   STAR: 'star'
@@ -16,10 +18,10 @@ export const TOOLS = {
 const SELECTION_TOOLS = [TOOLS.PAN, TOOLS.SELECT];
 
 // Modification tools (work on existing shapes)
-const MODIFICATION_TOOLS = [TOOLS.MOVE, TOOLS.RESIZE];
+const MODIFICATION_TOOLS = [TOOLS.MOVE, TOOLS.RESIZE, TOOLS.ROTATE];
 
 // Shape tools (create new shapes)
-const SHAPE_TOOLS = [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
+const SHAPE_TOOLS = [TOOLS.TEXT, TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
 
 /**
  * ColorSquare - Inline colored square that opens color picker
@@ -120,6 +122,21 @@ const TOOL_CONFIG = {
     cursor: 'default',
     shortcut: 'Press R',
     requiresSelection: true
+  },
+  [TOOLS.ROTATE]: {
+    icon: '🔄',
+    label: 'Rotate Tool',
+    shortLabel: 'Rotate',
+    cursor: 'default',
+    shortcut: 'Press T',
+    requiresSelection: true
+  },
+  [TOOLS.TEXT]: {
+    icon: '📝',
+    label: 'Text Tool',
+    shortLabel: 'Text',
+    cursor: 'text',
+    shortcut: ''
   },
   [TOOLS.RECTANGLE]: {
     icon: '⬜',
