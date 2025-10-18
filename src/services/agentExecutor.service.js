@@ -3,7 +3,8 @@ import {
   updateObject, 
   deleteObject, 
   clearAllObjects,
-  updateObjectPosition
+  updateObjectPosition,
+  getCanvasObjects
 } from './canvas.service.js'
 import { parseAgentResponse, orderCommands, batchCommands } from '../utils/agentCommandParser.js'
 import { parseCompositeCommand, isCompositeCommand } from '../utils/agentCompositeCommands.js'
@@ -231,6 +232,7 @@ const executeCommand = async (command, canvasId, options = {}) => {
 
     // Handle regular commands
     switch (command.type) {
+      // Creation commands
       case 'createRectangle':
         result.objectId = await executeCreateRectangle(command, canvasId)
         break
@@ -243,9 +245,19 @@ const executeCommand = async (command, canvasId, options = {}) => {
         result.objectId = await executeCreateStar(command, canvasId)
         break
         
+      case 'createText':
+        result.objectId = await executeCreateText(command, canvasId)
+        break
+        
+      // Manipulation commands (both old and new styles)
       case 'moveObject':
         await executeMoveObject(command, canvasId)
         result.objectId = command.objectId
+        break
+        
+      case 'moveShape':
+        await executeMoveShape(command, canvasId)
+        result.objectId = command.targetId
         break
         
       case 'resizeObject':
@@ -253,11 +265,41 @@ const executeCommand = async (command, canvasId, options = {}) => {
         result.objectId = command.objectId
         break
         
+      case 'resizeShape':
+        await executeResizeShape(command, canvasId)
+        result.objectId = command.targetId
+        break
+        
       case 'rotateObject':
         await executeRotateObject(command, canvasId)
         result.objectId = command.objectId
         break
         
+      case 'rotateShape':
+        await executeRotateShape(command, canvasId)
+        result.objectId = command.targetId
+        break
+        
+      // Layout commands
+      case 'arrangeLayout':
+        await executeArrangeLayout(command, canvasId)
+        result.objectIds = command.targetIds || []
+        break
+        
+      // Complex commands
+      case 'createForm':
+        result.objectIds = await executeCreateForm(command, canvasId)
+        break
+        
+      case 'createNavBar':
+        result.objectIds = await executeCreateNavBar(command, canvasId)
+        break
+        
+      case 'createLayout':
+        result.objectIds = await executeCreateLayout(command, canvasId)
+        break
+        
+      // Property and object management
       case 'updateObjectProperties':
         await executeUpdateObjectProperties(command, canvasId)
         result.objectId = command.objectId
@@ -497,6 +539,275 @@ const executeUngroupObjects = async (command, canvasId) => {
 }
 
 /**
+ * Execute createText command
+ */
+const executeCreateText = async (command, canvasId) => {
+  const { position, text, fontSize, fontFamily, fill, rotation } = command
+  
+  const objectId = await createObject('text', {
+    x: position.x,
+    y: position.y,
+    text: text || 'Text',
+    fontSize: fontSize || 24,
+    fontFamily: fontFamily || 'Arial',
+    width: 200 // Default text width
+  }, canvasId, {
+    fill: fill || '#000000',
+    rotation: rotation || 0
+  })
+  
+  return objectId
+}
+
+/**
+ * Execute moveShape command (new natural language version)
+ */
+const executeMoveShape = async (command, canvasId) => {
+  const { targetId, newPosition, animate } = command
+  
+  let finalPosition = newPosition
+  
+  // Handle 'lastCreated' special case
+  if (targetId === 'lastCreated') {
+    console.log('moveShape targeting lastCreated - would need to track last created object')
+    return
+  }
+  
+  // Handle delta movement vs absolute position
+  if (newPosition.deltaX !== undefined || newPosition.deltaY !== undefined) {
+    // This would require fetching current position first
+    console.log(`Would move ${targetId} by delta: (${newPosition.deltaX || 0}, ${newPosition.deltaY || 0})`)
+    return
+  }
+  
+  // Absolute position movement
+  await updateObjectPosition(targetId, {
+    x: finalPosition.x,
+    y: finalPosition.y
+  }, true) // finalUpdate = true
+  
+  if (animate) {
+    console.log('Animation requested but not yet implemented')
+  }
+}
+
+/**
+ * Execute resizeShape command (new natural language version)
+ */
+const executeResizeShape = async (command, canvasId) => {
+  const { targetId, scale, animate } = command
+  
+  if (targetId === 'lastCreated') {
+    console.log('resizeShape targeting lastCreated - would need to track last created object')
+    return
+  }
+  
+  // TODO: Implement shape resizing by scale factor
+  // This would require fetching current dimensions and applying scale
+  console.log(`Would resize ${targetId} by scale factor: ${scale}`)
+  
+  if (animate) {
+    console.log('Animation requested but not yet implemented')
+  }
+}
+
+/**
+ * Execute rotateShape command (new natural language version)
+ */
+const executeRotateShape = async (command, canvasId) => {
+  const { targetId, angle, animate } = command
+  
+  if (targetId === 'lastCreated') {
+    console.log('rotateShape targeting lastCreated - would need to track last created object')
+    return
+  }
+  
+  await updateObject(targetId, {
+    rotation: angle
+  })
+  
+  if (animate) {
+    console.log('Animation requested but not yet implemented')
+  }
+}
+
+/**
+ * Execute arrangeLayout command
+ */
+const executeArrangeLayout = async (command, canvasId) => {
+  const { layoutType = 'row', columns = 3, rows = 1, spacing = 50, targetIds } = command
+  
+  if (!targetIds || targetIds.length === 0) {
+    console.log('arrangeLayout: No target objects specified')
+    return
+  }
+  
+  try {
+    // Get all objects from canvas to find the target objects
+    const allObjects = await getCanvasObjects(canvasId)
+    const targetObjects = allObjects.filter(obj => targetIds.includes(obj.id))
+    
+    if (targetObjects.length === 0) {
+      console.log('arrangeLayout: No matching objects found on canvas')
+      return
+    }
+    
+    console.log(`Arranging ${targetObjects.length} objects in ${layoutType} layout`)
+    
+    // Calculate layout positions based on type
+    let newPositions = []
+    const objectCount = targetObjects.length
+    
+    switch (layoutType) {
+      case 'row':
+        // Arrange objects in a horizontal row
+        newPositions = targetObjects.map((obj, index) => ({
+          id: obj.id,
+          x: 100 + (index * spacing),
+          y: obj.y // Keep original Y position
+        }))
+        break
+        
+      case 'column':
+        // Arrange objects in a vertical column
+        newPositions = targetObjects.map((obj, index) => ({
+          id: obj.id,
+          x: obj.x, // Keep original X position  
+          y: 100 + (index * spacing)
+        }))
+        break
+        
+      case 'grid':
+        // Arrange objects in a grid pattern
+        const gridColumns = columns || Math.ceil(Math.sqrt(objectCount))
+        const gridRows = rows || Math.ceil(objectCount / gridColumns)
+        
+        newPositions = targetObjects.map((obj, index) => {
+          const col = index % gridColumns
+          const row = Math.floor(index / gridColumns)
+          
+          return {
+            id: obj.id,
+            x: 100 + (col * spacing),
+            y: 100 + (row * spacing)
+          }
+        })
+        break
+    }
+    
+    // Update each object's position
+    for (const position of newPositions) {
+      await updateObjectPosition(canvasId, position.id, { 
+        x: position.x, 
+        y: position.y 
+      })
+    }
+    
+    console.log(`✅ Successfully arranged ${targetObjects.length} objects in ${layoutType} layout`)
+    
+  } catch (error) {
+    console.error('❌ Error executing arrangeLayout:', error)
+    throw error
+  }
+}
+
+/**
+ * Execute createForm command
+ */
+const executeCreateForm = async (command, canvasId) => {
+  const { position, formType, fields, width } = command
+  
+  // Use composite command system for forms
+  const { parseCompositeCommand } = await import('../utils/agentCompositeCommands.js')
+  
+  const compositeCommand = {
+    type: 'createLoginForm',
+    position,
+    width: width || 300,
+    fields: fields || ['username', 'password']
+  }
+  
+  const compositeResult = parseCompositeCommand(compositeCommand)
+  const objectIds = []
+  
+  // Execute each command in the composite
+  for (const cmd of compositeResult.commands) {
+    try {
+      const objectId = await executeCreateRectangle(cmd, canvasId)
+      objectIds.push(objectId)
+    } catch (error) {
+      console.error('Failed to execute form command:', error)
+    }
+  }
+  
+  return objectIds
+}
+
+/**
+ * Execute createNavBar command
+ */
+const executeCreateNavBar = async (command, canvasId) => {
+  const { position, items, width } = command
+  
+  // Use composite command system for navigation bars
+  const { parseCompositeCommand } = await import('../utils/agentCompositeCommands.js')
+  
+  const compositeCommand = {
+    type: 'createNavBar',
+    position,
+    width: width || 800,
+    itemCount: items?.length || 4
+  }
+  
+  const compositeResult = parseCompositeCommand(compositeCommand)
+  const objectIds = []
+  
+  // Execute each command in the composite
+  for (const cmd of compositeResult.commands) {
+    try {
+      const objectId = await executeCreateRectangle(cmd, canvasId)
+      objectIds.push(objectId)
+    } catch (error) {
+      console.error('Failed to execute nav bar command:', error)
+    }
+  }
+  
+  return objectIds
+}
+
+/**
+ * Execute createLayout command
+ */
+const executeCreateLayout = async (command, canvasId) => {
+  const { position, layoutType, cardCount, elements } = command
+  
+  // Use composite command system for layouts
+  const { parseCompositeCommand } = await import('../utils/agentCompositeCommands.js')
+  
+  const compositeCommand = {
+    type: 'createCardLayout',
+    position,
+    cardCount: cardCount || 3,
+    elements: elements || ['title', 'image', 'description']
+  }
+  
+  const compositeResult = parseCompositeCommand(compositeCommand)
+  const objectIds = []
+  
+  // Execute each command in the composite
+  for (const cmd of compositeResult.commands) {
+    try {
+      const objectId = await executeCreateRectangle(cmd, canvasId)
+      objectIds.push(objectId)
+    } catch (error) {
+      console.error('Failed to execute layout command:', error)
+    }
+  }
+  
+  return objectIds
+}
+
+/**
  * Execute composite command by expanding it into multiple basic commands
  * @param {Object} command - Composite command to execute
  * @param {string} canvasId - Target canvas ID
@@ -565,13 +876,16 @@ const executeCompositeCommand = async (command, canvasId, options = {}) => {
  */
 const isParallelizable = (command) => {
   // Creation commands can generally run in parallel
-  const parallelTypes = ['createRectangle', 'createCircle', 'createStar']
+  const parallelTypes = ['createRectangle', 'createCircle', 'createStar', 'createText']
   
   // Modification commands on different objects can run in parallel
-  const modificationTypes = ['moveObject', 'resizeObject', 'rotateObject', 'updateObjectProperties']
+  const modificationTypes = [
+    'moveObject', 'resizeObject', 'rotateObject', 'updateObjectProperties',
+    'moveShape', 'resizeShape', 'rotateShape'
+  ]
   
   return parallelTypes.includes(command.type) || 
-         (modificationTypes.includes(command.type) && command.objectId)
+         (modificationTypes.includes(command.type) && (command.objectId || command.targetId))
 }
 
 /**
@@ -587,6 +901,7 @@ const aggregateCommandResult = (batchResult, commandResult) => {
         case 'createRectangle':
         case 'createCircle':
         case 'createStar':
+        case 'createText':
         case 'groupObjects':
           batchResult.createdObjects.push(commandResult.objectId)
           break
@@ -594,6 +909,9 @@ const aggregateCommandResult = (batchResult, commandResult) => {
         case 'moveObject':
         case 'resizeObject':
         case 'rotateObject':
+        case 'moveShape':
+        case 'resizeShape':
+        case 'rotateShape':
         case 'updateObjectProperties':
           batchResult.modifiedObjects.push(commandResult.objectId)
           break
@@ -601,6 +919,21 @@ const aggregateCommandResult = (batchResult, commandResult) => {
         case 'deleteObject':
         case 'ungroupObjects':
           batchResult.deletedObjects.push(commandResult.objectId)
+          break
+      }
+    }
+    
+    // Handle commands that create multiple objects
+    if (commandResult.objectIds && commandResult.objectIds.length > 0) {
+      switch (commandResult.commandType) {
+        case 'createForm':
+        case 'createNavBar':
+        case 'createLayout':
+          batchResult.createdObjects.push(...commandResult.objectIds)
+          break
+          
+        case 'arrangeLayout':
+          batchResult.modifiedObjects.push(...commandResult.objectIds)
           break
       }
     }

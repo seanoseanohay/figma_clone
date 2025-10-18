@@ -166,20 +166,61 @@ export const sanitizeCommand = (rawCommand) => {
       
       // Map common variations to canonical names
       const typeAliases = {
+        // Creation Commands
         'rect': 'createRectangle',
         'rectangle': 'createRectangle',
         'box': 'createRectangle',
         'square': 'createRectangle',
-        'createrectangle': 'createRectangle', // Handle case where it comes in correctly
+        'createrectangle': 'createRectangle',
         'circle': 'createCircle',
         'oval': 'createCircle',
         'ellipse': 'createCircle',
         'createcircle': 'createCircle',
         'star': 'createStar',
-        'createstar': 'createStar', 
-        'move': 'moveObject',
-        'resize': 'resizeObject',
-        'rotate': 'rotateObject',
+        'createstar': 'createStar',
+        'text': 'createText',
+        'createtext': 'createText',
+        'addtext': 'createText',
+        'label': 'createText',
+        
+        // Manipulation Commands
+        'move': 'moveShape',
+        'moveshape': 'moveShape',
+        'moveobject': 'moveObject', // Keep for backwards compatibility
+        'drag': 'moveShape',
+        'resize': 'resizeShape',
+        'resizeshape': 'resizeShape',
+        'resizeobject': 'resizeObject', // Keep for backwards compatibility
+        'scale': 'resizeShape',
+        'rotate': 'rotateShape',
+        'rotateshape': 'rotateShape',
+        'rotateobject': 'rotateObject', // Keep for backwards compatibility
+        'spin': 'rotateShape',
+        
+        // Layout Commands
+        'arrange': 'arrangeLayout',
+        'arrangelayout': 'arrangeLayout',
+        'layout': 'arrangeLayout',
+        'grid': 'arrangeLayout',
+        'row': 'arrangeLayout',
+        'column': 'arrangeLayout',
+        'align': 'arrangeLayout',
+        
+        // Complex Commands
+        'form': 'createForm',
+        'createform': 'createForm',
+        'loginform': 'createForm',
+        'navbar': 'createNavBar',
+        'createnavbar': 'createNavBar',
+        'navigation': 'createNavBar',
+        'nav': 'createNavBar',
+        'menu': 'createNavBar',
+        'cardlayout': 'createLayout',
+        'createlayout': 'createLayout',
+        'cards': 'createLayout',
+        'dashboard': 'createLayout',
+        
+        // Existing commands
         'update': 'updateObjectProperties',
         'delete': 'deleteObject',
         'remove': 'deleteObject',
@@ -381,14 +422,53 @@ const applyCommandDefaults = (command) => {
     case 'createStar':
       withDefaults.fill = withDefaults.fill || '#f59e0b' // Yellow default
       withDefaults.numPoints = withDefaults.numPoints ?? 5
+      withDefaults.innerRadius = withDefaults.innerRadius ?? 30
+      withDefaults.outerRadius = withDefaults.outerRadius ?? 60
       withDefaults.strokeWidth = withDefaults.strokeWidth ?? 0
       withDefaults.rotation = withDefaults.rotation ?? 0
+      break
+      
+    case 'createText':
+      withDefaults.fill = withDefaults.fill || '#000000' // Black default
+      withDefaults.fontSize = withDefaults.fontSize ?? 24
+      withDefaults.fontFamily = withDefaults.fontFamily || 'Arial'
+      withDefaults.text = withDefaults.text || 'Text'
+      withDefaults.strokeWidth = withDefaults.strokeWidth ?? 0
       break
       
     case 'moveObject':
     case 'resizeObject':
     case 'rotateObject':
+    case 'moveShape':
+    case 'resizeShape':
+    case 'rotateShape':
       withDefaults.animate = withDefaults.animate ?? false
+      withDefaults.targetId = withDefaults.targetId || 'lastCreated'
+      break
+      
+    case 'arrangeLayout':
+      withDefaults.layoutType = withDefaults.layoutType || 'row'
+      withDefaults.spacing = withDefaults.spacing ?? 50
+      withDefaults.columns = withDefaults.columns ?? 3
+      withDefaults.rows = withDefaults.rows ?? 1
+      break
+      
+    case 'createForm':
+      withDefaults.formType = withDefaults.formType || 'login'
+      withDefaults.width = withDefaults.width ?? 300
+      withDefaults.fields = withDefaults.fields || ['username', 'password']
+      break
+      
+    case 'createNavBar':
+      withDefaults.width = withDefaults.width ?? 800
+      withDefaults.height = withDefaults.height ?? 60
+      withDefaults.items = withDefaults.items || ['Home', 'About', 'Services', 'Contact']
+      break
+      
+    case 'createLayout':
+      withDefaults.layoutType = withDefaults.layoutType || 'card'
+      withDefaults.cardCount = withDefaults.cardCount ?? 3
+      withDefaults.elements = withDefaults.elements || ['title', 'image', 'description']
       break
       
     case 'clearCanvas':
@@ -410,16 +490,38 @@ export const orderCommands = (commands) => {
   const priorities = {
     'clearCanvas': 1,
     'setCanvasBackground': 2,
+    
+    // Creation commands
     'createRectangle': 3,
     'createCircle': 3,
     'createStar': 3,
+    'createText': 3,
+    
+    // Complex creation commands
+    'createForm': 3,
+    'createNavBar': 3,
+    'createLayout': 3,
+    
+    // Manipulation commands
     'moveObject': 4,
     'resizeObject': 4,
     'rotateObject': 4,
-    'updateObjectProperties': 5,
-    'groupObjects': 6,
-    'ungroupObjects': 7,
-    'deleteObject': 8
+    'moveShape': 4,
+    'resizeShape': 4,
+    'rotateShape': 4,
+    
+    // Layout commands
+    'arrangeLayout': 5,
+    
+    // Property updates
+    'updateObjectProperties': 6,
+    
+    // Grouping operations
+    'groupObjects': 7,
+    'ungroupObjects': 8,
+    
+    // Deletion (last)
+    'deleteObject': 9
   }
   
   return commands.sort((a, b) => {

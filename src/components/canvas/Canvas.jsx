@@ -1583,6 +1583,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               <>
                 {/* Line connecting object center to rotation handle */}
                 <Line
+                  key={`rotation-line-${selectedObj.id}`}
                   points={[selectedObj.x, selectedObj.y, handleX, handleY]}
                   stroke="#2563eb"
                   strokeWidth={2}
@@ -1592,6 +1593,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                 
                 {/* Rotation handle (circular) */}
                 <Circle
+                  key={`rotation-handle-${selectedObj.id}`}
                   x={handleX}
                   y={handleY}
                   radius={ROTATION_HANDLE_RADIUS}
@@ -1603,6 +1605,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                 
                 {/* Rotation icon inside handle */}
                 <Arc
+                  key={`rotation-icon-${selectedObj.id}`}
                   x={handleX}
                   y={handleY}
                   innerRadius={ROTATION_HANDLE_RADIUS - 6}

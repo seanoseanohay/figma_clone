@@ -45,8 +45,9 @@ const CreateCircleSchema = z.object({
 const CreateStarSchema = z.object({
   type: z.literal('createStar'),
   position: PositionSchema,
-  radius: z.number().min(1).max(1000),
   numPoints: z.number().min(3).max(20).optional().default(5),
+  innerRadius: z.number().min(1).max(500),
+  outerRadius: z.number().min(1).max(1000),
   fill: ColorSchema.optional().default('#808080'),
   stroke: ColorSchema.optional(),
   strokeWidth: z.number().min(0).max(50).optional().default(0),
@@ -114,6 +115,16 @@ const UngroupObjectsSchema = z.object({
   groupId: z.string().min(1)
 })
 
+// Layout arrangement commands
+const ArrangeLayoutSchema = z.object({
+  type: z.literal('arrangeLayout'),
+  layoutType: z.enum(['row', 'grid', 'column']).default('row'),
+  spacing: z.number().min(0).max(200).default(50),
+  rows: z.number().min(1).max(10).optional(),
+  columns: z.number().min(1).max(10).optional(),
+  targetIds: z.array(z.string().min(1)).min(1).optional() // Require at least 1 item
+})
+
 // Union of all command schemas
 const AgentCommandSchema = z.union([
   CreateRectangleSchema,
@@ -127,7 +138,8 @@ const AgentCommandSchema = z.union([
   ClearCanvasSchema,
   SetCanvasBackgroundSchema,
   GroupObjectsSchema,
-  UngroupObjectsSchema
+  UngroupObjectsSchema,
+  ArrangeLayoutSchema
 ])
 
 // Agent response schema
@@ -262,5 +274,6 @@ export {
   ResizeObjectSchema,
   RotateObjectSchema,
   UpdateObjectPropertiesSchema,
-  DeleteObjectSchema
+  DeleteObjectSchema,
+  ArrangeLayoutSchema
 }

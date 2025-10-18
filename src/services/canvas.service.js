@@ -351,6 +351,40 @@ export const getAllObjects = async () => {
 }
 
 /**
+ * Get objects for a specific canvas
+ * @param {string} canvasId - Canvas ID to get objects for
+ * @returns {Promise<Array>} Array of canvas objects for the specified canvas
+ */
+export const getCanvasObjects = async (canvasId) => {
+  try {
+    if (!canvasId) {
+      console.error('Canvas ID is required');
+      return [];
+    }
+
+    const objectsQuery = query(
+      collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS),
+      where('canvasId', '==', canvasId)
+    );
+
+    const snapshot = await getDocs(objectsQuery);
+    const objects = [];
+    snapshot.forEach((doc) => {
+      objects.push({
+        id: doc.id,
+        ...doc.data()
+      });
+    });
+
+    console.log(`Fetched ${objects.length} objects for canvas:`, canvasId);
+    return objects;
+  } catch (error) {
+    console.error('Error fetching canvas objects for canvas:', canvasId, error);
+    return [];
+  }
+}
+
+/**
  * Clear all canvas objects (for testing/demo purposes)
  * @returns {Promise<void>}
  */
