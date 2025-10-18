@@ -224,6 +224,20 @@ const Toolbar = ({
     } else if (obj.type === 'star') {
       const numPoints = obj.numPoints || 5;
       return `Star: ${numPoints} points at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
+    } else if (obj.type === 'text') {
+      // Show truncated text preview
+      const textPreview = (obj.text || 'Text').substring(0, 20);
+      const displayText = obj.text && obj.text.length > 20 ? `${textPreview}...` : textPreview;
+      const fontSize = obj.fontSize || 24;
+      
+      // Build formatting indicators
+      const formatting = [];
+      if (obj.bold) formatting.push('B');
+      if (obj.italic) formatting.push('I');
+      if (obj.underline) formatting.push('U');
+      const formatStr = formatting.length > 0 ? ` [${formatting.join('')}]` : '';
+      
+      return `Text: "${displayText}" • ${fontSize}px${formatStr} at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     }
     
     return null;

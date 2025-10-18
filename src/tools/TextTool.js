@@ -105,10 +105,12 @@ export class TextTool {
     // Build font style string
     const fontStyle = `${bold ? 'bold ' : ''}${italic ? 'italic ' : ''}${fontSize}px ${fontFamily}`;
 
-    const textObject = {
-      type: 'text',
+    const position = {
       x: pos.x,
-      y: pos.y,
+      y: pos.y
+    };
+
+    const properties = {
       text: text || 'Text',
       fontSize,
       fontFamily,
@@ -124,7 +126,7 @@ export class TextTool {
     };
 
     try {
-      const textId = await createObject(canvasId, textObject);
+      const textId = await createObject('text', position, canvasId, properties);
       console.log('✅ Text object created:', textId);
       return textId;
     } catch (error) {
@@ -149,5 +151,6 @@ export class TextTool {
     );
   }
 }
+
 
 

@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
-import { Stage, Layer, Rect, Circle, Star, Arc, Line, Transformer } from 'react-konva';
+import { Stage, Layer, Rect, Circle, Star, Arc, Line, Transformer, Text } from 'react-konva';
 import { auth } from '../../services/firebase.js';
 import { TOOLS } from './Toolbar.jsx';
 import UserCursor from './UserCursor.jsx';
 import EmptyState from './EmptyState.jsx';
 import ConnectionBanner from './ConnectionBanner.jsx';
+import TextEditor from './TextEditor.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
@@ -79,6 +80,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Star creation state (Star tool only)
   const [currentStar, setCurrentStar] = useState(null);
   
+  // Text tool state (Text tool only)
+  const [isEditingText, setIsEditingText] = useState(false);
+  const [textEditData, setTextEditData] = useState(null); // { newTextPosition, object, originalText }
+  const [textSelectedId, setTextSelectedId] = useState(null);
+  
   // Move tool state (clean separation)
   const [moveSelectedId, setMoveSelectedId] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
@@ -117,6 +123,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     if (selectedTool === TOOLS.MOVE) return moveSelectedId;
     if (selectedTool === TOOLS.RESIZE) return resizeSelectedId;
     if (selectedTool === TOOLS.ROTATE) return rotateSelectedId;
+    if (selectedTool === TOOLS.TEXT) return textSelectedId;
     return null;
   };
 
@@ -331,18 +338,59 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       });
   }, [canvasObjects, localRectUpdates, activeObjects]);
 
+  // Filter text objects from canvas objects, sorted by z-index
+  const texts = useMemo(() => {
+    return canvasObjects
+      .filter(obj => obj.type === 'text')
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))
+      .map(text => {
+        // If WE are controlling this object, show our local updates
+        if (localRectUpdates[text.id] && text.lockedBy === auth.currentUser?.uid) {
+          return {
+            ...text,
+            ...localRectUpdates[text.id]
+          };
+        }
+        
+        // If another user is dragging this object, show real-time RTDB position
+        if (activeObjects[text.id] && text.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...text,
+            x: activeObjects[text.id].x,
+            y: activeObjects[text.id].y,
+            isLockedByOther: true,
+            lockedByName: text.lastModifiedBy,
+            isBeingDragged: true
+          };
+        }
+        
+        // If locked by another user, mark as locked
+        if (text.lockedBy && text.lockedBy !== auth.currentUser?.uid) {
+          return {
+            ...text,
+            isLockedByOther: true,
+            lockedByName: text.lastModifiedBy
+          };
+        }
+        
+        // No one is controlling it, show Firestore data
+        return text;
+      });
+  }, [canvasObjects, localRectUpdates, activeObjects]);
+
   // Combine all shapes and sort by z-index for proper rendering order
   const allShapesSorted = useMemo(() => {
     // Combine all shape types with their type identifier
     const combined = [
       ...rectangles.map(shape => ({ ...shape, shapeType: 'rectangle' })),
       ...circles.map(shape => ({ ...shape, shapeType: 'circle' })),
-      ...stars.map(shape => ({ ...shape, shapeType: 'star' }))
+      ...stars.map(shape => ({ ...shape, shapeType: 'star' })),
+      ...texts.map(shape => ({ ...shape, shapeType: 'text' }))
     ];
     
     // Sort by z-index (ascending - lower z-index renders first/behind)
     return combined.sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
-  }, [rectangles, circles, stars]);
+  }, [rectangles, circles, stars, texts]);
 
   // Helper function to check if current user can edit an object
   const canEditObject = useCallback((objectId) => {
@@ -392,12 +440,39 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return result;
   }, []);
   
-  // Helper function to check if point is inside rectangle
+  // Helper function to check if point is inside rectangle (accounts for rotation)
   const isPointInRect = useCallback((point, rect) => {
-    return point.x >= rect.x && 
-           point.x <= rect.x + rect.width && 
-           point.y >= rect.y && 
-           point.y <= rect.y + rect.height;
+    const rotation = rect.rotation || 0;
+    
+    // If no rotation, use simple bounding box check
+    if (rotation === 0) {
+      return point.x >= rect.x && 
+             point.x <= rect.x + rect.width && 
+             point.y >= rect.y && 
+             point.y <= rect.y + rect.height;
+    }
+    
+    // For rotated rectangles, transform point to local coordinates
+    // Rectangle rotates around its center
+    const centerX = rect.x + rect.width / 2;
+    const centerY = rect.y + rect.height / 2;
+    
+    // Translate point to origin
+    const translatedX = point.x - centerX;
+    const translatedY = point.y - centerY;
+    
+    // Rotate point back by negative rotation angle
+    const angleRad = (-rotation * Math.PI) / 180;
+    const cos = Math.cos(angleRad);
+    const sin = Math.sin(angleRad);
+    const localX = translatedX * cos - translatedY * sin;
+    const localY = translatedX * sin + translatedY * cos;
+    
+    // Check if point is inside unrotated rectangle (centered at origin)
+    const halfWidth = rect.width / 2;
+    const halfHeight = rect.height / 2;
+    return localX >= -halfWidth && localX <= halfWidth &&
+           localY >= -halfHeight && localY <= halfHeight;
   }, []);
   
   // Find rectangle at position
@@ -478,10 +553,60 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return null;
   }, [stars, isPointInStar]);
   
+  // Find text at position (simple bounding box check)
+  const findTextAt = useCallback((pos) => {
+    // Sort texts by z-index in reverse (check top objects first)
+    const sortedTexts = [...texts].sort((a, b) => (b.zIndex || 0) - (a.zIndex || 0));
+    
+    for (const text of sortedTexts) {
+      // Use stored width if available, otherwise estimate generously
+      // The width property is set when text is created/edited
+      const textWidth = text.width || 200; // Default to 200px if not set
+      const textHeight = (text.fontSize || 24) * 1.2;
+      const rotation = text.rotation || 0;
+      
+      // If no rotation, use simple bounding box check
+      if (rotation === 0) {
+        if (pos.x >= text.x && 
+            pos.x <= text.x + textWidth && 
+            pos.y >= text.y && 
+            pos.y <= text.y + textHeight) {
+          return text;
+        }
+      } else {
+        // For rotated text, transform point to local coordinates
+        // IMPORTANT: Text rotates around its top-left corner (text.x, text.y) in Konva by default
+        // NOT around its center! This is different from rectangles.
+        
+        // Translate point relative to text's rotation origin (top-left corner)
+        const translatedX = pos.x - text.x;
+        const translatedY = pos.y - text.y;
+        
+        // Rotate point back by negative rotation angle
+        const angleRad = (-rotation * Math.PI) / 180;
+        const cos = Math.cos(angleRad);
+        const sin = Math.sin(angleRad);
+        const localX = translatedX * cos - translatedY * sin;
+        const localY = translatedX * sin + translatedY * cos;
+        
+        // Check if point is inside unrotated text box (with origin at top-left)
+        if (localX >= 0 && localX <= textWidth &&
+            localY >= 0 && localY <= textHeight) {
+          return text;
+        }
+      }
+    }
+    return null;
+  }, [texts]);
+  
   // Shape-agnostic object finder - checks all shape types
   const findObjectAt = useCallback((pos) => {
     // Check in reverse z-index order (top to bottom)
-    // Stars first (typically on top in our z-index sorting)
+    // Text first (check all types at highest z-index first)
+    const text = findTextAt(pos);
+    if (text) return text;
+    
+    // Stars
     const star = findStarAt(pos);
     if (star) return star;
     
@@ -494,7 +619,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     if (rect) return rect;
     
     return null;
-  }, [findStarAt, findCircleAt, findRectAt]);
+  }, [findTextAt, findStarAt, findCircleAt, findRectAt]);
   
   // Boundary enforcement functions
   const clampRectToCanvas = useCallback((rect) => {
@@ -832,14 +957,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     moveSelectedId,
     resizeSelectedId,
     rotateSelectedId,
+    textSelectedId,
     isPanning,
     isMoving,
     isResizing,
     isRotating,
     isDrawing,
+    isEditingText,
     currentRect,
     currentCircle,
     currentStar,
+    textEditData,
     drawStart,
     mouseDownPos,
     isDragThresholdExceeded,
@@ -852,6 +980,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     rectangles,
     circles,
     stars,
+    texts,
     localRectUpdates,
     selectedColor,
     
@@ -860,14 +989,17 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     setMoveSelectedId,
     setResizeSelectedId,
     setRotateSelectedId,
+    setTextSelectedId,
     setIsPanning,
     setIsMoving,
     setIsResizing,
     setIsRotating,
     setIsDrawing,
+    setIsEditingText,
     setCurrentRect,
     setCurrentCircle,
     setCurrentStar,
+    setTextEditData,
     setDrawStart,
     setMouseDownPos,
     setIsDragThresholdExceeded,
@@ -883,6 +1015,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     findRectAt,
     findCircleAt,
     findStarAt,
+    findTextAt,
     findObjectAt,
     isPointInCircle,
     isPointInStar,
@@ -897,10 +1030,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     onToolChange,
     TOOLS
   }), [
-    selectedObjectId, moveSelectedId, resizeSelectedId, rotateSelectedId, isPanning, isMoving, isResizing, isRotating, isDrawing,
-    currentRect, currentCircle, currentStar, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
-    resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, localRectUpdates, selectedColor,
-    findRectAt, findCircleAt, findStarAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
+    selectedObjectId, moveSelectedId, resizeSelectedId, rotateSelectedId, textSelectedId, isPanning, isMoving, isResizing, isRotating, isDrawing, isEditingText,
+    currentRect, currentCircle, currentStar, textEditData, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
+    resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, texts, localRectUpdates, selectedColor,
+    findRectAt, findCircleAt, findStarAt, findTextAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
     clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange
   ])
 
@@ -1010,6 +1143,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           break;
         case TOOLS.STAR:
           container.style.cursor = 'crosshair';
+          break;
+        case TOOLS.TEXT:
+          container.style.cursor = 'text';
           break;
         default:
           container.style.cursor = 'default';
@@ -1168,6 +1304,32 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                   numPoints={shape.numPoints || 5}
                   innerRadius={shape.innerRadius || 20}
                   outerRadius={shape.outerRadius || 40}
+                />
+              );
+            } else if (shape.shapeType === 'text') {
+              // Build font style string from formatting
+              const fontStyle = `${shape.bold ? 'bold ' : ''}${shape.italic ? 'italic ' : ''}${shape.fontSize || 24}px ${shape.fontFamily || 'Arial'}`;
+              
+              return (
+                <Text
+                  key={shape.id}
+                  {...commonProps}
+                  x={shape.x}
+                  y={shape.y}
+                  text={shape.text || 'Text'}
+                  fontSize={shape.fontSize || 24}
+                  fontFamily={shape.fontFamily || 'Arial'}
+                  fontStyle={`${shape.bold ? 'bold ' : ''}${shape.italic ? 'italic ' : 'normal'}`}
+                  textDecoration={shape.underline ? 'underline' : ''}
+                  fill={shape.fill}
+                  width={shape.width || 200}
+                  align={shape.align || 'left'}
+                  stroke={shape.isLockedByOther 
+                    ? "#f59e0b" // Orange border for locked objects
+                    : isSelected 
+                      ? "#2563eb" // Blue border for selected
+                      : "transparent"} // No border for unselected text
+                  strokeWidth={shape.isLockedByOther || isSelected ? 1 : 0}
                 />
               );
             }
@@ -1346,9 +1508,63 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             />
           )}
 
+          {/* Render resize handles for selected text (RESIZE tool only, NON-ROTATED) */}
+          {selectedTool === TOOLS.RESIZE && resizeSelectedId && texts.find(t => t.id === resizeSelectedId) && (() => {
+            const selectedText = texts.find(t => t.id === resizeSelectedId);
+            
+            // Don't show handles if object is locked by another user
+            if (selectedText.isLockedByOther) {
+              return null;
+            }
+            
+            // Don't show custom handles if object has rotation (Transformer handles that)
+            if (selectedText.rotation && selectedText.rotation !== 0) {
+              return null;
+            }
+            
+            // Calculate text height based on font size and line count
+            // Estimate line count based on text length and width
+            const fontSize = selectedText.fontSize || 24;
+            const charWidth = fontSize * 0.6; // Rough estimate
+            const charsPerLine = Math.floor((selectedText.width || 200) / charWidth);
+            const lineCount = Math.max(1, Math.ceil((selectedText.text?.length || 4) / charsPerLine));
+            const lineHeight = fontSize * 1.2;
+            const textHeight = lineCount * lineHeight;
+            
+            // Position handles on text's bounding box corners
+            const handlePadding = 5;
+            const bounds = {
+              x: selectedText.x,
+              y: selectedText.y,
+              width: selectedText.width || 200,
+              height: textHeight
+            };
+            
+            const handles = [
+              { name: 'nw', x: bounds.x + handlePadding, y: bounds.y + handlePadding },
+              { name: 'ne', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + handlePadding },
+              { name: 'sw', x: bounds.x + handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding },
+              { name: 'se', x: bounds.x + bounds.width - HANDLE_SIZE - handlePadding, y: bounds.y + bounds.height - HANDLE_SIZE - handlePadding }
+            ];
+            
+            return handles.map(handle => (
+              <Rect
+                key={`text-handle-${handle.name}`}
+                x={handle.x}
+                y={handle.y}
+                width={HANDLE_SIZE}
+                height={HANDLE_SIZE}
+                fill="#2563eb"
+                stroke="#ffffff"
+                strokeWidth={1}
+                listening={false}
+              />
+            ));
+          })()}
+
           {/* Render rotation handle for selected object (ROTATE tool only) */}
           {selectedTool === TOOLS.ROTATE && rotateSelectedId && (() => {
-            const selectedObj = [...rectangles, ...circles, ...stars].find(obj => obj.id === rotateSelectedId);
+            const selectedObj = [...rectangles, ...circles, ...stars, ...texts].find(obj => obj.id === rotateSelectedId);
             
             if (!selectedObj || selectedObj.isLockedByOther) {
               return null;
@@ -1402,7 +1618,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
 
           {/* Konva Transformer for rotation-aware resizing */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && (() => {
-            const selectedObj = [...rectangles, ...circles, ...stars].find(obj => obj.id === resizeSelectedId);
+            const selectedObj = [...rectangles, ...circles, ...stars, ...texts].find(obj => obj.id === resizeSelectedId);
             
             // Only show Transformer if object has rotation
             if (!selectedObj || !selectedObj.rotation || selectedObj.rotation === 0 || selectedObj.isLockedByOther) {
@@ -1505,6 +1721,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                     // Reset scale
                     node.scaleX(1);
                     node.scaleY(1);
+                  } else if (selectedObj.type === 'text') {
+                    // For text, we scale the fontSize instead of dimensions
+                    const avgScale = (scaleX + scaleY) / 2;
+                    const newFontSize = Math.max(8, (selectedObj.fontSize || 24) * avgScale);
+                    
+                    // Update local state for immediate feedback
+                    setLocalRectUpdates(prev => ({
+                      ...prev,
+                      [resizeSelectedId]: {
+                        ...selectedObj,
+                        x: node.x(),
+                        y: node.y(),
+                        fontSize: newFontSize,
+                        rotation: node.rotation()
+                      }
+                    }));
+                    
+                    // Reset scale
+                    node.scaleX(1);
+                    node.scaleY(1);
                   }
                   
                   // Send real-time updates
@@ -1539,6 +1775,8 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                       } else if (finalState.type === 'star') {
                         updateData.outerRadius = finalState.outerRadius;
                         updateData.innerRadius = finalState.innerRadius;
+                      } else if (finalState.type === 'text') {
+                        updateData.fontSize = finalState.fontSize;
                       }
                       
                       await updateObjectPosition(resizeSelectedId, updateData, false);
@@ -1569,6 +1807,69 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         </Layer>
         </Stage>
       </div>
+      
+      {/* Text Editor Overlay */}
+      {isEditingText && textEditData && (
+        <TextEditor
+          position={textEditData.newTextPosition || { x: textEditData.object?.x || 0, y: textEditData.object?.y || 0 }}
+          initialText={textEditData.originalText || ''}
+          initialFormatting={textEditData.object || {}}
+          onSave={async (text, formatting) => {
+            console.log('💾 Saving text:', text, formatting);
+            
+            try {
+              if (textEditData.newTextPosition) {
+                // Creating new text
+                const textTool = getToolHandler(TOOLS.TEXT);
+                const textId = await textTool.createTextObject(canvasId, textEditData.newTextPosition, text, formatting);
+                console.log('✅ New text created:', textId);
+                
+                // Select the new text
+                setTextSelectedId(textId);
+                setSelectedObjectId(textId);
+              } else if (textEditData.object) {
+                // Editing existing text
+                const updates = {
+                  text,
+                  ...formatting
+                };
+                
+                await updateObject(textEditData.object.id, updates);
+                console.log('✅ Text updated:', textEditData.object.id);
+                
+                // Unlock the text
+                await unlockObject(textEditData.object.id);
+              }
+              
+              // Clear editing state
+              setIsEditingText(false);
+              setTextEditData(null);
+            } catch (error) {
+              console.error('❌ Failed to save text:', error);
+              setIsEditingText(false);
+              setTextEditData(null);
+            }
+          }}
+          onCancel={async () => {
+            console.log('❌ Text editing cancelled');
+            
+            // If we were editing an existing text, unlock it
+            if (textEditData.object) {
+              try {
+                await unlockObject(textEditData.object.id);
+              } catch (error) {
+                console.error('Failed to unlock text:', error);
+              }
+            }
+            
+            // Clear editing state
+            setIsEditingText(false);
+            setTextEditData(null);
+          }}
+          stageScale={stageScale}
+          stagePos={stagePos}
+        />
+      )}
     </div>
   );
 };

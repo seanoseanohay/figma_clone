@@ -142,3 +142,4 @@ Automated testing via Chrome DevTools was challenging due to:
 - Console logs added for debugging can be removed in production if desired
 
 
+

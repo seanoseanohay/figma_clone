@@ -374,6 +374,63 @@ export class ResizeTool {
       }
       
       return // Stars don't need crossover detection
+    } else if (startObject.type === 'text') {
+      // Text resize: Only change width (height auto-grows based on wrapped content)
+      // Calculate new width based on which handle is being dragged
+      let newWidth = startObject.width || 200
+      let newX = startObject.x
+      
+      switch (currentHandle) {
+        case 'nw':
+        case 'sw':
+          // Left side handles - move left edge
+          newX = startObject.x + deltaX
+          newWidth = (startObject.width || 200) - deltaX
+          break
+        case 'ne':
+        case 'se':
+          // Right side handles - move right edge
+          newWidth = (startObject.width || 200) + deltaX
+          break
+      }
+      
+      // Enforce minimum width
+      if (newWidth < 50) {
+        newWidth = 50
+        newX = startObject.x // Don't move if at minimum
+      }
+      
+      // Enforce canvas boundaries
+      if (newX < 0) {
+        newWidth += newX
+        newX = 0
+      }
+      if (newX + newWidth > 5000) {
+        newWidth = 5000 - newX
+      }
+      
+      newObject = {
+        ...startObject,
+        x: newX,
+        width: newWidth
+        // Height is NOT updated - it's calculated dynamically based on wrapped content
+      }
+      
+      // Update local state for immediate visual feedback
+      setLocalRectUpdates(prev => ({
+        ...prev,
+        [resizeSelectedId]: newObject
+      }))
+      
+      // Send updates if we own this object
+      if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
+        updateActiveObjectPosition(canvasId, resizeSelectedId, {
+          x: newObject.x,
+          width: newObject.width
+        })
+      }
+      
+      return // Text doesn't need crossover detection
     } else if (startObject.type === 'rectangle') {
       // Rectangle resize: apply corner-specific transformations
       newObject = this.calculateRectangleResize(startObject, currentHandle, deltaX, deltaY)
@@ -448,6 +505,9 @@ export class ResizeTool {
         rtdbData.height = newObject.height
       } else if (newObject.type === 'circle') {
         rtdbData.radius = newObject.radius
+      } else if (newObject.type === 'text') {
+        rtdbData.width = newObject.width
+        // Height is not sent - it's calculated dynamically
       }
       
       updateActiveObjectPosition(canvasId, resizeSelectedId, rtdbData)
@@ -492,6 +552,9 @@ export class ResizeTool {
         } else if (finalObject.type === 'star') {
           updateData.innerRadius = finalObject.innerRadius
           updateData.outerRadius = finalObject.outerRadius
+        } else if (finalObject.type === 'text') {
+          updateData.width = finalObject.width
+          // Height is not stored - it's calculated dynamically based on wrapped content
         }
 
         // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)

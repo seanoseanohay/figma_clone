@@ -11,7 +11,8 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 - **E7**: ✅ Complete - Star Shape Tool
 - **E8**: ✅ Complete - Color Picker for Shapes
 - **E9**: ✅ Complete - Z-Index Management (Layer Ordering)
-- **E3**: ⏸️ Not Started - Text Tool with Formatting
+- **E3**: ✅ Complete - Text Tool with Formatting
+- **E10**: ⏸️ Not Started - Continuous Text Editing (Re-edit Existing Text)
 - **E5**: ⏸️ Not Started - Owner-Only Edit Restrictions
 - **A0**: ⏸️ Not Started - Performance Optimization & Monitoring
 - **A1**: ⏸️ Not Started - Canvas Export Functionality
@@ -117,43 +118,135 @@ Tasks that extend canvas capabilities with new tools and advanced features for a
 
 ---
 
-### Task E3: Implement Text Tool with Basic Formatting
+### Task E3: Implement Text Tool with Basic Formatting ✅ COMPLETE
 
 **Objective**: Add text creation tool with bold, italic, underline formatting and color options
 
-**Files to Modify**:
-- Create `src/tools/TextTool.js`
-- Update `src/components/canvas/Toolbar.jsx`
-- Update `src/components/canvas/Canvas.jsx`
-- Create `src/components/text/TextEditor.jsx`
-- Update properties panel for text formatting
+**Files Modified**:
+- Created `src/components/canvas/TextEditor.jsx` - HTML overlay editor
+- Created/Updated `src/tools/TextTool.js` - Text tool handler
+- Updated `src/components/canvas/Toolbar.jsx` - Text properties display
+- Updated `src/components/canvas/Canvas.jsx` - Full text integration
 
 **Specific Changes**:
-1. Add Text tool to toolbar with text icon
-2. Implement text creation on canvas click with inline editing
-3. Create text editor component with formatting controls (B, I, U buttons)
-4. Add text color picker integration
-5. Handle text selection and editing states
-6. Implement text object movement and selection
-7. Add text-specific properties in properties panel
-8. Ensure text works with ownership and collaboration system
+1. ✅ Add Text tool to toolbar with text icon (📝)
+2. ✅ Implement text creation on canvas click with inline editing
+3. ✅ Create text editor component with formatting controls (B, I, U buttons)
+4. ✅ Add text color picker integration
+5. ✅ Handle text selection and editing states
+6. ✅ Implement text object movement and selection
+7. ✅ Add text-specific properties in properties panel
+8. ✅ Ensure text works with ownership and collaboration system
+9. ✅ Integrate with Rotate tool
+10. ✅ Integrate with Z-Index controls
 
 **Acceptance Criteria**:
-- [ ] Text tool allows creating text objects on canvas
-- [ ] Text can be edited inline with formatting options
-- [ ] Bold, italic, underline formatting works correctly
-- [ ] Text color can be changed
-- [ ] Text objects can be moved and selected like other objects
-- [ ] Text properties appear in properties panel
-- [ ] Text works in multiplayer environment
+- [x] Text tool allows creating text objects on canvas
+- [x] Text can be edited inline with formatting options
+- [x] Bold, italic, underline formatting works correctly
+- [x] Text color can be changed
+- [x] Text objects can be moved and selected like other objects
+- [x] Text properties appear in properties panel
+- [x] Text works in multiplayer environment
 
 **Testing Steps**:
-1. Create text objects and verify inline editing works
-2. Test bold, italic, underline formatting
-3. Test text color changes
-4. Test text selection and movement
-5. Test text properties in properties panel
-6. Test multiplayer text editing collaboration
+1. ✅ Create text objects and verify inline editing works
+2. ✅ Test bold, italic, underline formatting
+3. ✅ Test text color changes
+4. ✅ Test text selection and movement
+5. ✅ Test text properties in properties panel
+6. ✅ Test multiplayer text editing collaboration (ownership/locking)
+
+**Status**: ✅ COMPLETE
+
+**Implementation Details**:
+- TextEditor overlay with formatting toolbar (B, I, U, color picker, save/cancel)
+- Konva Text rendering with bold, italic, underline support
+- Text properties display: `Text: "Preview..." • 24px [BIU] at (x, y, z) • rotation°`
+- Full integration with Move, Rotate, Z-Index tools
+- Multi-line text support (Shift+Enter)
+- Keyboard shortcuts (Ctrl+B/I/U, Enter to save, Escape to cancel)
+- See notes/E3_TEXT_TOOL_IMPLEMENTATION_COMPLETE.md for full details
+
+---
+
+### Task E10: Enable Continuous Text Editing (Re-edit Existing Text)
+
+**Objective**: Allow users to re-edit existing text objects after creation, changing both content and formatting
+
+**Interaction Methods**:
+- **Primary**: Double-click text with Select Tool → Opens text editor with current content
+- **Secondary**: Click existing text with Text Tool active → Opens text editor with current content
+- **Optional**: Select text object + press Enter key → Opens text editor
+
+**What Can Be Edited**:
+- Text content (change the words)
+- Text formatting (bold, italic, underline)
+- Text color
+- All changes save to the same text object ID (no duplication)
+
+**Files to Modify**:
+- Update `src/tools/TextTool.js` - Detect clicks on existing text vs empty canvas
+- Update `src/tools/SelectTool.js` - Add double-click event handler
+- Update `src/components/canvas/Canvas.jsx` - Handle double-click detection and edit mode trigger
+- Update `src/components/canvas/TextEditor.jsx` - Ensure it works with pre-populated data (likely already works)
+
+**Specific Changes**:
+1. Add double-click event listener to Canvas component
+2. In SelectTool: Detect double-click on text objects → Trigger edit mode
+3. In TextTool: Check if click is on existing text before creating new text
+4. If editing existing text:
+   - Lock the text object (prevent others from editing)
+   - Pre-populate TextEditor with current text, formatting, and color
+   - Show TextEditor overlay at text's current position
+   - Pass text object ID to TextEditor
+5. On save: Update existing text object (use `updateObject` not `createObject`)
+6. On cancel: Unlock text object, close editor without changes
+7. Ensure ownership/locking prevents conflicts during editing
+8. Add keyboard shortcut: Select text + Enter → Edit mode
+
+**Acceptance Criteria**:
+- [ ] Double-clicking text with Select Tool opens text editor
+- [ ] Clicking existing text with Text Tool opens text editor (not create new)
+- [ ] Text editor pre-populates with current text and all formatting
+- [ ] Color picker shows current text color
+- [ ] Bold/Italic/Underline buttons reflect current formatting state
+- [ ] Saving updates the existing text object (verified in Firestore)
+- [ ] Canceling leaves text unchanged
+- [ ] Text object ID remains the same after editing (no duplication)
+- [ ] Ownership/locking works correctly during editing
+- [ ] Other users see "locked" indicator while text is being edited
+- [ ] Multiple users cannot edit the same text simultaneously
+
+**Testing Steps**:
+1. Create text "Hello World" with bold formatting
+2. Deselect the text
+3. Double-click the text with Select Tool → Editor should open with "Hello World" in bold
+4. Change text to "Goodbye World" and make it italic instead of bold
+5. Save → Text should update to "Goodbye World" in italic (not bold)
+6. Verify in Firestore that same document ID was updated (not new document created)
+7. Test with Text Tool: Click existing text → Should edit, not create new text over it
+8. Test ownership: User A edits text, User B should see locked indicator and cannot edit
+9. Test cancel: Make changes but click cancel → Text should remain unchanged
+10. Test Enter key shortcut: Select text + press Enter → Should open editor
+
+**Edge Cases to Handle**:
+- What if user double-clicks while text is being edited by another user? → Show "Text is being edited by [User Name]" message
+- What if network disconnects during editing? → Save to local storage, sync when reconnected
+- What if text is rotated? → Editor should still appear correctly positioned
+- What if text is very long? → Editor should handle long text (already supported via TextEditor)
+
+**Dependencies**: 
+- Requires E3 (Text Tool with Formatting) ✅ Complete
+- Uses existing TextEditor component (should work with pre-populated data)
+
+**Status**: ⏸️ NOT STARTED
+
+**Implementation Notes**:
+- TextEditor.jsx likely already supports pre-populated data through `initialText` and `initialFormatting` props
+- Main work is in detecting double-click and existing text clicks
+- Need to pass additional prop to TextEditor: `textObjectId` (null for new text, ID for editing)
+- In Canvas.jsx onSave callback: Check if `textObjectId` exists → `updateObject()` vs `createObject()`
 
 ---
 
@@ -547,7 +640,7 @@ Drag NW handle past SE → handle smoothly becomes SE, rectangle stays at curren
 
 ## Next Steps
 
-**Stage 3 Progress: 6/13 tasks complete (1 partial)**
+**Stage 3 Progress: 7/14 tasks complete (1 partial)**
 
 Completed:
 - ✅ E1: Add Circle Creation Tool
@@ -556,12 +649,13 @@ Completed:
 - ✅ E7: Add Star Shape Tool
 - ✅ E8: Add Color Picker for Shapes
 - ✅ E9: Implement Z-Index Management
+- ✅ E3: Implement Text Tool with Basic Formatting
 
 Partial:
 - 🔄 E6: Implement Object Rotation Tool (rendering works, needs interactive UI)
 
 Remaining Enhanced Tools:
-- ⏸️ E3: Implement Text Tool with Basic Formatting
+- ⏸️ E10: Enable Continuous Text Editing (Re-edit Existing Text) ← **NEW**
 - ⏸️ E5: Add Owner-Only Edit Restrictions
 - ⏸️ E6: Complete Object Rotation Tool (interactive handles)
 
@@ -572,13 +666,16 @@ Remaining Advanced Features:
 - ⏸️ A3: Enhance Toolbar Design
 
 **Recommended Order**:
-1. **E8 (Color Picker)** - Foundation for E7 star colors ← **STARTING NOW**
-2. **E6 (Rotation Tool)** - Core manipulation feature
-3. **E7 (Star Tool)** - Additional shape with rotation support
-4. **E9 (Z-Index)** - Layer ordering for overlapping shapes
-5. **E3 (Text Tool)** - More complex tool with formatting
-6. **E5 (Ownership UI)** - Visual ownership indicators
-7. **A0-A3 (Polish)** - Performance, Export, Undo/Redo, Toolbar design
+1. **E10 (Text Re-editing)** - High value UX improvement for text tool ← **RECOMMENDED NEXT**
+2. **E6 (Rotation Tool)** - Core manipulation feature (complete interactive handles)
+3. **E5 (Ownership UI)** - Visual ownership indicators
+4. **A0-A3 (Polish)** - Performance, Export, Undo/Redo, Toolbar design
+
+**Why E10 Next?**
+- Builds directly on E3 (Text Tool) which is already complete
+- High impact on user experience - users often need to fix typos or update text
+- Relatively straightforward implementation (reuses existing TextEditor component)
+- Natural complement to text creation functionality
 
 After completing Stage 3, proceed to **Stage 4: Production Ready** tasks for deployment preparation.
 
