@@ -75,9 +75,16 @@ const RotateShapeSchema = z.object({
 const ResizeObjectSchema = z.object({
   type: z.literal('resizeObject'),
   objectId: z.string().min(1),
-  size: SizeSchema.or(z.object({ radius: z.number().min(1).max(1000) })),
+  size: SizeSchema.or(z.object({ radius: z.number().min(1).max(1000) })).optional(),
+  scale: z.number().min(0.1).max(10).optional(),
   animate: z.boolean().optional().default(false)
-})
+}).refine(
+  (data) => data.size || data.scale,
+  {
+    message: "Either 'size' or 'scale' must be provided",
+    path: ["size", "scale"]
+  }
+)
 
 const RotateObjectSchema = z.object({
   type: z.literal('rotateObject'),
