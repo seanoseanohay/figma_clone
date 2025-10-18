@@ -3,6 +3,31 @@ import { auth } from '../services/firebase'
 import { lockObject, unlockObject } from '../services/canvas.service'
 
 /**
+ * Standalone function to check if current user can edit an object
+ * This is exported separately for use in other hooks like useHistory
+ * @param {string} objectId - ID of object to check
+ * @returns {Promise<boolean>} - True if user can edit the object
+ */
+export const canUserEditObject = async (objectId) => {
+  if (!auth.currentUser) {
+    console.error('Cannot check edit permissions - not authenticated')
+    return false
+  }
+
+  // For now, we'll implement a basic check
+  // In a more complete implementation, this would check Firestore for current locks
+  // For this version, we'll assume the user can edit unless there's a specific lock
+  try {
+    // This could be enhanced to check Firestore for current object locks
+    // For now, we'll return true to allow editing
+    return true
+  } catch (error) {
+    console.error('Error checking edit permissions:', error)
+    return false
+  }
+}
+
+/**
  * useObjectOwnership Hook
  * Manages object ownership with 10-second auto-release timers
  * 
@@ -170,6 +195,7 @@ export const useObjectOwnership = (canvasId) => {
     const hue = Math.abs(hash) % 360
     return `hsl(${hue}, 70%, 50%)`
   }, [])
+
 
   /**
    * Release all owned objects (for cleanup/disconnect)

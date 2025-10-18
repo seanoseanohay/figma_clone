@@ -1,8 +1,10 @@
 import { 
   updateActiveObjectPosition,
   updateObjectPosition,
+  updateObject,
   clearActiveObject
 } from '../services/canvas.service.js'
+import { ACTION_TYPES } from '../hooks/useHistory.js'
 
 /**
  * MoveTool - Handles object movement/dragging for PRE-SELECTED objects
@@ -159,12 +161,14 @@ export class MoveTool {
    * Handle mouse up - finalize position (object stays selected and locked)
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers
+    const { canvasId, recordAction } = helpers
     const {
       isMoving,
       selectedObjectId,
       localRectUpdates,
+      moveOriginalPos,
       doWeOwnObject,
+      canvasObjects,
       setIsMoving,
       setMoveStartPos,
       setMouseDownPos,
@@ -175,19 +179,33 @@ export class MoveTool {
 
     if (isMoving && selectedObjectId && localRectUpdates[selectedObjectId] && doWeOwnObject(selectedObjectId)) {
       const finalRect = localRectUpdates[selectedObjectId]
+      
+      // Get object type for undo/redo metadata
+      const fullObject = canvasObjects.find(o => o.id === selectedObjectId)
+      const objectType = fullObject ? fullObject.type : 'Object'
+      
       try {
         console.log('Move: Final position sync (keeping object locked)')
 
         // Clear active object from RTDB (remove real-time tracking)
         await clearActiveObject(canvasId, selectedObjectId)
 
-        // Final Firestore update WITHOUT unlock (false = keep locked for continued editing)
-        await updateObjectPosition(selectedObjectId, {
-          x: finalRect.x,
-          y: finalRect.y
-        }, false) // false = keep locked since object is still selected
+        // Final Firestore update with undo/redo support
+        await updateObject(
+          selectedObjectId, 
+          {
+            x: finalRect.x,
+            y: finalRect.y
+          },
+          recordAction, // Pass recordAction callback
+          {
+            actionType: ACTION_TYPES.MOVE_OBJECT,
+            before: { x: moveOriginalPos?.x || 0, y: moveOriginalPos?.y || 0 },
+            objectType: objectType.charAt(0).toUpperCase() + objectType.slice(1)
+          }
+        )
 
-        console.log('Move: Object position synced, staying selected')
+        console.log('Move: Object position synced with undo/redo support, staying selected')
       } catch (error) {
         console.error('Failed to sync object position:', error)
         try {

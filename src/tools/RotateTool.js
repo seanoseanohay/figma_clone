@@ -4,6 +4,7 @@ import {
   updateObject,
   updateActiveObjectPosition 
 } from '../services/canvas.service.js';
+import { ACTION_TYPES } from '../hooks/useHistory.js';
 
 /**
  * RotateTool - Handles object rotation via visual rotation handle
@@ -162,11 +163,26 @@ export class RotateTool {
     
     // Send real-time updates via RTDB if we own this object
     if (doWeOwnObject(rotateSelectedId)) {
-      updateActiveObjectPosition(canvasId, rotateSelectedId, {
+      const rtdbData = {
         x: startObject.x,
         y: startObject.y,
         rotation: newRotation
-      });
+      };
+      
+      // CRITICAL FIX: Include shape-specific properties for proper resize tool operation
+      if (startObject.type === 'rectangle') {
+        rtdbData.width = startObject.width;
+        rtdbData.height = startObject.height;
+      } else if (startObject.type === 'circle') {
+        rtdbData.radius = startObject.radius;
+      } else if (startObject.type === 'star') {
+        rtdbData.innerRadius = startObject.innerRadius;
+        rtdbData.outerRadius = startObject.outerRadius;
+      } else if (startObject.type === 'text') {
+        rtdbData.width = startObject.width;
+      }
+      
+      updateActiveObjectPosition(canvasId, rotateSelectedId, rtdbData);
     }
   }
 
@@ -174,7 +190,7 @@ export class RotateTool {
    * Handle mouse up - finalize rotation
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers;
+    const { canvasId, recordAction } = helpers;
     const {
       isRotating,
       rotateSelectedId,
@@ -198,6 +214,20 @@ export class RotateTool {
             rotation: finalState.rotation
           });
           
+          // Record rotation action for undo/redo
+          if (recordAction && rotateStartData) {
+            const beforeState = { ...rotateStartData.object };
+            const afterState = { ...finalState };
+            
+            recordAction(
+              ACTION_TYPES.ROTATE_OBJECT,
+              rotateSelectedId,
+              beforeState,
+              afterState,
+              { objectType: rotateStartData.object.type || 'Object' }
+            );
+          }
+          
           console.log('✅ Rotation saved:', finalState.rotation);
           
           // Clear from RTDB
@@ -207,21 +237,18 @@ export class RotateTool {
         }
       }
       
-      // Unlock the object
-      await unlockObject(rotateSelectedId).catch(err => {
-        console.error('Failed to unlock after rotation:', err);
-      });
+      // CRITICAL FIX: Keep object locked and selected for next tool
+      // Don't unlock the object - let tool switching handle it
+      console.log('🔄 Keeping object locked for tool transition');
       
-      // Clear rotation state
+      // Clear rotation state but keep object selection intact
       setIsRotating(false);
       setRotateStartData(null);
       
-      // Clear local updates for this object
-      setLocalRectUpdates(prev => {
-        const updated = { ...prev };
-        delete updated[rotateSelectedId];
-        return updated;
-      });
+      // IMPORTANT: Keep local updates temporarily to bridge the gap
+      // until Firestore subscription updates canvasObjects
+      // Don't clear local updates immediately - let next tool use them
+      console.log('🔄 Preserving local updates for tool transition');
     }
   }
 

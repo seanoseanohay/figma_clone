@@ -44,9 +44,10 @@ const activeObjectDisconnectHandlers = new Map()
  * @param {Object} position - Position and dimensions {x, y, width, height}
  * @param {string} canvasId - Canvas ID to associate the object with
  * @param {Object} properties - Additional properties (fill, stroke, etc.)
+ * @param {Function} recordAction - Optional callback to record action for undo/redo
  * @returns {Promise<string>} Document ID of created object
  */
-export const createObject = async (type, position, canvasId, properties = {}) => {
+export const createObject = async (type, position, canvasId, properties = {}, recordAction = null) => {
   try {
     if (!auth.currentUser) {
       throw new Error('User must be authenticated to create objects')
@@ -82,6 +83,22 @@ export const createObject = async (type, position, canvasId, properties = {}) =>
 
     const docRef = await addDoc(collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS), cleanData)
     console.log('Canvas object created:', docRef.id)
+    
+    // Record action for undo/redo if callback provided
+    if (recordAction && typeof recordAction === 'function') {
+      try {
+        recordAction(
+          'CREATE_OBJECT', 
+          docRef.id, 
+          null, // before: object didn't exist
+          cleanData, // after: complete object data
+          { objectType: type.charAt(0).toUpperCase() + type.slice(1) }
+        );
+      } catch (error) {
+        console.warn('Failed to record CREATE_OBJECT action:', error);
+      }
+    }
+    
     return docRef.id
   } catch (error) {
     console.error('Error creating canvas object:', error)
@@ -93,9 +110,11 @@ export const createObject = async (type, position, canvasId, properties = {}) =>
  * Update an existing canvas object
  * @param {string} objectId - Document ID of the object
  * @param {Object} updates - Fields to update
+ * @param {Function} recordAction - Optional callback to record action for undo/redo
+ * @param {Object} actionMetadata - Metadata for action recording (actionType, before, objectType)
  * @returns {Promise<void>}
  */
-export const updateObject = async (objectId, updates) => {
+export const updateObject = async (objectId, updates, recordAction = null, actionMetadata = {}) => {
   try {
     if (objectId === null || objectId === undefined) {
       throw new Error('updateObject called with null or undefined objectId')
@@ -121,6 +140,21 @@ export const updateObject = async (objectId, updates) => {
 
     await updateDoc(docRef, updateData)
     console.log('Canvas object updated successfully:', objectId)
+    
+    // Record action for undo/redo if callback provided
+    if (recordAction && typeof recordAction === 'function' && actionMetadata.actionType) {
+      try {
+        recordAction(
+          actionMetadata.actionType, 
+          objectId, 
+          actionMetadata.before || {}, // before state
+          updates, // after state (the updates)
+          { objectType: actionMetadata.objectType || 'Object' }
+        );
+      } catch (error) {
+        console.warn(`Failed to record ${actionMetadata.actionType} action:`, error);
+      }
+    }
   } catch (error) {
     console.error('Error updating canvas object:', error)
     throw error
@@ -273,17 +307,47 @@ export const updateObjectPositionThrottled = (objectId, position, finalUpdate = 
 /**
  * Delete a canvas object
  * @param {string} objectId - Document ID of the object
+ * @param {Function} recordAction - Optional callback to record action for undo/redo
  * @returns {Promise<void>}
  */
-export const deleteObject = async (objectId) => {
+export const deleteObject = async (objectId, recordAction = null) => {
   try {
     if (!auth.currentUser) {
       throw new Error('User must be authenticated to delete objects')
     }
 
     const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId)
+    
+    // Get object data before deletion for undo functionality
+    let objectData = null;
+    if (recordAction && typeof recordAction === 'function') {
+      try {
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          objectData = { id: objectId, ...docSnap.data() };
+        }
+      } catch (error) {
+        console.warn('Failed to get object data for undo recording:', error);
+      }
+    }
+    
     await deleteDoc(docRef)
     console.log('Canvas object deleted:', objectId)
+    
+    // Record action for undo/redo if callback provided and we have object data
+    if (recordAction && typeof recordAction === 'function' && objectData) {
+      try {
+        recordAction(
+          'DELETE_OBJECT',
+          objectId,
+          objectData, // before: complete object data (for restore)
+          null, // after: object deleted
+          { objectType: objectData.type ? objectData.type.charAt(0).toUpperCase() + objectData.type.slice(1) : 'Object' }
+        );
+      } catch (error) {
+        console.warn('Failed to record DELETE_OBJECT action:', error);
+      }
+    }
   } catch (error) {
     console.error('Error deleting canvas object:', error)
     throw error

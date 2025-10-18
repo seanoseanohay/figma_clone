@@ -4,6 +4,7 @@
  */
 
 import { createObject } from '../services/canvas.service.js';
+import { ACTION_TYPES } from '../hooks/useHistory.js';
 
 export class StarTool {
   /**
@@ -70,7 +71,7 @@ export class StarTool {
    * Handle mouse up - finalize star creation
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers;
+    const { canvasId, recordAction } = helpers;
     const {
       isDrawing,
       drawStart,
@@ -112,7 +113,7 @@ export class StarTool {
       console.log('Creating star:', finalStar);
 
       // Create star object with selected color
-      await createObject('star', {
+      const starId = await createObject('star', {
         x: finalStar.x,
         y: finalStar.y
       }, canvasId, {
@@ -121,6 +122,28 @@ export class StarTool {
         outerRadius: finalStar.outerRadius,
         fill: selectedColor || '#808080'
       });
+
+      // Record creation action for undo/redo
+      if (recordAction && starId) {
+        const createdStar = {
+          id: starId,
+          type: 'star',
+          x: finalStar.x,
+          y: finalStar.y,
+          numPoints: finalStar.numPoints,
+          innerRadius: finalStar.innerRadius,
+          outerRadius: finalStar.outerRadius,
+          fill: selectedColor || '#808080'
+        };
+        
+        recordAction(
+          ACTION_TYPES.CREATE_OBJECT,
+          starId,
+          null, // No before state for creation
+          createdStar,
+          { objectType: 'Star' }
+        );
+      }
 
       console.log('Star created successfully with color:', selectedColor);
     } catch (error) {

@@ -72,6 +72,40 @@ const LoggedInLayout = ({ children }) => {
     }
   }, []);
 
+  // Undo/Redo handlers - populated by Canvas component
+  const undoHandlerRef = useRef(null);
+  const redoHandlerRef = useRef(null);
+  const canUndoRef = useRef(false);
+  const canRedoRef = useRef(false);
+  const undoDescriptionRef = useRef(null);
+  const redoDescriptionRef = useRef(null);
+  
+  // State variables for undo/redo UI (these trigger re-renders)
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [undoDescription, setUndoDescription] = useState(null);
+  const [redoDescription, setRedoDescription] = useState(null);
+  
+  const handleUndo = useCallback(async () => {
+    if (undoHandlerRef.current) {
+      await undoHandlerRef.current();
+    }
+  }, []);
+  
+  const handleRedo = useCallback(async () => {
+    if (redoHandlerRef.current) {
+      await redoHandlerRef.current();
+    }
+  }, []);
+  
+  // Callback functions for Canvas to update undo/redo state
+  const updateUndoRedoState = useCallback((newCanUndo, newCanRedo, newUndoDescription, newRedoDescription) => {
+    setCanUndo(newCanUndo);
+    setCanRedo(newCanRedo);
+    setUndoDescription(newUndoDescription);
+    setRedoDescription(newRedoDescription);
+  }, []);
+
   const handleDeleteObject = useCallback(async (objectId) => {
     try {
       const { deleteObject } = await import('./services/canvas.service.js');
@@ -127,6 +161,12 @@ const LoggedInLayout = ({ children }) => {
           onZIndexChange={handleZIndexChange}
           onRotationChange={handleRotationChange}
           onDeleteObject={handleDeleteObject}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          undoDescription={undoDescription}
+          redoDescription={redoDescription}
         />
       </Box>
       
@@ -160,7 +200,14 @@ const LoggedInLayout = ({ children }) => {
             onZIndexChange: handleZIndexChange,
             zIndexHandlerRef,
             rotationHandlerRef,
-            userColorChangeRef
+            undoHandlerRef,
+            redoHandlerRef,
+            canUndoRef,
+            canRedoRef,
+            undoDescriptionRef,
+            redoDescriptionRef,
+            userColorChangeRef,
+            updateUndoRedoState
           })}
         </Box>
       </Box>
@@ -169,7 +216,7 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component
-const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, userColorChangeRef }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
@@ -183,7 +230,14 @@ const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpd
       onZIndexChange={onZIndexChange}
       zIndexHandlerRef={zIndexHandlerRef}
       rotationHandlerRef={rotationHandlerRef}
+      undoHandlerRef={undoHandlerRef}
+      redoHandlerRef={redoHandlerRef}
+      canUndoRef={canUndoRef}
+      canRedoRef={canRedoRef}
+      undoDescriptionRef={undoDescriptionRef}
+      redoDescriptionRef={redoDescriptionRef}
       onUserColorChange={userColorChangeRef}
+      updateUndoRedoState={updateUndoRedoState}
     />
   );
 };
@@ -221,7 +275,7 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, userColorChangeRef }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
                           onToolChange={onToolChange}
@@ -234,7 +288,14 @@ function App() {
                           onZIndexChange={onZIndexChange}
                           zIndexHandlerRef={zIndexHandlerRef}
                           rotationHandlerRef={rotationHandlerRef}
+                          undoHandlerRef={undoHandlerRef}
+                          redoHandlerRef={redoHandlerRef}
+                          canUndoRef={canUndoRef}
+                          canRedoRef={canRedoRef}
+                          undoDescriptionRef={undoDescriptionRef}
+                          redoDescriptionRef={redoDescriptionRef}
                           userColorChangeRef={userColorChangeRef}
+                          updateUndoRedoState={updateUndoRedoState}
                         />
                       )}
                     </LoggedInLayout>
@@ -257,7 +318,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
@@ -269,7 +330,15 @@ function App() {
                             onColorChange={onColorChange}
                             onZIndexChange={onZIndexChange}
                             zIndexHandlerRef={zIndexHandlerRef}
+                            rotationHandlerRef={rotationHandlerRef}
+                            undoHandlerRef={undoHandlerRef}
+                            redoHandlerRef={redoHandlerRef}
+                            canUndoRef={canUndoRef}
+                            canRedoRef={canRedoRef}
+                            undoDescriptionRef={undoDescriptionRef}
+                            redoDescriptionRef={redoDescriptionRef}
                             userColorChangeRef={userColorChangeRef}
+                            updateUndoRedoState={updateUndoRedoState}
                           />
                         )}
                       </LoggedInLayout>
@@ -283,7 +352,7 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, userColorChangeRef }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
@@ -295,7 +364,15 @@ function App() {
                             onColorChange={onColorChange}
                             onZIndexChange={onZIndexChange}
                             zIndexHandlerRef={zIndexHandlerRef}
+                            rotationHandlerRef={rotationHandlerRef}
+                            undoHandlerRef={undoHandlerRef}
+                            redoHandlerRef={redoHandlerRef}
+                            canUndoRef={canUndoRef}
+                            canRedoRef={canRedoRef}
+                            undoDescriptionRef={undoDescriptionRef}
+                            redoDescriptionRef={redoDescriptionRef}
                             userColorChangeRef={userColorChangeRef}
+                            updateUndoRedoState={updateUndoRedoState}
                           />
                         )}
                       </LoggedInLayout>

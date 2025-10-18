@@ -4,6 +4,7 @@
  */
 
 import { createObject } from '../services/canvas.service.js';
+import { ACTION_TYPES } from '../hooks/useHistory.js';
 
 export class CircleTool {
   /**
@@ -68,7 +69,7 @@ export class CircleTool {
    * Handle mouse up - finalize circle creation
    */
   async onMouseUp(e, state, helpers) {
-    const { canvasId } = helpers;
+    const { canvasId, recordAction } = helpers;
     const {
       isDrawing,
       drawStart,
@@ -111,13 +112,33 @@ export class CircleTool {
 
       // Create circle object with selected color
       // Store center point and radius
-      await createObject('circle', {
+      const circleId = await createObject('circle', {
         x: finalCircle.x,
         y: finalCircle.y
       }, canvasId, {
         radius: finalCircle.radius,
         fill: selectedColor || '#808080'
       });
+
+      // Record creation action for undo/redo
+      if (recordAction && circleId) {
+        const createdCircle = {
+          id: circleId,
+          type: 'circle',
+          x: finalCircle.x,
+          y: finalCircle.y,
+          radius: finalCircle.radius,
+          fill: selectedColor || '#808080'
+        };
+        
+        recordAction(
+          ACTION_TYPES.CREATE_OBJECT,
+          circleId,
+          null, // No before state for creation
+          createdCircle,
+          { objectType: 'Circle' }
+        );
+      }
 
       console.log('Circle created successfully with color:', selectedColor);
     } catch (error) {

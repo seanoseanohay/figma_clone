@@ -13,6 +13,7 @@ import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
 import { useCanvas } from '../../hooks/useCanvas.js';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js';
+import { useHistory, ACTION_TYPES } from '../../hooks/useHistory.js';
 import { getUserCursorColor } from '../../services/presence.service.js';
 import { getToolHandler } from '../../tools/index.js';
 import { 
@@ -36,7 +37,7 @@ import {
 } from '../../constants/canvas.constants.js';
 import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, onUserColorChange }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, onUserColorChange, updateUndoRedoState }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -67,6 +68,41 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     queuedCount, 
     executeOrQueue 
   } = useConnectionStatus();
+  
+  // Undo/Redo system with error handling
+  const onHistoryError = useCallback((errorMessage) => {
+    console.warn('History operation failed:', errorMessage);
+    // Could show toast notification here in the future
+  }, []);
+  
+  const { recordAction, undo, redo, canUndo, canRedo, undoDescription, redoDescription } = useHistory(canvasId, onHistoryError);
+  
+  // Update undo/redo refs for App.jsx to access
+  useEffect(() => {
+    if (undoHandlerRef) {
+      undoHandlerRef.current = undo;
+    }
+    if (redoHandlerRef) {
+      redoHandlerRef.current = redo;
+    }
+    if (canUndoRef) {
+      canUndoRef.current = canUndo;
+    }
+    if (canRedoRef) {
+      canRedoRef.current = canRedo;
+    }
+    if (undoDescriptionRef) {
+      undoDescriptionRef.current = undoDescription;
+    }
+    if (redoDescriptionRef) {
+      redoDescriptionRef.current = redoDescription;
+    }
+    
+    // Update state in App.jsx for UI re-rendering
+    if (updateUndoRedoState) {
+      updateUndoRedoState(canUndo, canRedo, undoDescription, redoDescription);
+    }
+  }, [undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, undo, redo, canUndo, canRedo, undoDescription, redoDescription, updateUndoRedoState]);
   
   // Canvas objects hook for real-time sync - now canvas-specific
   const { objects: canvasObjects, isLoading: objectsLoading, error: objectsError} = useCanvasObjects(canvasId);
@@ -174,12 +210,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
 
     try {
-      await updateObject(selectedObjectId, { zIndex: newZIndex });
+      // Capture before state for undo/redo
+      const beforeState = {
+        zIndex: selectedObj.zIndex || 0
+      };
+      
+      await updateObject(
+        selectedObjectId, 
+        { zIndex: newZIndex }, 
+        recordAction,
+        {
+          actionType: ACTION_TYPES.UPDATE_PROPERTIES,
+          before: beforeState,
+          objectType: selectedObj.type || 'Object'
+        }
+      );
       console.log('Z-index updated:', selectedObjectId, newZIndex);
     } catch (error) {
       console.error('Failed to update z-index:', error);
     }
-  }, [selectedObjectId, canvasObjects]);
+  }, [selectedObjectId, canvasObjects, recordAction]);
 
   // Expose handleZIndexChange to parent via ref
   useEffect(() => {
@@ -198,13 +248,32 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     // Normalize rotation to 0-359 range
     const normalizedRotation = ((newRotation % 360) + 360) % 360;
 
+    // Only update if rotation is different
+    if (Math.abs((selectedObj.rotation || 0) - normalizedRotation) < 0.1) {
+      return; // No significant change
+    }
+    
     try {
-      await updateObject(selectedObjectId, { rotation: normalizedRotation });
+      // Capture before state for undo/redo
+      const beforeState = {
+        rotation: selectedObj.rotation || 0
+      };
+      
+      await updateObject(
+        selectedObjectId, 
+        { rotation: normalizedRotation },
+        recordAction,
+        {
+          actionType: ACTION_TYPES.ROTATE_OBJECT,
+          before: beforeState,
+          objectType: selectedObj.type || 'Object'
+        }
+      );
       console.log(`✅ Rotation updated to ${normalizedRotation}°`);
     } catch (error) {
       console.error('Failed to update rotation:', error);
     }
-  }, [selectedObjectId, canvasObjects]);
+  }, [selectedObjectId, canvasObjects, recordAction]);
 
   // Expose handleRotationChange to parent via ref
   useEffect(() => {
@@ -349,6 +418,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             ...star,
             x: activeObjects[star.id].x,
             y: activeObjects[star.id].y,
+            // CRITICAL FIX: Include star-specific properties from RTDB updates
+            innerRadius: activeObjects[star.id].innerRadius !== undefined ? activeObjects[star.id].innerRadius : star.innerRadius,
+            outerRadius: activeObjects[star.id].outerRadius !== undefined ? activeObjects[star.id].outerRadius : star.outerRadius,
+            rotation: activeObjects[star.id].rotation !== undefined ? activeObjects[star.id].rotation : star.rotation,
             isLockedByOther: true,
             lockedByName: star.lastModifiedBy,
             isBeingDragged: true
@@ -817,7 +890,21 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           // Only update if the color is different and we own the object
           if (selectedObj && selectedObj.fill !== newColor && doWeOwnObject(selectedObjectId)) {
             try {
-              await updateObject(selectedObjectId, { fill: newColor });
+              // Capture before state for undo/redo
+              const beforeState = {
+                fill: selectedObj.fill
+              };
+              
+              await updateObject(
+                selectedObjectId, 
+                { fill: newColor }, 
+                recordAction,
+                {
+                  actionType: ACTION_TYPES.UPDATE_PROPERTIES,
+                  before: beforeState,
+                  objectType: selectedObj.type || 'Object'
+                }
+              );
               console.log('Object color updated:', selectedObjectId, newColor);
             } catch (error) {
               console.error('Failed to update object color:', error);
@@ -827,11 +914,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       };
       onUserColorChange.current = handler;
     }
-  }, [selectedObjectId, canvasObjects, doWeOwnObject, onUserColorChange]);
+  }, [selectedObjectId, canvasObjects, doWeOwnObject, onUserColorChange, recordAction]);
 
   // Keyboard shortcuts
   useEffect(() => {
-    const handleKeyDown = (e) => {
+    const handleKeyDown = async (e) => {
       // Ignore if user is typing in an input field
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
         return;
@@ -937,6 +1024,35 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         return;
       }
 
+      // Undo/Redo shortcuts
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        // Ctrl+Z / Cmd+Z - Undo
+        e.preventDefault();
+        if (canUndo) {
+          // Clear local updates and active objects before undo to ensure fresh state rendering
+          setLocalRectUpdates({});
+          setActiveObjects({});
+          await undo(canvasObjects.reduce((acc, obj) => ({ ...acc, [obj.id]: obj }), {}));
+          // Clear local updates after undo to ensure Firestore data is shown
+          setLocalRectUpdates({});
+        }
+        return;
+      }
+      
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        // Ctrl+Y / Cmd+Y or Ctrl+Shift+Z / Cmd+Shift+Z - Redo
+        e.preventDefault();
+        if (canRedo) {
+          // Clear local updates and active objects before redo to ensure fresh state rendering
+          setLocalRectUpdates({});
+          setActiveObjects({});
+          await redo(canvasObjects.reduce((acc, obj) => ({ ...acc, [obj.id]: obj }), {}));
+          // Clear local updates after redo to ensure Firestore data is shown
+          setLocalRectUpdates({});
+        }
+        return;
+      }
+
       // Tool shortcuts (only if not already pressed)
       if (!e.repeat) {
         switch (e.key.toLowerCase()) {
@@ -979,7 +1095,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData]);
+  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData, undo, redo, canUndo, canRedo]);
 
   // Clear/manage state when switching tools
   useEffect(() => {
@@ -998,11 +1114,32 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       setLocalRectUpdates({});
     }
     
-    // Sync resize tool state with current selection
+    // Enhanced sync for resize tool - handle post-rotation state
     if (selectedTool === TOOLS.RESIZE && selectedObjectId) {
-      // When switching to Resize tool, sync resizeSelectedId with selectedObjectId
+      console.log('🔧 Switching to Resize tool for object:', selectedObjectId);
+      
+      // Sync resizeSelectedId with selectedObjectId
       setResizeSelectedId(selectedObjectId);
-      console.log('Resize tool: Synced resizeSelectedId with selection:', selectedObjectId);
+      
+      // CRITICAL FIX: Ensure object state is available for resize tool
+      const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+      if (selectedObj) {
+        console.log('✅ Object found for resize:', {
+          id: selectedObj.id,
+          type: selectedObj.type,
+          rotation: selectedObj.rotation,
+          hasLocalUpdates: !!localRectUpdates[selectedObjectId]
+        });
+      } else {
+        console.warn('⚠️ Object not found in canvasObjects - may be stale after rotation');
+        // Force a small delay to allow Firestore sync to complete
+        setTimeout(() => {
+          const refreshedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+          if (refreshedObj) {
+            console.log('✅ Object found after refresh:', refreshedObj.id);
+          }
+        }, 100);
+      }
     }
     
     // Sync move tool state with current selection
@@ -1012,11 +1149,36 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       console.log('Move tool: Synced moveSelectedId with selection:', selectedObjectId);
     }
     
-    // Sync rotate tool state with current selection
+    // Enhanced sync for rotate tool - clear local updates when leaving
     if (selectedTool === TOOLS.ROTATE && selectedObjectId) {
       // When switching to Rotate tool, sync rotateSelectedId with selectedObjectId
       setRotateSelectedId(selectedObjectId);
       console.log('Rotate tool: Synced rotateSelectedId with selection:', selectedObjectId);
+    }
+    
+    // Handle cleanup when switching away from rotation tool
+    if (selectedTool !== TOOLS.ROTATE && rotateSelectedId && !isRotating) {
+      console.log('🔄 Cleaning up after rotation tool switch');
+      
+      // If we're switching to a tool that doesn't need the object locked, unlock it
+      if (selectedTool === TOOLS.SELECT || selectedTool === TOOLS.PAN || 
+          selectedTool === TOOLS.RECTANGLE || selectedTool === TOOLS.CIRCLE || selectedTool === TOOLS.STAR) {
+        unlockObject(rotateSelectedId).catch(err => {
+          console.error('Failed to unlock after rotation tool switch:', err);
+        });
+      }
+      
+      // Clear rotation-specific state
+      setRotateSelectedId(null);
+    }
+    
+    // Clear stale local updates when switching away from rotation tool
+    if (selectedTool !== TOOLS.ROTATE && Object.keys(localRectUpdates).length > 0) {
+      // Small delay to allow other tools to use the data first
+      setTimeout(() => {
+        console.log('🧹 Clearing stale local updates after tool switch');
+        setLocalRectUpdates({});
+      }, 200);
     }
     
     // Pan tool doesn't deselect
@@ -1149,13 +1311,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
       const state = buildToolState();
-      const helpers = { pos, canvasId };
+      const helpers = { pos, canvasId, recordAction };
       await toolHandler.onMouseDown(e, state, helpers);
       return;
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, getMousePos, isConnected, buildToolState, canvasId]);
+  }, [selectedTool, getMousePos, isConnected, buildToolState, canvasId, recordAction]);
 
   // MOUSE MOVE HANDLER - Tool-specific logic
   const handleMouseMove = useCallback((e) => {
@@ -1195,13 +1357,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
       const state = buildToolState();
-      const helpers = { pos, canvasId };
+      const helpers = { pos, canvasId, recordAction };
       toolHandler.onMouseMove(e, state, helpers);
       return;
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate, findObjectAt]);
+  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate, findObjectAt, recordAction]);
 
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
@@ -1212,13 +1374,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     if (toolHandler) {
       const pos = getMousePos(e);
       const state = buildToolState();
-      const helpers = { pos, canvasId };
+      const helpers = { pos, canvasId, recordAction };
       await toolHandler.onMouseUp(e, state, helpers);
       return;
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, buildToolState, canvasId, getMousePos]);
+  }, [selectedTool, buildToolState, canvasId, getMousePos, recordAction]);
 
   // Set cursor based on selected tool
   useEffect(() => {
@@ -1945,7 +2107,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               if (textEditData.newTextPosition) {
                 // Creating new text
                 const textTool = getToolHandler(TOOLS.TEXT);
-                const textId = await textTool.createTextObject(canvasId, textEditData.newTextPosition, text, formatting);
+                const textId = await textTool.createTextObject(canvasId, textEditData.newTextPosition, text, formatting, recordAction);
                 console.log('✅ New text created:', textId);
                 
                 // Select the new text
@@ -1958,7 +2120,27 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                   ...formatting
                 };
                 
-                await updateObject(textEditData.object.id, updates);
+                // Capture before state for undo/redo - include all text properties that could change
+                const beforeState = {
+                  text: textEditData.object.text,
+                  bold: textEditData.object.bold,
+                  italic: textEditData.object.italic,
+                  underline: textEditData.object.underline,
+                  fontSize: textEditData.object.fontSize,
+                  fontFamily: textEditData.object.fontFamily,
+                  fill: textEditData.object.fill
+                };
+                
+                await updateObject(
+                  textEditData.object.id, 
+                  updates,
+                  recordAction,
+                  {
+                    actionType: ACTION_TYPES.UPDATE_PROPERTIES,
+                    before: beforeState,
+                    objectType: 'Text'
+                  }
+                );
                 console.log('✅ Text updated:', textEditData.object.id);
                 
                 // Unlock the text
