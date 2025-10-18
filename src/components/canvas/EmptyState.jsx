@@ -1,3 +1,4 @@
+import { Box, Typography } from '@mui/material'
 import { FileText } from 'lucide-react'
 
 /**
@@ -6,19 +7,34 @@ import { FileText } from 'lucide-react'
  */
 const EmptyState = () => {
   return (
-    <div className="flex items-center justify-center h-full bg-gray-50 dark:bg-gray-900">
-      <div className="text-center">
-        <FileText className="w-24 h-24 text-gray-400 dark:text-gray-600 mx-auto mb-4" strokeWidth={1.5} />
-        <h2 className="text-2xl font-semibold text-gray-700 dark:text-gray-300 mb-2">
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        bgcolor: 'grey.50',
+      }}
+    >
+      <Box sx={{ textAlign: 'center' }}>
+        <FileText 
+          style={{ 
+            width: 96, 
+            height: 96, 
+            color: '#9ca3af', 
+            margin: '0 auto 16px',
+            strokeWidth: 1.5
+          }} 
+        />
+        <Typography variant="h4" fontWeight={600} color="grey.700" mb={1}>
           No Canvas Selected
-        </h2>
-        <p className="text-gray-500 dark:text-gray-400 max-w-md">
+        </Typography>
+        <Typography variant="body1" color="grey.500" sx={{ maxWidth: 448 }}>
           Select a canvas from the dropdown or create a new one to get started
-        </p>
-      </div>
-    </div>
+        </Typography>
+      </Box>
+    </Box>
   )
 }
 
 export default EmptyState
-

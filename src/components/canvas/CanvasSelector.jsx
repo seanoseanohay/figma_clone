@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Box, Button, Menu, MenuItem, TextField, Typography, CircularProgress, Chip } from '@mui/material'
 import { ChevronDown, Plus, Loader2 } from 'lucide-react'
 import { useCanvases } from '../../hooks/useCanvases'
 import { useCanvas } from '../../hooks/useCanvas'
@@ -13,31 +14,24 @@ const CanvasSelector = () => {
   const { currentUser } = useAuth()
   const { canvasId, setCurrentCanvas } = useCanvas()
   const { canvases, loading, refreshCanvases } = useCanvases()
-  const [isOpen, setIsOpen] = useState(false)
+  const [anchorEl, setAnchorEl] = useState(null)
   const [newCanvasName, setNewCanvasName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
-  const dropdownRef = useRef(null)
 
   // Find current canvas
   const currentCanvas = canvases.find(c => c.id === canvasId)
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false)
-      }
-    }
+  const handleOpen = (event) => {
+    setAnchorEl(event.currentTarget)
+  }
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen])
+  const handleClose = () => {
+    setAnchorEl(null)
+  }
 
   const handleSelectCanvas = (canvas) => {
     setCurrentCanvas(canvas.id)
-    setIsOpen(false)
+    handleClose()
   }
 
   const handleCreateCanvas = async () => {
@@ -58,7 +52,7 @@ const CanvasSelector = () => {
         setNewCanvasName('')
         refreshCanvases()
         setCurrentCanvas(result.canvasId)
-        setIsOpen(false)
+        handleClose()
       } else {
         console.error('Failed to create canvas:', result.error)
       }
@@ -77,90 +71,124 @@ const CanvasSelector = () => {
   }
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <Box>
       {/* Dropdown Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-md transition-colors duration-150"
+      <Button
+        onClick={handleOpen}
+        variant="contained"
+        endIcon={<ChevronDown style={{ width: 16, height: 16, transition: 'transform 0.2s', transform: anchorEl ? 'rotate(180deg)' : 'rotate(0)' }} />}
+        sx={{
+          bgcolor: 'grey.800',
+          color: 'white',
+          '&:hover': {
+            bgcolor: 'grey.700',
+          },
+        }}
       >
-        <span className="font-medium">
+        <Typography variant="body2" fontWeight={500}>
           {currentCanvas ? currentCanvas.name : 'Select Canvas'}
-        </span>
-        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-      </button>
+        </Typography>
+      </Button>
 
       {/* Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-          {/* Create Canvas Section */}
-          <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newCanvasName}
-                onChange={(e) => setNewCanvasName(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="New canvas name..."
-                className="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                disabled={isCreating}
-              />
-              <button
-                onClick={handleCreateCanvas}
-                disabled={!newCanvasName.trim() || isCreating}
-                className="flex items-center gap-1 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-md transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isCreating ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4" />
-                    <span>Create</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+        PaperProps={{
+          sx: {
+            width: 320,
+            maxHeight: 500,
+            mt: 1,
+          },
+        }}
+      >
+        {/* Create Canvas Section */}
+        <Box sx={{ p: 1.5, borderBottom: 1, borderColor: 'grey.200' }}>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <TextField
+              value={newCanvasName}
+              onChange={(e) => setNewCanvasName(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="New canvas name..."
+              size="small"
+              fullWidth
+              disabled={isCreating}
+              sx={{ flex: 1 }}
+            />
+            <Button
+              onClick={handleCreateCanvas}
+              disabled={!newCanvasName.trim() || isCreating}
+              variant="contained"
+              size="small"
+              sx={{ minWidth: 80 }}
+            >
+              {isCreating ? (
+                <CircularProgress size={16} color="inherit" />
+              ) : (
+                <>
+                  <Plus style={{ width: 16, height: 16, marginRight: 4 }} />
+                  Create
+                </>
+              )}
+            </Button>
+          </Box>
+        </Box>
 
-          {/* Canvas List */}
-          <div className="max-h-96 overflow-y-auto">
-            {loading ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                <p className="text-sm">Loading canvases...</p>
-              </div>
-            ) : canvases.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <p className="text-sm">No canvases yet</p>
-                <p className="text-xs mt-1">Create your first canvas above</p>
-              </div>
-            ) : (
-              <div className="py-2">
-                {canvases.map((canvas) => (
-                  <button
-                    key={canvas.id}
-                    onClick={() => handleSelectCanvas(canvas)}
-                    className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors duration-150 ${
-                      canvas.id === canvasId
-                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-medium'
-                        : 'text-gray-900 dark:text-gray-100'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="truncate">{canvas.name}</span>
-                      {canvas.id === canvasId && (
-                        <span className="text-xs text-blue-600 dark:text-blue-400 ml-2">Current</span>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+        {/* Canvas List */}
+        <Box sx={{ maxHeight: 384, overflowY: 'auto' }}>
+          {loading ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <CircularProgress size={20} sx={{ mb: 1 }} />
+              <Typography variant="body2" color="grey.500">
+                Loading canvases...
+              </Typography>
+            </Box>
+          ) : canvases.length === 0 ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="body2" color="grey.500">
+                No canvases yet
+              </Typography>
+              <Typography variant="caption" color="grey.400" mt={0.5}>
+                Create your first canvas above
+              </Typography>
+            </Box>
+          ) : (
+            <Box sx={{ py: 1 }}>
+              {canvases.map((canvas) => (
+                <MenuItem
+                  key={canvas.id}
+                  onClick={() => handleSelectCanvas(canvas)}
+                  selected={canvas.id === canvasId}
+                  sx={{
+                    py: 1,
+                    px: 2,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    '&.Mui-selected': {
+                      bgcolor: 'primary.light',
+                      opacity: 0.1,
+                      '&:hover': {
+                        bgcolor: 'primary.light',
+                        opacity: 0.15,
+                      },
+                    },
+                  }}
+                >
+                  <Typography variant="body2" noWrap sx={{ flex: 1 }}>
+                    {canvas.name}
+                  </Typography>
+                  {canvas.id === canvasId && (
+                    <Chip label="Current" size="small" color="primary" sx={{ height: 20, fontSize: '0.625rem' }} />
+                  )}
+                </MenuItem>
+              ))}
+            </Box>
+          )}
+        </Box>
+      </Menu>
+    </Box>
   )
 }
 
 export default CanvasSelector
-

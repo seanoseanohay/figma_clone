@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Box, AppBar, Toolbar, Typography, Button, IconButton, Chip, Avatar, Badge, Tooltip } from '@mui/material';
 import { signOut } from '../../services/auth.service.js';
 import { useAuth } from '../auth/AuthProvider.jsx';
 import { usePresence } from '../../hooks/usePresence.js';
@@ -62,126 +63,185 @@ const Header = () => {
   }
 
   return (
-    <header className="bg-white shadow-lg w-full">
-      <div className="w-full px-4">
-        <div className="flex items-center justify-between py-4">
+    <AppBar position="static" elevation={3} sx={{ bgcolor: 'white', color: 'grey.900' }}>
+      <Toolbar sx={{ px: 2, py: 2, justifyContent: 'space-between' }}>
+        
+        {/* Left Side: Logo + Canvas Selector */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          {/* Logo */}
+          <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <Typography variant="h5" fontWeight="bold" color="grey.900">
+              CollabCanvas
+            </Typography>
+            <Chip
+              label="MVP"
+              size="small"
+              sx={{
+                ml: 1,
+                bgcolor: 'primary.light',
+                color: 'primary.dark',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+              }}
+            />
+          </Box>
+
+          {/* Canvas Selector */}
+          <CanvasSelector />
+        </Box>
+
+        {/* Right Side: User Avatars + Actions */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           
-          {/* Left Side: Logo + Project Dropdown */}
-          <div className="flex items-center">
-            {/* Logo */}
-            <div className="flex items-center flex-shrink-0">
-              <h1 className="text-xl font-bold text-gray-900">
-                CollabCanvas
-              </h1>
-              <span className="ml-2 px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
-                MVP
-              </span>
-            </div>
-
-            {/* Canvas Selector - 16px left margin */}
-            <div style={{ marginLeft: '16px' }}>
-              <CanvasSelector />
-            </div>
-          </div>
-
-          {/* Right Side: User Squares + Current User + Actions */}
-          <div className="flex items-center">
-            
-            {/* User Squares - Max 6 visible - CANVAS-SCOPED */}
-            <div className="flex items-center" style={{ marginRight: '16px' }}>
-              {/* Other users first - limit to 6 total squares */}
-              {users
-                .filter(user => user && user.userId)
-                .slice(0, 5) // Max 5 other users to leave room for current user
-                .map((user) => (
-                  <div
-                    key={user.userId}
-                    className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white cursor-pointer hover:scale-105 transition-transform"
-                    style={{ backgroundColor: getUserColor(user.userId, user.cursorColor), marginRight: '8px' }}
+          {/* User Avatars - Max 6 visible - CANVAS-SCOPED */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/* Other users first - limit to 6 total squares */}
+            {users
+              .filter(user => user && user.userId)
+              .slice(0, 5) // Max 5 other users to leave room for current user
+              .map((user) => (
+                <Tooltip key={user.userId} title={user.displayName || 'User'} arrow>
+                  <Avatar
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      bgcolor: getUserColor(user.userId, user.cursorColor),
+                      fontSize: '0.75rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      transition: 'transform 0.15s',
+                      '&:hover': {
+                        transform: 'scale(1.05)',
+                      },
+                      border: '2px solid white',
+                      boxShadow: 1,
+                    }}
                   >
                     {(user.displayName?.charAt(0) || 'U').toUpperCase()}
-                  </div>
-                ))}
-                
-              {/* Current user square */}
-              <div 
-                className="w-8 h-8 rounded-sm flex items-center justify-center text-white text-xs font-bold shadow-sm border border-white ring-2 ring-gray-800 cursor-pointer hover:scale-105 transition-transform"
-                style={{ backgroundColor: getUserColor(currentUser.uid), marginRight: '8px' }}
+                  </Avatar>
+                </Tooltip>
+              ))}
+              
+            {/* Current user avatar */}
+            <Tooltip title={currentUser.displayName || 'You'} arrow>
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: getUserColor(currentUser.uid),
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  transition: 'transform 0.15s',
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                  },
+                  border: '2px solid',
+                  borderColor: 'grey.800',
+                  boxShadow: 1,
+                }}
               >
                 {(currentUser.displayName?.charAt(0) || 'U').toUpperCase()}
-              </div>
-              
-              {/* +N more indicator if more than 5 other users */}
-              {users.filter(user => user && user.userId).length > 5 && (
-                <div 
-                  className="w-8 h-8 rounded-sm flex items-center justify-center bg-gray-400 text-white text-xs font-bold shadow-sm border border-white" 
-                  style={{ marginRight: '8px' }}
-                >
-                  +{users.filter(user => user && user.userId).length - 5}
-                </div>
-              )}
-            </div>
+              </Avatar>
+            </Tooltip>
+            
+            {/* +N more indicator if more than 5 other users */}
+            {users.filter(user => user && user.userId).length > 5 && (
+              <Avatar
+                sx={{
+                  width: 32,
+                  height: 32,
+                  bgcolor: 'grey.400',
+                  fontSize: '0.75rem',
+                  fontWeight: 'bold',
+                  border: '2px solid white',
+                  boxShadow: 1,
+                }}
+              >
+                +{users.filter(user => user && user.userId).length - 5}
+              </Avatar>
+            )}
+          </Box>
 
-            {/* AI Assistant Button */}
-            <button
-              onClick={() => setAgentSidebarOpen(true)}
-              disabled={!canvasId}
-              className="relative group inline-flex items-center px-3 py-2 border border-blue-300 shadow-sm text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ marginRight: '12px' }}
-              title={!canvasId ? "Select a canvas to use AI Assistant" : "Open AI Assistant"}
-            >
-              <span className="text-base mr-2">🤖</span>
-              <span className="inline">AI Assistant</span>
-              {!canvasId && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  Select a canvas to use AI Assistant
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
-            </button>
+          {/* AI Assistant Button */}
+          <Tooltip
+            title={!canvasId ? "Select a canvas to use AI Assistant" : "Open AI Assistant"}
+            arrow
+          >
+            <span>
+              <Button
+                onClick={() => setAgentSidebarOpen(true)}
+                disabled={!canvasId}
+                variant="outlined"
+                size="small"
+                sx={{
+                  borderColor: 'primary.light',
+                  color: 'primary.main',
+                  bgcolor: 'primary.light',
+                  opacity: 0.2,
+                  '&:hover': {
+                    bgcolor: 'primary.light',
+                    opacity: 0.3,
+                    borderColor: 'primary.light',
+                  },
+                }}
+              >
+                <Box component="span" sx={{ mr: 1, fontSize: '1rem' }}>🤖</Box>
+                AI Assistant
+              </Button>
+            </span>
+          </Tooltip>
 
-            {/* Invite Button */}
-            <button
-              onClick={() => setInviteModalOpen(true)}
-              disabled={!canvasId}
-              className="relative group inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ marginRight: '12px' }}
-              title={!canvasId ? "Select a canvas to invite collaborators" : ""}
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span className="inline">Invite</span>
-              {!canvasId && (
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-                  Select a canvas to invite collaborators
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              )}
-            </button>
+          {/* Invite Button */}
+          <Tooltip
+            title={!canvasId ? "Select a canvas to invite collaborators" : ""}
+            arrow
+          >
+            <span>
+              <Button
+                onClick={() => setInviteModalOpen(true)}
+                disabled={!canvasId}
+                variant="outlined"
+                size="small"
+                startIcon={
+                  <Box component="svg" sx={{ width: 16, height: 16 }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </Box>
+                }
+                sx={{
+                  borderColor: 'grey.300',
+                  color: 'grey.700',
+                  '&:hover': {
+                    bgcolor: 'grey.50',
+                    borderColor: 'grey.300',
+                  },
+                }}
+              >
+                Invite
+              </Button>
+            </span>
+          </Tooltip>
 
-            {/* Sign Out Button */}
-            <button
-              onClick={handleSignOut}
-              disabled={loading}
-              className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span className="inline">Signing out...</span>
-                </>
-              ) : (
-                <span className="inline">Sign out</span>
-              )}
-            </button>
+          {/* Sign Out Button */}
+          <Button
+            onClick={handleSignOut}
+            disabled={loading}
+            variant="outlined"
+            size="small"
+            sx={{
+              borderColor: 'grey.300',
+              color: 'grey.700',
+              '&:hover': {
+                bgcolor: 'grey.50',
+                borderColor: 'grey.300',
+              },
+            }}
+          >
+            {loading ? 'Signing out...' : 'Sign out'}
+          </Button>
 
-          </div>
-        </div>
-      </div>
+        </Box>
+      </Toolbar>
       
       {/* Mobile Menu */}
       <MobileMenu
@@ -203,7 +263,7 @@ const Header = () => {
         isOpen={agentSidebarOpen}
         onClose={() => setAgentSidebarOpen(false)}
       />
-    </header>
+    </AppBar>
   );
 };
 

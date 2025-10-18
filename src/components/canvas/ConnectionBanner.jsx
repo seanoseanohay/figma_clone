@@ -1,3 +1,4 @@
+import { Box, Paper, Typography } from '@mui/material'
 import { AlertCircle, Wifi, WifiOff, Loader2 } from 'lucide-react'
 
 /**
@@ -16,65 +17,85 @@ const ConnectionBanner = ({
   }
 
   // Determine banner style and content
-  let bgColor = 'bg-yellow-50 border-yellow-200'
-  let textColor = 'text-yellow-800'
-  let iconColor = 'text-yellow-600'
+  let bgColor = '#fffbeb' // yellow-50
+  let borderColor = '#fef3c7' // yellow-200
+  let textColor = '#92400e' // yellow-800
+  let iconColor = '#d97706' // yellow-600
   let Icon = AlertCircle
   let message = ''
 
   if (!isOnline) {
     // No internet connection
-    bgColor = 'bg-red-50 border-red-200'
-    textColor = 'text-red-800'
-    iconColor = 'text-red-600'
+    bgColor = '#fef2f2' // red-50
+    borderColor = '#fecaca' // red-200
+    textColor = '#991b1b' // red-800
+    iconColor = '#dc2626' // red-600
     Icon = WifiOff
     message = 'No internet connection - Changes will be saved when reconnected'
   } else if (!isFirebaseConnected) {
     // Firebase disconnected
-    bgColor = 'bg-yellow-50 border-yellow-200'
-    textColor = 'text-yellow-800'
-    iconColor = 'text-yellow-600'
+    bgColor = '#fffbeb' // yellow-50
+    borderColor = '#fef3c7' // yellow-200
+    textColor = '#92400e' // yellow-800
+    iconColor = '#d97706' // yellow-600
     Icon = Loader2
     message = 'Reconnecting to server...'
   } else if (queuedCount > 0) {
     // Processing queued operations
-    bgColor = 'bg-blue-50 border-blue-200'
-    textColor = 'text-blue-800'
-    iconColor = 'text-blue-600'
+    bgColor = '#eff6ff' // blue-50
+    borderColor = '#bfdbfe' // blue-200
+    textColor = '#1e3a8a' // blue-800
+    iconColor = '#2563eb' // blue-600
     Icon = Loader2
     message = `Saving ${queuedCount} queued ${queuedCount === 1 ? 'change' : 'changes'}...`
   }
 
   return (
-    <div 
-      className={`fixed top-16 left-1/2 transform -translate-x-1/2 z-50 ${bgColor} border rounded-lg shadow-lg px-4 py-3 min-w-80 max-w-2xl`}
+    <Paper
+      elevation={3}
+      sx={{
+        position: 'fixed',
+        top: 64,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 50,
+        bgcolor: bgColor,
+        border: 1,
+        borderColor: borderColor,
+        borderRadius: 2,
+        px: 2,
+        py: 1.5,
+        minWidth: 320,
+        maxWidth: 768,
+      }}
       role="alert"
     >
-      <div className="flex items-center gap-3">
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Icon 
-          className={`w-5 h-5 ${iconColor} flex-shrink-0 ${Icon === Loader2 ? 'animate-spin' : ''}`} 
+          style={{ 
+            width: 20, 
+            height: 20, 
+            color: iconColor, 
+            flexShrink: 0,
+            animation: Icon === Loader2 ? 'spin 1s linear infinite' : undefined
+          }} 
         />
-        <div className="flex-1">
-          <p className={`text-sm font-medium ${textColor}`}>
+        <Box sx={{ flex: 1 }}>
+          <Typography variant="body2" fontWeight={500} sx={{ color: textColor }}>
             {message}
-          </p>
+          </Typography>
           {!isConnected && (
-            <p className={`text-xs ${textColor} mt-1 opacity-80`}>
+            <Typography variant="caption" sx={{ color: textColor, opacity: 0.8, mt: 0.5 }}>
               Editing is temporarily disabled
-            </p>
+            </Typography>
           )}
-        </div>
+        </Box>
         {isConnected && queuedCount === 0 && (
-          <Wifi className={`w-5 h-5 text-green-600`} />
+          <Wifi style={{ width: 20, height: 20, color: '#10b981' }} />
         )}
-      </div>
-    </div>
+      </Box>
+    </Paper>
   )
 }
 
 export default ConnectionBanner
-
-
-
-
-

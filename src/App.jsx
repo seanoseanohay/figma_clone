@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Box } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { AuthProvider } from './components/auth/AuthProvider.jsx';
@@ -23,10 +24,8 @@ const LoggedInLayout = ({ children }) => {
   const [selectedObject, setSelectedObject] = useState(null);
   const [cursorPosition, setCursorPosition] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(100);
-  const [selectedColor, setSelectedColor] = useState('#808080'); // Default gray
-  // Store a ref to the Canvas's z-index handler
+  const [selectedColor, setSelectedColor] = useState('#808080');
   const zIndexHandlerRef = useRef(null);
-  // Store a ref to the Canvas's color update handler (for selected objects)
   const userColorChangeRef = useRef(null);
 
   const handleToolChange = (tool) => {
@@ -39,7 +38,6 @@ const LoggedInLayout = ({ children }) => {
 
   const handleObjectUpdate = (objectData) => {
     setSelectedObject(objectData);
-    // Update color picker to match selected object's color
     if (objectData && objectData.fill) {
       setSelectedColor(objectData.fill);
     }
@@ -50,19 +48,17 @@ const LoggedInLayout = ({ children }) => {
   };
 
   const handleZoomUpdate = (zoom) => {
-    setZoomLevel(zoom * 100); // Convert scale to percentage
+    setZoomLevel(zoom * 100);
   };
 
   const handleColorChange = (newColor) => {
     setSelectedColor(newColor);
-    // If there's a selected object and user changed the color, update the object
     if (userColorChangeRef.current && hasSelection) {
       userColorChangeRef.current(newColor);
     }
   };
 
   const handleZIndexChange = useCallback((action) => {
-    // Call the Canvas's z-index handler if it's available
     if (zIndexHandlerRef.current) {
       zIndexHandlerRef.current(action);
     }
@@ -71,7 +67,6 @@ const LoggedInLayout = ({ children }) => {
   const rotationHandlerRef = useRef(null);
   
   const handleRotationChange = useCallback((newRotation) => {
-    // Call the Canvas's rotation handler if it's available
     if (rotationHandlerRef.current) {
       rotationHandlerRef.current(newRotation);
     }
@@ -79,31 +74,47 @@ const LoggedInLayout = ({ children }) => {
 
   const handleDeleteObject = useCallback(async (objectId) => {
     try {
-      // Import deleteObject dynamically
       const { deleteObject } = await import('./services/canvas.service.js');
       
       await deleteObject(objectId);
       console.log('✅ Object deleted successfully from App.jsx');
       
-      // Clear selection since object no longer exists
       setHasSelection(false);
       setSelectedObject(null);
       
     } catch (error) {
       console.error('❌ Failed to delete object from App.jsx:', error);
-      // Could show toast notification here in the future
     }
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Fixed Header - Always at top */}
-      <div className="fixed top-0 left-0 right-0 bg-white" style={{ width: '100%', zIndex: Z_INDEX.HEADER }}>
+    <Box sx={{ minHeight: '100vh', bgcolor: 'grey.100' }}>
+      {/* Fixed Header */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          width: '100%',
+          zIndex: Z_INDEX.HEADER,
+          bgcolor: 'white',
+        }}
+      >
         <Header />
-      </div>
+      </Box>
       
-      {/* Fixed Toolbar - Below header with proper spacing */}
-      <div className="fixed left-0 right-0" style={{ top: `${HEADER_HEIGHT}px`, width: '100%', zIndex: Z_INDEX.TOOLBAR }}>
+      {/* Fixed Toolbar */}
+      <Box
+        sx={{
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          top: `${HEADER_HEIGHT}px`,
+          width: '100%',
+          zIndex: Z_INDEX.TOOLBAR,
+        }}
+      >
         <Toolbar 
           selectedTool={selectedTool}
           onToolChange={handleToolChange}
@@ -117,11 +128,11 @@ const LoggedInLayout = ({ children }) => {
           onRotationChange={handleRotationChange}
           onDeleteObject={handleDeleteObject}
         />
-      </div>
+      </Box>
       
-      {/* Pointer-events blocking overlay - prevents canvas interaction above toolbar */}
-      <div 
-        style={{
+      {/* Pointer-events blocking overlay */}
+      <Box
+        sx={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -129,14 +140,14 @@ const LoggedInLayout = ({ children }) => {
           height: `${CANVAS_TOP_OFFSET}px`,
           zIndex: Z_INDEX.CANVAS_OVERLAY,
           pointerEvents: 'auto',
-          background: 'transparent'
+          bgcolor: 'transparent',
         }}
         aria-hidden="true"
       />
       
-      {/* Main content area with top padding to account for fixed header/toolbar */}
-      <div className="relative" style={{ paddingTop: `${CANVAS_TOP_OFFSET}px` }}>
-        <div className="flex-1 overflow-hidden">
+      {/* Main content area */}
+      <Box sx={{ position: 'relative', paddingTop: `${CANVAS_TOP_OFFSET}px` }}>
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
           {children({ 
             selectedTool, 
             onToolChange: handleToolChange, 
@@ -151,13 +162,13 @@ const LoggedInLayout = ({ children }) => {
             rotationHandlerRef,
             userColorChangeRef
           })}
-        </div>
-      </div>
-    </div>
+        </Box>
+      </Box>
+    </Box>
   );
 };
 
-// Canvas page component - now just renders Canvas
+// Canvas page component
 const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, userColorChangeRef }) => {
   return (
     <Canvas 
@@ -188,7 +199,7 @@ function App() {
     <AuthProvider>
       <Router>
         <CanvasProvider>
-          <div className="App">
+          <Box className="App">
             <ToastContainer
               position="top-right"
               autoClose={3000}
@@ -240,7 +251,7 @@ function App() {
                 <Route path="/login" element={<LoginForm />} />
                 <Route path="/register" element={<RegisterForm />} />
                 
-                {/* Default canvas route - redirect to dashboard */}
+                {/* Default canvas route */}
                 <Route 
                   path="/canvas" 
                   element={
@@ -298,12 +309,12 @@ function App() {
                   element={<RedirectToCanvas />} 
                 />
                 
-                {/* Catch all - redirect to canvas dashboard */}
+                {/* Catch all */}
                 <Route path="*" element={<Navigate to="/canvas" replace />} />
               </>
             )}
             </Routes>
-          </div>
+          </Box>
         </CanvasProvider>
       </Router>
     </AuthProvider>

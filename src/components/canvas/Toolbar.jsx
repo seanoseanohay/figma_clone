@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { Box, Paper, Button, ButtonGroup, Divider, TextField, Typography, Popover } from '@mui/material';
 import { SketchPicker } from 'react-color';
 
 // Tool constants - separated by type for better organization
@@ -28,66 +29,67 @@ const SHAPE_TOOLS = [TOOLS.TEXT, TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
  * Replaces text-based color display with a visual indicator
  */
 const ColorSquare = ({ color, onChange, disabled = false }) => {
-  const [showPicker, setShowPicker] = useState(false);
-  const pickerRef = useRef(null);
+  const [anchorEl, setAnchorEl] = useState(null);
 
-  // Close picker when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (pickerRef.current && !pickerRef.current.contains(event.target)) {
-        setShowPicker(false);
-      }
-    };
-
-    if (showPicker) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+  const handleClick = (event) => {
+    if (!disabled) {
+      setAnchorEl(event.currentTarget);
     }
-  }, [showPicker]);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
 
   const handleChangeComplete = (newColor) => {
     onChange(newColor.hex);
   };
 
+  const open = Boolean(anchorEl);
+
   return (
-    <span className="relative inline-flex items-center" ref={pickerRef}>
-      {/* Colored Square Button */}
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          if (!disabled) setShowPicker(!showPicker);
+    <Box component="span" sx={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <Box
+        onClick={handleClick}
+        sx={{
+          width: 20,
+          height: 20,
+          borderRadius: 0.5,
+          border: 2,
+          borderColor: 'grey.600',
+          bgcolor: color,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+          opacity: disabled ? 0.4 : 1,
+          transition: 'all 0.15s',
+          '&:hover': !disabled && {
+            borderColor: 'grey.800',
+          },
         }}
-        disabled={disabled}
-        className={`
-          w-5 h-5 rounded border-2 border-gray-600 shadow-sm
-          transition-all duration-150
-          ${disabled ? 'opacity-40 cursor-not-allowed' : 'hover:border-gray-800 cursor-pointer'}
-        `}
-        style={{ backgroundColor: color }}
         title={`Color: ${color.toUpperCase()} - Click to change`}
       />
-
-      {/* Color Picker Popover */}
-      {showPicker && (
-        <div 
-          className="absolute z-50"
-          style={{ 
-            top: '100%', 
-            left: '50%', 
-            transform: 'translateX(-50%)',
-            marginTop: '8px'
-          }}
-        >
-          <div className="shadow-2xl rounded-lg overflow-hidden">
-            <SketchPicker
-              color={color}
-              onChangeComplete={handleChangeComplete}
-              disableAlpha={true}
-            />
-          </div>
-        </div>
-      )}
-    </span>
+      <Popover
+        open={open}
+        anchorEl={anchorEl}
+        onClose={handleClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        sx={{ mt: 1 }}
+      >
+        <Box sx={{ borderRadius: 2, overflow: 'hidden' }}>
+          <SketchPicker
+            color={color}
+            onChangeComplete={handleChangeComplete}
+            disableAlpha={true}
+          />
+        </Box>
+      </Popover>
+    </Box>
   );
 };
 
@@ -204,7 +206,6 @@ const Toolbar = ({
 
   const handleDeleteObject = () => {
     if (hasSelection && selectedObject) {
-      // Call the delete handler passed from parent
       if (onDeleteObject) {
         onDeleteObject(selectedObject.id);
       }
@@ -216,7 +217,7 @@ const Toolbar = ({
     return new Intl.NumberFormat('en-US').format(Math.round(num));
   };
 
-  // Format object properties for display (without color - color shown via ColorSquare)
+  // Format object properties for display
   const formatObjectProperties = (obj) => {
     if (!obj) return null;
     
@@ -236,13 +237,11 @@ const Toolbar = ({
       const numPoints = obj.numPoints || 5;
       return `Star: ${numPoints} points at (${x}, ${y}, ${zIndex}) • ${rotation}°`;
     } else if (obj.type === 'text') {
-      // Show truncated text preview
       const textPreview = (obj.text || 'Text').substring(0, 20);
       const displayText = obj.text && obj.text.length > 20 ? `${textPreview}...` : textPreview;
       const fontSize = obj.fontSize || 24;
       const fontFamily = obj.fontFamily || 'Arial';
       
-      // Build formatting indicators
       const formatting = [];
       if (obj.bold) formatting.push('B');
       if (obj.italic) formatting.push('I');
@@ -260,7 +259,6 @@ const Toolbar = ({
     const isSelected = selectedTool === toolKey;
     const isDisabled = config.requiresSelection && !hasSelection;
     
-    // Build tooltip text with hotkey
     const tooltipText = isDisabled 
       ? 'Select an object first' 
       : config.shortcut 
@@ -268,29 +266,27 @@ const Toolbar = ({
         : config.label;
     
     return (
-      <button
+      <Button
         key={toolKey}
         onClick={() => !isDisabled && handleToolSelect(toolKey)}
         disabled={isDisabled}
-        style={{
-          backgroundColor: isSelected ? '#2563eb' : '#ffffff',
-          borderColor: isSelected ? '#1d4ed8' : '#d1d5db',
-          color: isSelected ? '#ffffff' : '#374151',
-          boxShadow: isSelected ? '0 4px 6px -1px rgb(0 0 0 / 0.1)' : 'none',
-          opacity: isDisabled ? 0.4 : 1,
-          cursor: isDisabled ? 'not-allowed' : 'pointer'
-        }}
-        className="flex items-center space-x-2 px-3 py-2 rounded-lg border font-medium transition-all duration-150 hover:bg-blue-50 disabled:hover:bg-white"
+        variant={isSelected ? 'contained' : 'outlined'}
+        size="small"
         title={tooltipText}
-        aria-disabled={isDisabled}
+        sx={{
+          minWidth: 'auto',
+          px: 1.5,
+          py: 1,
+          fontSize: '1.125rem',
+        }}
       >
-        <span className="text-lg" role="img" aria-label={config.label}>
+        <Box component="span" sx={{ mr: { xs: 0, sm: 1 } }} role="img" aria-label={config.label}>
           {config.icon}
-        </span>
-        <span className="text-sm font-medium hidden sm:inline">
+        </Box>
+        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, fontSize: '0.875rem', fontWeight: 500 }}>
           {config.shortLabel}
-        </span>
-      </button>
+        </Box>
+      </Button>
     );
   };
 
@@ -299,171 +295,131 @@ const Toolbar = ({
     ? formatObjectProperties(selectedObject)
     : TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
 
-  // Build Line 2: Tool name (if object selected) • Cursor • Zoom • Color (if creating)
+  // Build Line 2: Tool name (if object selected) • Cursor • Zoom
   const line2Parts = [];
   
-  // Add tool name if object is selected (Option C)
   if (selectedObject) {
     line2Parts.push(TOOL_CONFIG[selectedTool]?.label || '');
   }
   
-  // Add cursor position (with formatted numbers)
   if (cursorPosition) {
     const x = formatNumber(cursorPosition.x);
     const y = formatNumber(cursorPosition.y);
     line2Parts.push(`Cursor: (${x}, ${y})`);
   }
   
-  // Add zoom level
   line2Parts.push(`Zoom: ${Math.round(zoomLevel)}%`);
   
   const line2Text = line2Parts.join(' • ');
 
-  // Determine if we should show color (when object selected OR drawing tool active)
   const showColor = hasSelection || SHAPE_TOOLS.includes(selectedTool);
 
   return (
-    <div className="w-full flex justify-center" style={{ width: '100%' }}>
-      <div className="bg-white shadow-lg rounded-lg" style={{ maxWidth: '900px', width: 'auto' }}>
-        {/* Tool Icons and Color Picker */}
-        <div className="flex items-center justify-center px-6 py-3">
-          {/* Selection Tools (Left) */}
-          <div className="flex items-center space-x-1">
+    <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
+      <Paper elevation={3} sx={{ maxWidth: 900, width: 'auto' }}>
+        {/* Tool Icons and Controls */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3, py: 1.5, gap: 2 }}>
+          {/* Selection Tools */}
+          <ButtonGroup size="small" variant="outlined">
             {SELECTION_TOOLS.map(toolKey => renderToolButton(toolKey))}
-          </div>
+          </ButtonGroup>
           
-          {/* Vertical Divider */}
-          <div className="mx-4 h-10 border-l-2 border-gray-300"></div>
+          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
           
-          {/* Modification Tools (Middle) */}
-          <div className="flex items-center space-x-1">
+          {/* Modification Tools */}
+          <ButtonGroup size="small" variant="outlined">
             {MODIFICATION_TOOLS.map(toolKey => renderToolButton(toolKey))}
+          </ButtonGroup>
             
-            {/* Z-Index Controls (inline with modification tools, only show when object is selected) */}
-            {hasSelection && (
-              <>
-                {/* Mini divider */}
-                <div className="mx-2 h-6 border-l border-gray-300"></div>
-                
-                <button
-                  onClick={handleBringToFront}
-                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
-                  title="Bring to Front (Ctrl+Shift+])"
-                >
-                  <span className="text-base">⬆️</span>
-                </button>
-                <button
-                  onClick={handleMoveForward}
-                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
-                  title="Move Forward (Ctrl+])"
-                >
-                  <span className="text-base">🔼</span>
-                </button>
-                <button
-                  onClick={handleMoveBackward}
-                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
-                  title="Move Backward (Ctrl+[)"
-                >
-                  <span className="text-base">🔽</span>
-                </button>
-                <button
-                  onClick={handleSendToBack}
-                  className="flex items-center px-2 py-2 rounded-lg border border-gray-300 font-medium transition-all duration-150 hover:bg-blue-50"
-                  title="Send to Back (Ctrl+Shift+[)"
-                >
-                  <span className="text-base">⬇️</span>
-                </button>
-                
-                {/* Delete Button */}
-                <div className="mx-2 h-6 border-l border-gray-300"></div>
-                <button
-                  onClick={handleDeleteObject}
-                  className="flex items-center px-2 py-2 rounded-lg border border-red-300 bg-red-50 font-medium transition-all duration-150 hover:bg-red-100 hover:border-red-400"
-                  title="Delete Object (Delete key)"
-                >
-                  <span className="text-base text-red-600">🗑️</span>
-                </button>
-                
-                {/* Rotation Input Field */}
-                <div className="mx-2 h-6 border-l border-gray-300"></div>
-                <div className="flex items-center space-x-1">
-                  <label className="text-xs text-gray-600 font-medium">Angle:</label>
-                  <input
-                    type="number"
-                    min="0"
-                    max="359"
-                    step="1"
-                    value={selectedObject ? Math.round(selectedObject.rotation || 0) : 0}
-                    onChange={(e) => {
-                      const value = parseInt(e.target.value) || 0;
-                      // Normalize to 0-359 range
-                      const normalizedValue = ((value % 360) + 360) % 360;
-                      onRotationChange(normalizedValue);
-                    }}
-                    onKeyDown={(e) => {
-                      // Allow up/down arrows for fine control
-                      if (e.key === 'ArrowUp') {
-                        e.preventDefault();
-                        const current = selectedObject ? (selectedObject.rotation || 0) : 0;
-                        const newValue = (current + 1) % 360;
-                        onRotationChange(newValue);
-                      } else if (e.key === 'ArrowDown') {
-                        e.preventDefault();
-                        const current = selectedObject ? (selectedObject.rotation || 0) : 0;
-                        const newValue = ((current - 1) + 360) % 360;
-                        onRotationChange(newValue);
-                      }
-                    }}
-                    className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-500"
-                    title="Rotation angle in degrees (0-359)"
-                  />
-                  <span className="text-xs text-gray-600">°</span>
-                </div>
-              </>
-            )}
-          </div>
+          {/* Z-Index Controls */}
+          {hasSelection && (
+            <>
+              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
+              
+              <ButtonGroup size="small" variant="outlined">
+                <Button onClick={handleBringToFront} title="Bring to Front (Ctrl+Shift+])">⬆️</Button>
+                <Button onClick={handleMoveForward} title="Move Forward (Ctrl+])">🔼</Button>
+                <Button onClick={handleMoveBackward} title="Move Backward (Ctrl+[)">🔽</Button>
+                <Button onClick={handleSendToBack} title="Send to Back (Ctrl+Shift+[)">⬇️</Button>
+              </ButtonGroup>
+              
+              {/* Delete Button */}
+              <Button
+                onClick={handleDeleteObject}
+                variant="outlined"
+                size="small"
+                color="error"
+                title="Delete Object (Delete key)"
+                sx={{ minWidth: 'auto', px: 1 }}
+              >
+                🗑️
+              </Button>
+              
+              {/* Rotation Input */}
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
+                <Typography variant="caption" color="grey.600">
+                  Angle:
+                </Typography>
+                <TextField
+                  type="number"
+                  size="small"
+                  value={selectedObject ? Math.round(selectedObject.rotation || 0) : 0}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    const normalizedValue = ((value % 360) + 360) % 360;
+                    onRotationChange(normalizedValue);
+                  }}
+                  inputProps={{
+                    min: 0,
+                    max: 359,
+                    step: 1,
+                    style: { width: 48, padding: 4, fontSize: '0.75rem' }
+                  }}
+                  title="Rotation angle in degrees (0-359)"
+                />
+                <Typography variant="caption" color="grey.600">
+                  °
+                </Typography>
+              </Box>
+            </>
+          )}
           
-          {/* Vertical Divider */}
-          <div className="mx-4 h-10 border-l-2 border-gray-300"></div>
+          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
           
-          {/* Shape Tools (Right) */}
-          <div className="flex items-center space-x-1">
+          {/* Shape Tools */}
+          <ButtonGroup size="small" variant="outlined">
             {SHAPE_TOOLS.map(toolKey => renderToolButton(toolKey))}
-          </div>
-        </div>
+          </ButtonGroup>
+        </Box>
         
-        {/* Two-line description area with object properties and canvas info */}
-        <div className="px-6 pb-3 text-center">
-          {/* Line 1: Object properties or tool name with color square */}
-          <p className="text-xs font-medium text-gray-700 flex items-center justify-center gap-2">
-            <span>{line1Text}</span>
+        {/* Description Area */}
+        <Box sx={{ px: 3, pb: 1.5, textAlign: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+            <Typography variant="caption" fontWeight={500} color="grey.700">
+              {line1Text}
+            </Typography>
             {selectedObject && showColor && (
               <>
-                <span>•</span>
-                <ColorSquare 
-                  color={selectedColor}
-                  onChange={onColorChange}
-                />
+                <Typography variant="caption" color="grey.500">•</Typography>
+                <ColorSquare color={selectedColor} onChange={onColorChange} />
               </>
             )}
-          </p>
+          </Box>
           
-          {/* Line 2: Tool (if object selected) • Cursor • Zoom • Color (if creating) */}
-          <p className="text-xs text-gray-500 mt-1 flex items-center justify-center gap-2">
-            <span>{line2Text}</span>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+            <Typography variant="caption" color="grey.500">
+              {line2Text}
+            </Typography>
             {!selectedObject && showColor && (
               <>
-                <span>•</span>
-                <ColorSquare 
-                  color={selectedColor}
-                  onChange={onColorChange}
-                />
+                <Typography variant="caption" color="grey.500">•</Typography>
+                <ColorSquare color={selectedColor} onChange={onColorChange} />
               </>
             )}
-          </p>
-        </div>
-      </div>
-    </div>
+          </Box>
+        </Box>
+      </Paper>
+    </Box>
   );
 };
 

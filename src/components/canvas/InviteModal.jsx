@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { X, Loader2 } from 'lucide-react'
+import { Box, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Button, Typography, CircularProgress, Paper, IconButton } from '@mui/material'
+import CloseIcon from '@mui/icons-material/Close'
 import { toast } from 'react-toastify'
 import { useCanvas } from '../../hooks/useCanvas'
 import { useAuth } from '../auth/AuthProvider'
@@ -87,91 +88,79 @@ const InviteModal = ({ isOpen, onClose }) => {
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={handleClose}
-    >
-      <div 
-        className="bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Invite Collaborator</h2>
-          <button
-            onClick={handleClose}
-            disabled={loading}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors disabled:opacity-50"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
-
+    <Dialog open={isOpen} onClose={handleClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+        <Typography variant="h5" fontWeight="bold">
+          Invite Collaborator
+        </Typography>
+        <IconButton
+          onClick={handleClose}
+          disabled={loading}
+          size="small"
+          sx={{ color: 'grey.400', '&:hover': { color: 'grey.600' } }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      
+      <DialogContent>
         {/* Current Canvas Display */}
         {currentCanvas && (
-          <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md">
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Canvas:</p>
-            <p className="font-medium text-gray-900 dark:text-white">{currentCanvas.name}</p>
-          </div>
+          <Paper
+            sx={{
+              mb: 3,
+              p: 2,
+              bgcolor: 'primary.light',
+              opacity: 0.1,
+              border: 1,
+              borderColor: 'primary.main',
+            }}
+          >
+            <Typography variant="caption" color="grey.600" display="block" mb={0.5}>
+              Canvas:
+            </Typography>
+            <Typography variant="body1" fontWeight={500}>
+              {currentCanvas.name}
+            </Typography>
+          </Paper>
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label 
-              htmlFor="email" 
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Email Address
-            </label>
-            <input
-              type="email"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-              placeholder="Enter email address"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 dark:disabled:bg-gray-800 disabled:cursor-not-allowed"
-              autoFocus
-            />
-            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-              If the user exists, they'll be added immediately. Otherwise, they'll receive an invite when they sign up.
-            </p>
-          </div>
+        <Box component="form" onSubmit={handleSubmit}>
+          <TextField
+            type="email"
+            label="Email Address"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={loading}
+            placeholder="Enter email address"
+            fullWidth
+            autoFocus
+            helperText="If the user exists, they'll be added immediately. Otherwise, they'll receive an invite when they sign up."
+          />
+        </Box>
+      </DialogContent>
 
-          {/* Buttons */}
-          <div className="flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={handleClose}
-              disabled={loading}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={loading || !email.trim()}
-              className="px-4 py-2 rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors inline-flex items-center"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin -ml-1 mr-2 h-4 w-4" />
-                  Sending...
-                </>
-              ) : (
-                'Send Invitation'
-              )}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+      <DialogActions sx={{ px: 3, pb: 3 }}>
+        <Button
+          onClick={handleClose}
+          disabled={loading}
+          variant="outlined"
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSubmit}
+          disabled={loading || !email.trim()}
+          variant="contained"
+          startIcon={loading && <CircularProgress size={16} color="inherit" />}
+        >
+          {loading ? 'Sending...' : 'Send Invitation'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   )
 }
 
 export default InviteModal
-

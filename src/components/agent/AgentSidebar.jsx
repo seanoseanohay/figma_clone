@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Box, Drawer, IconButton, Typography, Tab, Tabs, Badge } from '@mui/material'
 import { X, Bot, BarChart3 } from 'lucide-react'
 import AgentChatPanel from '../ai/AgentChatPanel.jsx'
 import AgentMetricsPanel from '../ai/AgentMetricsPanel.jsx'
@@ -39,15 +40,6 @@ const AgentSidebar = ({ isOpen, onClose }) => {
     }
   }, [isOpen, onClose])
 
-  // Handle backdrop click
-  const handleBackdropClick = (e) => {
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
-  }
-
-  if (!isOpen) return null
-
   // Prepare canvas state for chat panel
   const canvasState = {
     objects: objects || [],
@@ -56,93 +48,133 @@ const AgentSidebar = ({ isOpen, onClose }) => {
   }
 
   return (
-    <>
-      {/* Modal Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
-        style={{ zIndex: 9998 }}
-        onClick={handleBackdropClick}
-      />
-      
-      {/* Modal Content */}
-      <div 
-        className="fixed inset-y-0 right-0 w-96 bg-white shadow-2xl transform transition-transform flex flex-col"
-        style={{ zIndex: 9999 }}
+    <Drawer
+      anchor="right"
+      open={isOpen}
+      onClose={onClose}
+      sx={{
+        zIndex: 9999,
+        '& .MuiDrawer-paper': {
+          width: 384,
+          display: 'flex',
+          flexDirection: 'column',
+        },
+      }}
+      ModalProps={{
+        BackdropProps: {
+          sx: {
+            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 9998,
+          },
+        },
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          p: 2,
+          borderBottom: 1,
+          borderColor: 'grey.200',
+          bgcolor: 'grey.50',
+        }}
       >
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gray-50">
-          <div className="flex items-center gap-2">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full">
-              <Bot className="w-5 h-5 text-blue-600" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">AI Canvas Agent</h2>
-              <p className="text-xs text-gray-500">
-                {canvasId ? `Canvas: ${canvasId.substring(0, 8)}...` : 'No canvas selected'}
-              </p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-2">
-            {/* Metrics Toggle */}
-            <button
-              onClick={() => setShowMetrics(!showMetrics)}
-              className="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Toggle metrics"
-            >
-              <BarChart3 className="w-5 h-5" />
-            </button>
-            
-            {/* Close Button */}
-            <button
-              onClick={onClose}
-              className="p-2 text-gray-400 hover:text-red-600 rounded-lg hover:bg-gray-100 transition-colors"
-              title="Close AI Assistant"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200 bg-gray-50">
-          <button
-            onClick={() => setActiveTab('chat')}
-            className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-              activeTab === 'chat'
-                ? 'text-blue-600 border-b-2 border-blue-600 bg-white'
-                : 'text-gray-500 hover:text-gray-700'
-            }`}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 32,
+              height: 32,
+              bgcolor: 'primary.light',
+              opacity: 0.2,
+              borderRadius: '50%',
+            }}
           >
-            <div className="flex items-center justify-center gap-2">
-              <Bot className="w-4 h-4" />
-              Chat
-            </div>
-          </button>
-        </div>
+            <Bot style={{ width: 20, height: 20, color: '#2563eb' }} />
+          </Box>
+          <Box>
+            <Typography variant="h6" fontWeight={600}>
+              AI Canvas Agent
+            </Typography>
+            <Typography variant="caption" color="grey.500">
+              {canvasId ? `Canvas: ${canvasId.substring(0, 8)}...` : 'No canvas selected'}
+            </Typography>
+          </Box>
+        </Box>
+        
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* Metrics Toggle */}
+          <IconButton
+            onClick={() => setShowMetrics(!showMetrics)}
+            size="small"
+            sx={{
+              color: 'grey.400',
+              '&:hover': { color: 'grey.600', bgcolor: 'grey.100' },
+            }}
+            title="Toggle metrics"
+          >
+            <BarChart3 style={{ width: 20, height: 20 }} />
+          </IconButton>
+          
+          {/* Close Button */}
+          <IconButton
+            onClick={onClose}
+            size="small"
+            sx={{
+              color: 'grey.400',
+              '&:hover': { color: 'error.main', bgcolor: 'grey.100' },
+            }}
+            title="Close AI Assistant"
+          >
+            <X style={{ width: 20, height: 20 }} />
+          </IconButton>
+        </Box>
+      </Box>
 
-        {/* Content Area */}
-        <div className="flex flex-col flex-1 min-h-0">
-          {/* Chat Panel */}
-          {activeTab === 'chat' && (
-            <AgentChatPanel
-              canvasId={canvasId}
-              canvasState={canvasState}
-              isVisible={true}
-              onToggle={onClose}
-            />
-          )}
-        </div>
+      {/* Tab Navigation */}
+      <Box sx={{ borderBottom: 1, borderColor: 'grey.200', bgcolor: 'grey.50' }}>
+        <Tabs
+          value={activeTab}
+          onChange={(e, newValue) => setActiveTab(newValue)}
+          variant="fullWidth"
+        >
+          <Tab
+            value="chat"
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Bot style={{ width: 16, height: 16 }} />
+                Chat
+              </Box>
+            }
+          />
+        </Tabs>
+      </Box>
 
-        {/* Floating Metrics Panel */}
-        {showMetrics && (
-          <AgentMetricsPanel
-            isVisible={showMetrics}
-            onToggle={() => setShowMetrics(!showMetrics)}
+      {/* Content Area */}
+      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        {/* Chat Panel */}
+        {activeTab === 'chat' && (
+          <AgentChatPanel
+            canvasId={canvasId}
+            canvasState={canvasState}
+            isVisible={true}
+            onToggle={onClose}
           />
         )}
-      </div>
-    </>
+      </Box>
+
+      {/* Floating Metrics Panel */}
+      {showMetrics && (
+        <AgentMetricsPanel
+          isVisible={showMetrics}
+          onToggle={() => setShowMetrics(!showMetrics)}
+        />
+      )}
+    </Drawer>
   )
 }
 
