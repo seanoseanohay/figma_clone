@@ -58,7 +58,17 @@ const CreateStarSchema = z.object({
 const MoveObjectSchema = z.object({
   type: z.literal('moveObject'),
   objectId: z.string().min(1),
-  position: PositionSchema,
+  offset: z.object({
+    x: z.number().default(0),
+    y: z.number().default(0)
+  }),
+  animate: z.boolean().optional().default(false)
+})
+
+const RotateShapeSchema = z.object({
+  type: z.literal('rotateShape'),
+  objectId: z.string().min(1),
+  rotation: z.number().min(-360).max(360),
   animate: z.boolean().optional().default(false)
 })
 
@@ -133,6 +143,7 @@ const AgentCommandSchema = z.union([
   MoveObjectSchema,
   ResizeObjectSchema,
   RotateObjectSchema,
+  RotateShapeSchema,
   UpdateObjectPropertiesSchema,
   DeleteObjectSchema,
   ClearCanvasSchema,
@@ -273,6 +284,7 @@ export {
   MoveObjectSchema,
   ResizeObjectSchema,
   RotateObjectSchema,
+  RotateShapeSchema,
   UpdateObjectPropertiesSchema,
   DeleteObjectSchema,
   ArrangeLayoutSchema

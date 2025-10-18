@@ -118,20 +118,36 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   const lowerPrompt = prompt.toLowerCase()
 
   // === QUANTITY DETECTION ===
+  
+  /**
+   * Extract numeric context from prompt, distinguishing between counts vs measurements
+   * @param {string} prompt - The user prompt
+   * @returns {number|null} - Count if it's a quantity, null if it's a measurement
+   */
+  function extractNumericContext(prompt) {
+    // If prompt includes measurement units, it's NOT a count
+    if (/\b(px|pixels?|degrees?|units?|points?)\b/i.test(prompt)) return null
+    
+    // If it's a movement/transformation command, numbers are measurements not counts
+    if (/\b(move|rotate|resize|scale|shift)\b/i.test(prompt)) return null
+    
+    // Otherwise, treat the first number as a possible count
+    const num = prompt.match(/\b(\d+)\b/)
+    return num ? parseInt(num[1]) : null
+  }
+  
   const numberWords = {
     one: 1, two: 2, three: 3, four: 4, five: 5,
     six: 6, seven: 7, eight: 8, nine: 9, ten: 10
   }
-  let count = 1
   
-  // Check for numeric quantities first
-  const numMatch = prompt.match(/\b(\d+)\b/)
-  if (numMatch) {
-    count = parseInt(numMatch[1], 10)
-  } else {
-    // Check for word quantities
+  const rawCount = extractNumericContext(prompt)
+  let count = rawCount ?? 1
+  
+  // Check for word quantities if no numeric count was found
+  if (rawCount === null) {
     const wordMatch = prompt.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten)\b/i)
-    if (wordMatch) {
+    if (wordMatch && !/\b(move|rotate|resize|scale|shift)\b/i.test(prompt)) {
       count = numberWords[wordMatch[1].toLowerCase()]
     }
   }
@@ -147,10 +163,17 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   else if (/bottom/i.test(prompt)) baseY = 800
   else if (/center|middle/i.test(prompt)) baseY = 500
 
+  // Check if this is a manipulation command (not creation)
+  const isManipulationCommand = lowerPrompt.includes('move') || lowerPrompt.includes('rotate') || 
+                              lowerPrompt.includes('resize') || lowerPrompt.includes('scale') || 
+                              lowerPrompt.includes('delete') || lowerPrompt.includes('remove')
+
   // === CREATION COMMANDS ===
-  
-  // Text creation
-  if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text')) {
+  // Skip creation if this is a manipulation command
+  if (!isManipulationCommand) {
+    
+    // Text creation
+    if (lowerPrompt.includes('text') || lowerPrompt.includes('add text') || lowerPrompt.includes('create text')) {
     const textMatch = prompt.match(/['"](.*?)['"]/) || prompt.match(/says?\s+([^.!?]+)/i)
     const text = textMatch ? textMatch[1] : 'Hello World'
     
@@ -260,32 +283,43 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
       })
     }
   }
+  
+  } // End creation commands section (skip if manipulation command)
 
   // === MANIPULATION COMMANDS ===
   
-  // Move commands - check for both generic and specific
-  if (lowerPrompt.includes('move') && canvasState.selectedObjectIds?.length > 0) {
-    let newPosition
+  // Move commands - handle both selected objects and implicit targeting
+  if (lowerPrompt.includes('move')) {
+    // Extract movement amount from prompt (defaults to 100 if no number specified)
+    const moveAmountMatch = prompt.match(/(\d+)\s*(?:px|pixels?)?/i)
+    const moveAmount = moveAmountMatch ? parseInt(moveAmountMatch[1]) : 100
     
-    if (lowerPrompt.includes('center')) {
-      newPosition = { x: 2500, y: 2500 }
-    } else {
-      // Calculate delta movement
-      let deltaX = 50, deltaY = 50
-      if (lowerPrompt.includes('left')) deltaX = -100
-      if (lowerPrompt.includes('right')) deltaX = 100
-      if (lowerPrompt.includes('up')) deltaY = -100
-      if (lowerPrompt.includes('down')) deltaY = 100
-      
-      // For now, use delta - could be enhanced to calculate absolute positions
-      newPosition = { deltaX, deltaY }
+    // Determine direction
+    let direction = { x: 0, y: 0 }
+    if (lowerPrompt.includes('left')) {
+      direction = { x: -moveAmount, y: 0 }
+    } else if (lowerPrompt.includes('right')) {
+      direction = { x: moveAmount, y: 0 }
+    } else if (lowerPrompt.includes('up')) {
+      direction = { x: 0, y: -moveAmount }
+    } else if (lowerPrompt.includes('down')) {
+      direction = { x: 0, y: moveAmount }
+    } else if (lowerPrompt.includes('center')) {
+      // Special case for centering - use absolute position
+      // This would need different handling in executor
+      direction = { x: 2500, y: 2500, absolute: true }
     }
-
-    canvasState.selectedObjectIds.forEach(objectId => {
+    
+    // Handle movement for selected objects or most recent object
+    const targetObjects = canvasState.selectedObjectIds?.length > 0 
+      ? canvasState.selectedObjectIds 
+      : ['lastCreated'] // Special identifier for most recently created object
+    
+    targetObjects.forEach(objectId => {
       commands.push({
-        type: 'moveShape',
-        targetId: objectId,
-        newPosition
+        type: 'moveObject',
+        objectId,
+        offset: direction
       })
     })
   }
@@ -307,15 +341,20 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
   }
 
   // Rotation commands
-  if (lowerPrompt.includes('rotate') && canvasState.selectedObjectIds?.length > 0) {
+  if (lowerPrompt.includes('rotate')) {
     const angleMatch = prompt.match(/(\d+)\s*degrees?/i)
-    const angle = angleMatch ? parseInt(angleMatch[1]) : 45
+    const rotation = angleMatch ? parseInt(angleMatch[1]) : 45
     
-    canvasState.selectedObjectIds.forEach(objectId => {
+    // Handle rotation for selected objects or most recent object
+    const targetObjects = canvasState.selectedObjectIds?.length > 0 
+      ? canvasState.selectedObjectIds 
+      : ['lastCreated'] // Special identifier for most recently created object
+    
+    targetObjects.forEach(objectId => {
       commands.push({
         type: 'rotateShape',
-        targetId: objectId,
-        angle
+        objectId,
+        rotation
       })
     })
   }

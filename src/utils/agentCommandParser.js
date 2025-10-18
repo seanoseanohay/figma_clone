@@ -439,11 +439,15 @@ const applyCommandDefaults = (command) => {
     case 'moveObject':
     case 'resizeObject':
     case 'rotateObject':
+      withDefaults.animate = withDefaults.animate ?? false
+      withDefaults.objectId = withDefaults.objectId || 'lastCreated'
+      break
+      
     case 'moveShape':
     case 'resizeShape':
     case 'rotateShape':
       withDefaults.animate = withDefaults.animate ?? false
-      withDefaults.targetId = withDefaults.targetId || 'lastCreated'
+      withDefaults.objectId = withDefaults.objectId || 'lastCreated'
       break
       
     case 'arrangeLayout':

@@ -97,11 +97,21 @@ export const createObject = async (type, position, canvasId, properties = {}) =>
  */
 export const updateObject = async (objectId, updates) => {
   try {
+    if (objectId === null || objectId === undefined) {
+      throw new Error('updateObject called with null or undefined objectId')
+    }
+    
+    if (typeof objectId !== 'string' || objectId.trim().length === 0) {
+      throw new Error(`updateObject called with invalid objectId: ${JSON.stringify(objectId)}`)
+    }
+    
     if (!auth.currentUser) {
       throw new Error('User must be authenticated to update objects')
     }
 
-    const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId)
+    console.log('Updating object:', objectId, 'with updates:', updates)
+    
+    const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId.trim())
     
     const updateData = {
       ...updates,
@@ -110,7 +120,7 @@ export const updateObject = async (objectId, updates) => {
     }
 
     await updateDoc(docRef, updateData)
-    console.log('Canvas object updated:', objectId)
+    console.log('Canvas object updated successfully:', objectId)
   } catch (error) {
     console.error('Error updating canvas object:', error)
     throw error

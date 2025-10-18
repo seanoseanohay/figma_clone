@@ -23,6 +23,43 @@ import { broadcastAgentAction, setAgentStatus, clearAgentStatus, createAgentActi
  */
 
 /**
+ * Resolve special object IDs like "lastCreated" to actual Firestore document IDs
+ * @param {string} objectId - Object ID (may be "lastCreated" or actual ID)
+ * @param {string} canvasId - Current canvas ID
+ * @returns {Promise<string|null>} - Resolved object ID or null if not found
+ */
+async function resolveObjectId(objectId, canvasId) {
+  try {
+    // If it's already a valid Firestore ID (not starting with "last"), return it
+    if (objectId && !objectId.startsWith('last')) {
+      return objectId
+    }
+
+    // Otherwise, fetch the latest created object for this canvas
+    const objects = await getCanvasObjects(canvasId)
+    if (!objects || objects.length === 0) {
+      console.warn('No objects found on canvas to resolve "lastCreated"')
+      return null
+    }
+
+    // Sort by creation time and pick the last one (most recently created)
+    const sortedObjects = objects.sort((a, b) => {
+      const timeA = a.createdAt?.seconds || 0
+      const timeB = b.createdAt?.seconds || 0
+      return timeB - timeA // Most recent first
+    })
+    
+    const lastObject = sortedObjects[0]
+    console.log(`Resolved "${objectId}" to object ID: ${lastObject.id}`)
+    return lastObject.id
+    
+  } catch (error) {
+    console.error('Error resolving object ID:', error)
+    return null
+  }
+}
+
+/**
  * Execute a complete AI agent response
  * @param {Object} agentResponse - Parsed AI agent response
  * @param {string} canvasId - Target canvas ID
@@ -277,7 +314,7 @@ const executeCommand = async (command, canvasId, options = {}) => {
         
       case 'rotateShape':
         await executeRotateShape(command, canvasId)
-        result.objectId = command.targetId
+        result.objectId = command.objectId || command.targetId
         break
         
       // Layout commands
@@ -412,12 +449,47 @@ const executeCreateStar = async (command, canvasId) => {
  * Execute moveObject command
  */
 const executeMoveObject = async (command, canvasId) => {
-  const { objectId, position, animate } = command
+  const { objectId, position, offset, animate } = command
   
-  await updateObjectPosition(objectId, {
-    x: position.x,
-    y: position.y
-  }, true) // finalUpdate = true
+  // Resolve the object ID (handles "lastCreated" and validates real IDs)
+  const resolvedId = await resolveObjectId(objectId, canvasId)
+  if (!resolvedId) {
+    console.warn('moveObject failed: could not resolve object ID', { 
+      command, 
+      objectId, 
+      canvasId 
+    })
+    throw new Error(`Could not find object to move: ${objectId}`)
+  }
+  
+  console.log(`Moving object ${resolvedId}`)
+  
+  // Support both new offset-based movement and legacy absolute position
+  if (offset) {
+    // New schema: relative movement with offset
+    // Get current position first, then apply offset
+    const objects = await getCanvasObjects(canvasId)
+    const targetObject = objects.find(obj => obj.id === resolvedId)
+    
+    if (!targetObject) {
+      throw new Error(`Object not found for movement: ${resolvedId}`)
+    }
+    
+    const newPosition = {
+      x: (targetObject.x || 0) + offset.x,
+      y: (targetObject.y || 0) + offset.y
+    }
+    
+    await updateObjectPosition(resolvedId, newPosition, true) // finalUpdate = true
+  } else if (position) {
+    // Legacy schema: absolute position
+    await updateObjectPosition(resolvedId, {
+      x: position.x,
+      y: position.y
+    }, true) // finalUpdate = true
+  } else {
+    throw new Error('moveObject requires either offset or position')
+  }
   
   // TODO: Handle animation if requested
   if (animate) {
@@ -615,15 +687,29 @@ const executeResizeShape = async (command, canvasId) => {
  * Execute rotateShape command (new natural language version)
  */
 const executeRotateShape = async (command, canvasId) => {
-  const { targetId, angle, animate } = command
+  const { objectId, targetId, rotation, angle, animate } = command
   
-  if (targetId === 'lastCreated') {
-    console.log('rotateShape targeting lastCreated - would need to track last created object')
-    return
+  // Support both objectId (new schema) and targetId (legacy)
+  const rawObjectId = objectId || targetId
+  
+  // Resolve the object ID (handles "lastCreated" and validates real IDs)
+  const resolvedId = await resolveObjectId(rawObjectId, canvasId)
+  if (!resolvedId) {
+    console.warn('rotateShape failed: could not resolve object ID', { 
+      command, 
+      rawObjectId, 
+      canvasId 
+    })
+    throw new Error(`Could not find object to rotate: ${rawObjectId}`)
   }
   
-  await updateObject(targetId, {
-    rotation: angle
+  // Use rotation (new schema) or angle (legacy)
+  const rotationValue = rotation !== undefined ? rotation : angle
+  
+  console.log(`Rotating object ${resolvedId} by ${rotationValue} degrees`)
+  
+  await updateObject(resolvedId, {
+    rotation: rotationValue
   })
   
   if (animate) {
