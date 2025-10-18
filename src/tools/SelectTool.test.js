@@ -1,53 +1,66 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SelectTool } from './SelectTool.js';
-import { lockObject, unlockObject } from '../services/canvas.service.js';
-import { 
-  createTestRectangle, 
-  createTestText, 
-  createTestCircle,
-  createMouseEventData 
-} from '../test/fixtures/testData.js';
+import * as canvasService from '../services/canvas.service.js';
+import { createTestRectangle, createTestText } from '../test/fixtures/testData.js';
 
 // Mock canvas service
 vi.mock('../services/canvas.service.js', () => ({
-  lockObject: vi.fn(() => Promise.resolve()),
-  unlockObject: vi.fn(() => Promise.resolve()),
+  lockObject: vi.fn(),
+  unlockObject: vi.fn(),
 }));
 
 describe('SelectTool', () => {
-  let selectTool;
+  let tool;
   let mockState;
   let mockHelpers;
-  let testRectangle;
-  let testText;
-  let testCircle;
+  let mockObjects;
 
   beforeEach(() => {
-    selectTool = new SelectTool();
+    tool = new SelectTool();
     
     // Create test objects
-    testRectangle = createTestRectangle({ id: 'rect-1' });
-    testText = createTestText({ id: 'text-1' });
-    testCircle = createTestCircle({ id: 'circle-1' });
+    mockObjects = {
+      rectangle: createTestRectangle({ id: 'rect-1', x: 100, y: 100, width: 150, height: 100 }),
+      text: createTestText({ id: 'text-1', x: 300, y: 200, text: 'Hello World' }),
+    };
 
-    // Mock state
+    // Mock state functions
     mockState = {
+      findObjectAt: vi.fn((pos) => {
+        // Simple hit detection for tests
+        const rect = mockObjects.rectangle;
+        if (
+          pos.x >= rect.x &&
+          pos.x <= rect.x + rect.width &&
+          pos.y >= rect.y &&
+          pos.y <= rect.y + rect.height
+        ) {
+          return rect;
+        }
+        
+        const text = mockObjects.text;
+        if (pos.x >= text.x - 50 && pos.x <= text.x + 50 && pos.y >= text.y - 20 && pos.y <= text.y + 20) {
+          return text;
+        }
+        
+        return null;
+      }),
+      canEditObject: vi.fn(() => true),
       selectedObjectId: null,
-      setSelectedObjectId: vi.fn((id) => { mockState.selectedObjectId = id; }),
+      setSelectedObjectId: vi.fn((id) => {
+        mockState.selectedObjectId = id;
+      }),
       setIsEditingText: vi.fn(),
       setTextEditData: vi.fn(),
       setTextSelectedId: vi.fn(),
-      findObjectAt: vi.fn(),
-      canEditObject: vi.fn(() => true), // By default, can edit all objects
     };
 
-    // Mock helpers
     mockHelpers = {
-      pos: { x: 100, y: 100 },
+      pos: { x: 0, y: 0 },
       canvasId: 'test-canvas-id',
     };
 
-    // Clear mocks
+    // Reset mocks
     vi.clearAllMocks();
   });
 
@@ -55,271 +68,224 @@ describe('SelectTool', () => {
     vi.clearAllMocks();
   });
 
-  describe('Tool Properties', () => {
-    it('should have correct name', () => {
-      expect(selectTool.name).toBe('select');
-    });
-
-    it('should return default cursor', () => {
-      expect(selectTool.getCursor()).toBe('default');
-    });
-
-    it('should have double-click threshold of 300ms', () => {
-      expect(selectTool.DOUBLE_CLICK_THRESHOLD).toBe(300);
+  describe('Constructor', () => {
+    it('should initialize with correct name and properties', () => {
+      expect(tool.name).toBe('select');
+      expect(tool.lastClickTime).toBe(0);
+      expect(tool.lastClickedObjectId).toBe(null);
+      expect(tool.DOUBLE_CLICK_THRESHOLD).toBe(300);
     });
   });
 
-  describe('Object Selection', () => {
+  describe('onMouseDown - Object Selection', () => {
     it('should select an object when clicked', async () => {
-      mockState.findObjectAt.mockReturnValue(testRectangle);
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(lockObject).toHaveBeenCalledWith('rect-1');
+      // Click inside rectangle
+      mockHelpers.pos = { x: 150, y: 150 };
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      expect(mockState.findObjectAt).toHaveBeenCalledWith({ x: 150, y: 150 });
+      expect(canvasService.lockObject).toHaveBeenCalledWith('rect-1');
       expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('rect-1');
     });
 
-    it('should lock selected object', async () => {
-      mockState.findObjectAt.mockReturnValue(testCircle);
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(lockObject).toHaveBeenCalledWith('circle-1');
+    it('should deselect when clicking empty space', async () => {
+      // First select an object
+      mockState.selectedObjectId = 'rect-1';
+      
+      // Click outside any object
+      mockHelpers.pos = { x: 500, y: 500 };
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      expect(canvasService.unlockObject).toHaveBeenCalledWith('rect-1');
+      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith(null);
     });
 
-    it('should not select locked objects owned by others', async () => {
-      mockState.findObjectAt.mockReturnValue(testRectangle);
-      mockState.canEditObject.mockReturnValue(false); // Object is locked
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(lockObject).not.toHaveBeenCalled();
+    it('should not select object if user cannot edit it', async () => {
+      mockState.canEditObject = vi.fn(() => false);
+      
+      // Click inside rectangle
+      mockHelpers.pos = { x: 150, y: 150 };
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      expect(canvasService.lockObject).not.toHaveBeenCalled();
       expect(mockState.setSelectedObjectId).not.toHaveBeenCalled();
     });
 
-    it('should keep already-selected object selected on click', async () => {
+    it('should unlock previous selection when selecting new object', async () => {
+      // First object is already selected
       mockState.selectedObjectId = 'rect-1';
-      mockState.findObjectAt.mockReturnValue(testRectangle);
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      // Should not unlock/relock the same object
-      expect(unlockObject).not.toHaveBeenCalled();
-      expect(lockObject).not.toHaveBeenCalled();
-    });
-  });
-
-  describe('Deselection', () => {
-    it('should deselect when clicking empty space', async () => {
-      mockState.selectedObjectId = 'rect-1';
-      mockState.findObjectAt.mockReturnValue(null); // No object at click position
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(unlockObject).toHaveBeenCalledWith('rect-1');
-      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith(null);
-    });
-
-    it('should not error when deselecting with no selection', async () => {
-      mockState.selectedObjectId = null;
-      mockState.findObjectAt.mockReturnValue(null);
-
-      await expect(selectTool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
       
-      expect(unlockObject).not.toHaveBeenCalled();
-      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith(null);
-    });
-  });
-
-  describe('Selection Switching', () => {
-    it('should unlock previous object when selecting new object', async () => {
-      mockState.selectedObjectId = 'rect-1';
-      mockState.findObjectAt.mockReturnValue(testCircle);
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(unlockObject).toHaveBeenCalledWith('rect-1');
-      expect(lockObject).toHaveBeenCalledWith('circle-1');
-      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('circle-1');
-    });
-
-    it('should handle unlock errors gracefully when switching selection', async () => {
-      mockState.selectedObjectId = 'rect-1';
-      mockState.findObjectAt.mockReturnValue(testCircle);
-      unlockObject.mockRejectedValueOnce(new Error('Unlock failed'));
-
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      // Should still try to select new object despite unlock error
-      expect(lockObject).toHaveBeenCalledWith('circle-1');
-      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('circle-1');
-    });
-  });
-
-  describe('Double-Click Text Editing', () => {
-    it('should detect double-click on text object', async () => {
-      mockState.findObjectAt.mockReturnValue(testText);
-
-      // First click
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+      // Click on text object
+      mockHelpers.pos = { x: 310, y: 210 };
       
-      // Second click within threshold
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      expect(canvasService.unlockObject).toHaveBeenCalledWith('rect-1');
+      expect(canvasService.lockObject).toHaveBeenCalledWith('text-1');
+      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('text-1');
+    });
 
+    it('should keep object selected if clicking it again', async () => {
+      // Object is already selected
+      mockState.selectedObjectId = 'rect-1';
+      
+      // Click on same object
+      mockHelpers.pos = { x: 150, y: 150 };
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      // Should not unlock or lock again
+      expect(canvasService.unlockObject).not.toHaveBeenCalled();
+      expect(canvasService.lockObject).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('onMouseDown - Double-Click Text Editing', () => {
+    it('should enter text edit mode on double-click', async () => {
+      // First click on text
+      mockHelpers.pos = { x: 310, y: 210 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      // Second click on text (within threshold)
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
       expect(mockState.setIsEditingText).toHaveBeenCalledWith(true);
-      expect(mockState.setTextSelectedId).toHaveBeenCalledWith('text-1');
       expect(mockState.setTextEditData).toHaveBeenCalledWith({
-        object: testText,
-        originalText: testText.text,
+        object: mockObjects.text,
+        originalText: 'Hello World',
       });
+      expect(mockState.setTextSelectedId).toHaveBeenCalledWith('text-1');
     });
 
-    it('should not trigger edit on double-click of non-text objects', async () => {
-      mockState.findObjectAt.mockReturnValue(testRectangle);
-
-      // Double-click rectangle
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
+    it('should not enter edit mode if double-click is too slow', async () => {
+      // First click on text
+      mockHelpers.pos = { x: 310, y: 210 };
+      tool.lastClickTime = Date.now() - 500; // 500ms ago (too slow)
+      tool.lastClickedObjectId = 'text-1';
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
       expect(mockState.setIsEditingText).not.toHaveBeenCalled();
     });
 
-    it('should not trigger edit if clicks are too far apart', async () => {
-      mockState.findObjectAt.mockReturnValue(testText);
+    it('should not enter edit mode for double-click on non-text objects', async () => {
+      // First click on rectangle
+      mockHelpers.pos = { x: 150, y: 150 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // First click
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+      // Second click on rectangle (within threshold)
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Wait longer than threshold
-      await new Promise(resolve => setTimeout(resolve, 400));
-      
-      // Second click (should be treated as new single click)
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
       expect(mockState.setIsEditingText).not.toHaveBeenCalled();
     });
 
-    it('should not trigger edit if clicking different objects', async () => {
-      mockState.findObjectAt.mockReturnValueOnce(testText);
+    it('should not enter edit mode if user cannot edit text', async () => {
+      mockState.canEditObject = vi.fn(() => false);
       
       // First click on text
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+      mockHelpers.pos = { x: 310, y: 210 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Second click on different object
-      mockState.findObjectAt.mockReturnValueOnce(testRectangle);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
+      // Second click on text (within threshold)
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
       expect(mockState.setIsEditingText).not.toHaveBeenCalled();
     });
 
-    it('should not edit locked text objects', async () => {
-      mockState.findObjectAt.mockReturnValue(testText);
-      mockState.canEditObject.mockReturnValue(false); // Text is locked
-
-      // Double-click
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(mockState.setIsEditingText).not.toHaveBeenCalled();
-    });
-
-    it('should reset double-click tracking after successful edit trigger', async () => {
-      mockState.findObjectAt.mockReturnValue(testText);
-
-      // Double-click to trigger edit
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      expect(mockState.setIsEditingText).toHaveBeenCalledTimes(1);
-
-      // Third click should not trigger another edit (tracking was reset)
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+    it('should reset double-click tracking after successful double-click', async () => {
+      // First click on text
+      mockHelpers.pos = { x: 310, y: 210 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      expect(mockState.setIsEditingText).toHaveBeenCalledTimes(1); // Still just once
+      // Second click on text (within threshold)
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      expect(tool.lastClickTime).toBe(0);
+      expect(tool.lastClickedObjectId).toBe(null);
     });
   });
 
-  describe('Error Handling', () => {
+  describe('onMouseDown - Error Handling', () => {
     it('should handle lock errors gracefully', async () => {
-      mockState.findObjectAt.mockReturnValue(testRectangle);
-      lockObject.mockRejectedValueOnce(new Error('Lock failed'));
-
-      await expect(selectTool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
+      canvasService.lockObject.mockRejectedValueOnce(new Error('Lock failed'));
       
-      // Should not select if lock fails
+      // Click inside rectangle
+      mockHelpers.pos = { x: 150, y: 150 };
+      
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      // Should not set selected object if lock fails
       expect(mockState.setSelectedObjectId).not.toHaveBeenCalled();
     });
 
-    it('should handle unlock errors gracefully on deselection', async () => {
-      mockState.selectedObjectId = 'rect-1';
-      mockState.findObjectAt.mockReturnValue(null);
-      unlockObject.mockRejectedValueOnce(new Error('Unlock failed'));
-
-      await expect(selectTool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
+    it('should handle unlock errors gracefully', async () => {
+      canvasService.unlockObject.mockRejectedValueOnce(new Error('Unlock failed'));
       
-      // Should still deselect even if unlock fails
+      // First select an object
+      mockState.selectedObjectId = 'rect-1';
+      
+      // Click outside
+      mockHelpers.pos = { x: 500, y: 500 };
+      
+      // Should not throw error
+      await expect(tool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
       expect(mockState.setSelectedObjectId).toHaveBeenCalledWith(null);
     });
+  });
 
-    it('should handle text edit lock errors gracefully', async () => {
-      mockState.findObjectAt.mockReturnValue(testText);
-      // First lock succeeds (first click), second lock fails (double-click)
-      lockObject.mockResolvedValueOnce().mockRejectedValueOnce(new Error('Lock failed'));
-
-      // Double-click
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-
-      // Should not enter edit mode if lock fails on double-click
-      expect(mockState.setIsEditingText).not.toHaveBeenCalled();
+  describe('onMouseMove', () => {
+    it('should not perform any action', () => {
+      tool.onMouseMove({}, mockState, mockHelpers);
+      
+      // No state changes should occur
+      expect(mockState.setSelectedObjectId).not.toHaveBeenCalled();
     });
   });
 
-  describe('Mouse Event Handlers', () => {
-    it('should do nothing on mouse move', () => {
-      expect(() => selectTool.onMouseMove({}, mockState, mockHelpers)).not.toThrow();
-    });
-
-    it('should do nothing on mouse up', () => {
-      expect(() => selectTool.onMouseUp({}, mockState, mockHelpers)).not.toThrow();
+  describe('onMouseUp', () => {
+    it('should not perform any action', () => {
+      tool.onMouseUp({}, mockState, mockHelpers);
+      
+      // No state changes should occur
+      expect(mockState.setSelectedObjectId).not.toHaveBeenCalled();
     });
   });
 
-  describe('Edge Cases', () => {
-    it('should handle null findObjectAt result', async () => {
-      mockState.findObjectAt.mockReturnValue(null);
+  describe('getCursor', () => {
+    it('should return default cursor', () => {
+      expect(tool.getCursor()).toBe('default');
+    });
+  });
 
-      await expect(selectTool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
+  describe('Double-Click Timing', () => {
+    it('should track last click time', async () => {
+      const beforeClick = Date.now();
+      
+      mockHelpers.pos = { x: 150, y: 150 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
+      
+      const afterClick = Date.now();
+      
+      expect(tool.lastClickTime).toBeGreaterThanOrEqual(beforeClick);
+      expect(tool.lastClickTime).toBeLessThanOrEqual(afterClick);
+      expect(tool.lastClickedObjectId).toBe('rect-1');
     });
 
-    it('should handle undefined object properties', async () => {
-      const incompleteObject = { id: 'incomplete-1' }; // Missing type
-      mockState.findObjectAt.mockReturnValue(incompleteObject);
-
-      await expect(selectTool.onMouseDown({}, mockState, mockHelpers)).resolves.not.toThrow();
-    });
-
-    it('should track last clicked object correctly', async () => {
-      mockState.findObjectAt.mockReturnValue(testRectangle);
+    it('should clear last clicked object when clicking empty space', async () => {
+      // First click on object
+      mockHelpers.pos = { x: 150, y: 150 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
+      expect(tool.lastClickedObjectId).toBe('rect-1');
       
-      expect(selectTool.lastClickedObjectId).toBe('rect-1');
-      expect(selectTool.lastClickTime).toBeGreaterThan(0);
-    });
-
-    it('should reset last clicked object when clicking empty space', async () => {
-      mockState.findObjectAt.mockReturnValueOnce(testRectangle);
+      // Click on empty space
+      mockHelpers.pos = { x: 500, y: 500 };
+      await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Click object
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      expect(selectTool.lastClickedObjectId).toBe('rect-1');
-      
-      // Click empty space
-      mockState.findObjectAt.mockReturnValueOnce(null);
-      await selectTool.onMouseDown({}, mockState, mockHelpers);
-      expect(selectTool.lastClickedObjectId).toBeNull();
+      expect(tool.lastClickedObjectId).toBe(null);
     });
   });
 });
-

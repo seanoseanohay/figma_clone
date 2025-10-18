@@ -3,23 +3,34 @@ import { renderHook, act } from '@testing-library/react'
 
 // Mock the presence service
 vi.mock('../../services/presence.service.js', () => ({
-  subscribeToGlobalPresence: vi.fn(),
+  subscribeToCanvasPresence: vi.fn(),
   getOnlineUserCount: vi.fn(),
   isUserRecentlyActive: vi.fn()
 }))
 
+// Mock the useCanvas hook
+vi.mock('../useCanvas.js', () => ({
+  useCanvas: vi.fn()
+}))
+
 // Import after mocking
-import { subscribeToGlobalPresence, getOnlineUserCount, isUserRecentlyActive } from '../../services/presence.service.js'
+import { subscribeToCanvasPresence, getOnlineUserCount, isUserRecentlyActive } from '../../services/presence.service.js'
+import { useCanvas } from '../useCanvas.js'
 import { usePresence } from '../usePresence.js'
 
 describe('usePresence Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    
+    // Mock useCanvas to provide test canvasId
+    useCanvas.mockReturnValue({
+      canvasId: 'test-canvas-id'
+    })
   })
 
   it('initializes with empty users array', () => {
     // Mock subscription to return no-op unsubscribe
-    subscribeToGlobalPresence.mockReturnValue(() => {})
+    subscribeToCanvasPresence.mockReturnValue(() => {})
     
     const { result } = renderHook(() => usePresence())
     
@@ -29,16 +40,16 @@ describe('usePresence Hook', () => {
   })
 
   it('subscribes to presence updates on mount', () => {
-    subscribeToGlobalPresence.mockReturnValue(() => {})
+    subscribeToCanvasPresence.mockReturnValue(() => {})
     
     renderHook(() => usePresence())
     
-    expect(subscribeToGlobalPresence).toHaveBeenCalledWith(expect.any(Function))
+    expect(subscribeToCanvasPresence).toHaveBeenCalledWith('test-canvas-id', expect.any(Function))
   })
 
   it('unsubscribes on unmount', () => {
     const mockUnsubscribe = vi.fn()
-    subscribeToGlobalPresence.mockReturnValue(mockUnsubscribe)
+    subscribeToCanvasPresence.mockReturnValue(mockUnsubscribe)
     
     const { unmount } = renderHook(() => usePresence())
     
@@ -52,17 +63,17 @@ describe('usePresence Hook', () => {
   it('updates users when presence data changes', () => {
     let presenceCallback
     
-    subscribeToGlobalPresence.mockImplementation((callback) => {
+    subscribeToCanvasPresence.mockImplementation((canvasId, callback) => {
       presenceCallback = callback
       return () => {}
     })
     
     const { result } = renderHook(() => usePresence())
     
-    // Simulate presence update
+    // Simulate presence update (canvas-scoped presence data structure)
     const mockUsers = [
-      { uid: 'user1', displayName: 'User One', isOnline: true, lastSeen: Date.now() },
-      { uid: 'user2', displayName: 'User Two', isOnline: true, lastSeen: Date.now() - 5000 }
+      { userId: 'user1', displayName: 'User One', lastActive: Date.now(), connectedAt: Date.now() },
+      { userId: 'user2', displayName: 'User Two', lastActive: Date.now() - 5000, connectedAt: Date.now() - 5000 }
     ]
     
     act(() => {
@@ -76,7 +87,7 @@ describe('usePresence Hook', () => {
   it('calculates online count correctly', () => {
     let presenceCallback
     
-    subscribeToGlobalPresence.mockImplementation((callback) => {
+    subscribeToCanvasPresence.mockImplementation((canvasId, callback) => {
       presenceCallback = callback
       return () => {}
     })
@@ -86,10 +97,9 @@ describe('usePresence Hook', () => {
     const { result } = renderHook(() => usePresence())
     
     const mockUsers = [
-      { uid: 'user1', isOnline: true },
-      { uid: 'user2', isOnline: true },
-      { uid: 'user3', isOnline: true },
-      { uid: 'user4', isOnline: false }
+      { userId: 'user1', lastActive: Date.now() },
+      { userId: 'user2', lastActive: Date.now() },
+      { userId: 'user3', lastActive: Date.now() }
     ]
     
     act(() => {
@@ -101,7 +111,7 @@ describe('usePresence Hook', () => {
   })
 
   it('provides utility functions', () => {
-    subscribeToGlobalPresence.mockReturnValue(() => {})
+    subscribeToCanvasPresence.mockReturnValue(() => {})
     
     const { result } = renderHook(() => usePresence())
     
@@ -114,7 +124,7 @@ describe('usePresence Hook', () => {
   it('finds user by ID correctly', () => {
     let presenceCallback
     
-    subscribeToGlobalPresence.mockImplementation((callback) => {
+    subscribeToCanvasPresence.mockImplementation((canvasId, callback) => {
       presenceCallback = callback
       return () => {}
     })
@@ -122,8 +132,8 @@ describe('usePresence Hook', () => {
     const { result } = renderHook(() => usePresence())
     
     const mockUsers = [
-      { uid: 'user1', displayName: 'User One' },
-      { uid: 'user2', displayName: 'User Two' }
+      { userId: 'user1', displayName: 'User One' },
+      { userId: 'user2', displayName: 'User Two' }
     ]
     
     act(() => {
@@ -131,19 +141,19 @@ describe('usePresence Hook', () => {
     })
     
     const foundUser = result.current.getUserById('user1')
-    expect(foundUser).toEqual({ uid: 'user1', displayName: 'User One' })
+    expect(foundUser).toEqual({ userId: 'user1', displayName: 'User One' })
     
     const notFoundUser = result.current.getUserById('user999')
     expect(notFoundUser).toBeNull()
   })
 
   it('checks user activity correctly', () => {
-    subscribeToGlobalPresence.mockReturnValue(() => {})
+    subscribeToCanvasPresence.mockReturnValue(() => {})
     isUserRecentlyActive.mockReturnValue(true)
     
     const { result } = renderHook(() => usePresence())
     
-    const mockUser = { uid: 'user1', lastSeen: Date.now() - 10000 }
+    const mockUser = { userId: 'user1', lastActive: Date.now() - 10000 }
     
     const isActive = result.current.isUserActive(mockUser)
     
@@ -152,7 +162,7 @@ describe('usePresence Hook', () => {
   })
 
   it('handles subscription errors gracefully', () => {
-    subscribeToGlobalPresence.mockImplementation(() => {
+    subscribeToCanvasPresence.mockImplementation(() => {
       throw new Error('Subscription failed')
     })
     
@@ -166,7 +176,7 @@ describe('usePresence Hook', () => {
   it('filters and sorts users correctly', () => {
     let presenceCallback
     
-    subscribeToGlobalPresence.mockImplementation((callback) => {
+    subscribeToCanvasPresence.mockImplementation((canvasId, callback) => {
       presenceCallback = callback
       return () => {}
     })
@@ -174,18 +184,18 @@ describe('usePresence Hook', () => {
     const { result } = renderHook(() => usePresence())
     
     const mockUsers = [
-      { uid: 'user2', displayName: 'Beta User', joinedAt: Date.now() - 1000 },
-      { uid: 'user1', displayName: 'Alpha User', joinedAt: Date.now() },
-      { uid: 'user3', displayName: 'Gamma User', joinedAt: Date.now() - 2000 }
+      { userId: 'user2', displayName: 'Beta User', connectedAt: Date.now() - 1000 },
+      { userId: 'user1', displayName: 'Alpha User', connectedAt: Date.now() },
+      { userId: 'user3', displayName: 'Gamma User', connectedAt: Date.now() - 2000 }
     ]
     
     act(() => {
       presenceCallback(mockUsers)
     })
     
-    // Should be sorted by joinedAt (most recent first)
-    expect(result.current.users[0].uid).toBe('user1')
-    expect(result.current.users[1].uid).toBe('user2')
-    expect(result.current.users[2].uid).toBe('user3')
+    // Should be sorted by connectedAt (most recent first)
+    expect(result.current.users[0].userId).toBe('user1')
+    expect(result.current.users[1].userId).toBe('user2')
+    expect(result.current.users[2].userId).toBe('user3')
   })
 })

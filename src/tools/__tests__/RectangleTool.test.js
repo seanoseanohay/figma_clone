@@ -1,220 +1,301 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { RectangleTool } from '../RectangleTool'
+import { createObject } from '../../services/canvas.service.js'
+
+// Mock canvas service
+vi.mock('../../services/canvas.service.js', () => ({
+  createObject: vi.fn(() => Promise.resolve('new-rect-id')),
+}))
 
 describe('RectangleTool', () => {
   let rectangleTool
   let mockState
   let mockHelpers
-  let mockStage
+  let mockCurrentRect
 
   beforeEach(() => {
     rectangleTool = new RectangleTool()
     
+    mockCurrentRect = null
+    
     mockState = {
-      objects: [],
-      selectedObjectId: null,
-      isConnected: true,
-      stageX: 0,
-      stageY: 0,
-      stageScale: 1
+      isDrawing: false,
+      currentRect: null,
+      selectedColor: '#808080',
+      setIsDrawing: vi.fn((value) => { mockState.isDrawing = value }),
+      setCurrentRect: vi.fn((rect) => { 
+        mockCurrentRect = rect
+        mockState.currentRect = rect 
+      }),
+      setSelectedObjectId: vi.fn(),
+      onToolChange: vi.fn(),
     }
     
     mockHelpers = {
-      addObject: vi.fn(),
-      setSelectedObjectId: vi.fn(),
-      onToolChange: vi.fn()
+      pos: { x: 100, y: 100 },
+      canvasId: 'test-canvas',
     }
 
-    mockStage = {
-      getPointerPosition: vi.fn(() => ({ x: 100, y: 100 }))
-    }
+    // Clear mocks
+    createObject.mockClear()
+  })
+
+  afterEach(() => {
+    vi.clearAllMocks()
   })
 
   describe('onMouseDown', () => {
     it('should start rectangle creation at pointer position', () => {
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
       
-      expect(rectangleTool.startPoint).toEqual({ x: 100, y: 100 })
-      expect(rectangleTool.isDrawing).toBe(true)
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(true)
+      expect(mockState.setCurrentRect).toHaveBeenCalled()
+      expect(mockCurrentRect).toMatchObject({
+        x: 100,
+        y: 100,
+        width: 0,
+        height: 0,
+        fill: '#808080'
+      })
     })
 
-    it('should not start drawing when offline', () => {
-      mockState.isConnected = false
+    it('should use selected color when creating rectangle', () => {
+      mockState.selectedColor = '#FF5733'
       
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
       
-      expect(rectangleTool.isDrawing).toBe(false)
+      expect(mockCurrentRect.fill).toBe('#FF5733')
     })
 
-    it('should transform pointer position by stage offset and scale', () => {
-      mockState.stageX = -100
-      mockState.stageY = -50
-      mockState.stageScale = 2
+    it('should create rectangle within canvas bounds', () => {
+      mockHelpers.pos = { x: 50, y: 75 }
       
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
       
-      // startPoint should be transformed: (pointerX - stageX) / scale
-      // (100 - (-100)) / 2 = 100
-      // (100 - (-50)) / 2 = 75
-      expect(rectangleTool.startPoint.x).toBe(100)
-      expect(rectangleTool.startPoint.y).toBe(75)
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(true)
+      expect(mockCurrentRect).toMatchObject({
+        x: 50,
+        y: 75
+      })
     })
   })
 
   describe('onMouseMove', () => {
     beforeEach(() => {
       // Start drawing first
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
     })
 
-    it('should create preview rectangle during drag', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 200, y: 200 })
+    it('should update rectangle dimensions during drag', () => {
+      mockHelpers.pos = { x: 200, y: 200 }
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      expect(result.previewObject).toBeDefined()
-      expect(result.previewObject.type).toBe('rectangle')
-      expect(result.previewObject.width).toBe(100)
-      expect(result.previewObject.height).toBe(100)
+      expect(mockState.setCurrentRect).toHaveBeenCalled()
+      expect(mockCurrentRect.width).toBe(100)
+      expect(mockCurrentRect.height).toBe(100)
     })
 
     it('should calculate correct dimensions when dragging right-down', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 250, y: 300 })
+      mockHelpers.pos = { x: 250, y: 300 }
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      expect(result.previewObject.x).toBe(100)
-      expect(result.previewObject.y).toBe(100)
-      expect(result.previewObject.width).toBe(150)
-      expect(result.previewObject.height).toBe(200)
+      expect(mockCurrentRect.x).toBe(100)
+      expect(mockCurrentRect.y).toBe(100)
+      expect(mockCurrentRect.width).toBe(150)
+      expect(mockCurrentRect.height).toBe(200)
     })
 
     it('should calculate correct dimensions when dragging left-up', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 50, y: 50 })
+      mockHelpers.pos = { x: 50, y: 50 }
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      // When dragging left-up, x and y should be at pointer position
-      // and width/height should be positive
-      expect(result.previewObject.x).toBe(50)
-      expect(result.previewObject.y).toBe(50)
-      expect(result.previewObject.width).toBe(50)
-      expect(result.previewObject.height).toBe(50)
+      // Width and height can be negative during drag
+      expect(mockCurrentRect.width).toBe(-50)
+      expect(mockCurrentRect.height).toBe(-50)
     })
 
     it('should do nothing if not drawing', () => {
-      rectangleTool.isDrawing = false
+      mockState.isDrawing = false
+      mockState.currentRect = null
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      expect(result).toBeUndefined()
+      // Should not update when not drawing (only initial call from beforeEach)
+      expect(mockState.setCurrentRect).toHaveBeenCalledTimes(1)
     })
 
-    it('should enforce minimum rectangle size', () => {
-      // Move pointer just 1px away
-      mockStage.getPointerPosition.mockReturnValue({ x: 101, y: 101 })
+    it('should update dimensions continuously during drag', () => {
+      mockHelpers.pos = { x: 150, y: 150 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      mockHelpers.pos = { x: 200, y: 200 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      // Should still create preview with at least 1px dimensions
-      expect(result.previewObject.width).toBeGreaterThan(0)
-      expect(result.previewObject.height).toBeGreaterThan(0)
+      expect(mockCurrentRect.width).toBe(100)
+      expect(mockCurrentRect.height).toBe(100)
     })
   })
 
   describe('onMouseUp', () => {
     beforeEach(() => {
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
+      mockState.clampRectToCanvas = vi.fn((rect) => rect) // Simple passthrough
     })
 
-    it('should create rectangle and switch to arrow tool', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 200, y: 200 })
+    it('should create rectangle and reset drawing state', async () => {
+      // Drag to create a large enough rectangle
+      mockHelpers.pos = { x: 200, y: 200 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      rectangleTool.onMouseUp({}, mockStage, mockState, mockHelpers)
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
       
-      expect(mockHelpers.addObject).toHaveBeenCalledWith(
+      expect(createObject).toHaveBeenCalledWith(
+        'rectangle',
         expect.objectContaining({
-          type: 'rectangle',
           x: 100,
           y: 100,
           width: 100,
           height: 100
-        })
-      )
-      expect(mockHelpers.onToolChange).toHaveBeenCalled()
-    })
-
-    it('should not create rectangle if too small', () => {
-      // Move pointer only 2px away
-      mockStage.getPointerPosition.mockReturnValue({ x: 102, y: 102 })
-      
-      rectangleTool.onMouseUp({}, mockStage, mockState, mockHelpers)
-      
-      expect(mockHelpers.addObject).not.toHaveBeenCalled()
-    })
-
-    it('should include default styling properties', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 200, y: 200 })
-      
-      rectangleTool.onMouseUp({}, mockStage, mockState, mockHelpers)
-      
-      expect(mockHelpers.addObject).toHaveBeenCalledWith(
+        }),
+        'test-canvas',
         expect.objectContaining({
-          fill: expect.any(String),
-          stroke: expect.any(String),
-          strokeWidth: expect.any(Number)
+          fill: '#808080',
+          stroke: '#333333',
+          strokeWidth: 1
+        })
+      )
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(false)
+      expect(mockState.setCurrentRect).toHaveBeenCalledWith(null)
+    })
+
+    it('should not create rectangle if too small', async () => {
+      // Drag only 1px (below minWidth of 2)
+      mockHelpers.pos = { x: 101, y: 100 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
+      
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
+      
+      expect(createObject).not.toHaveBeenCalled()
+      // Should still reset state
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(false)
+    })
+
+    it('should include styling properties with selected color', async () => {
+      mockState.selectedColor = '#FF5733'
+      mockHelpers.pos = { x: 200, y: 200 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
+      
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
+      
+      expect(createObject).toHaveBeenCalledWith(
+        'rectangle',
+        expect.anything(),
+        'test-canvas',
+        expect.objectContaining({
+          fill: '#FF5733',
+          stroke: '#333333',
+          strokeWidth: 1
         })
       )
     })
 
-    it('should reset drawing state after creation', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: 200, y: 200 })
+    it('should reset drawing state after creation', async () => {
+      mockHelpers.pos = { x: 200, y: 200 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      rectangleTool.onMouseUp({}, mockStage, mockState, mockHelpers)
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
       
-      expect(rectangleTool.isDrawing).toBe(false)
-      expect(rectangleTool.startPoint).toBeNull()
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(false)
+      expect(mockState.setCurrentRect).toHaveBeenCalledWith(null)
     })
 
-    it('should do nothing if not drawing', () => {
-      rectangleTool.isDrawing = false
+    it('should do nothing if not drawing', async () => {
+      mockState.isDrawing = false
+      mockState.currentRect = null
       
-      rectangleTool.onMouseUp({}, mockStage, mockState, mockHelpers)
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
       
-      expect(mockHelpers.addObject).not.toHaveBeenCalled()
+      expect(createObject).not.toHaveBeenCalled()
+    })
+
+    it('should normalize negative dimensions', async () => {
+      // Drag left-up (negative dimensions)
+      mockHelpers.pos = { x: 50, y: 50 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
+      
+      await rectangleTool.onMouseUp({}, mockState, mockHelpers)
+      
+      expect(createObject).toHaveBeenCalledWith(
+        'rectangle',
+        expect.objectContaining({
+          x: 50,     // Should be at the smaller x
+          y: 50,     // Should be at the smaller y
+          width: 50, // Should be positive
+          height: 50 // Should be positive
+        }),
+        expect.anything(),
+        expect.anything()
+      )
     })
   })
 
   describe('edge cases', () => {
-    it('should handle stage pointer returning null', () => {
-      mockStage.getPointerPosition.mockReturnValue(null)
+    it('should not start drawing outside canvas bounds', () => {
+      mockHelpers.pos = { x: -50, y: -50 }
       
-      expect(() => {
-        rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
-      }).not.toThrow()
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
+      
+      expect(mockState.setIsDrawing).not.toHaveBeenCalledWith(true)
     })
 
-    it('should handle negative coordinates', () => {
-      mockStage.getPointerPosition.mockReturnValue({ x: -50, y: -50 })
+    it('should handle negative coordinates during drag', () => {
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
+      mockHelpers.pos = { x: -50, y: -50 }
       
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
-      mockStage.getPointerPosition.mockReturnValue({ x: -150, y: -150 })
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      expect(result.previewObject).toBeDefined()
-      expect(result.previewObject.width).toBeGreaterThan(0)
-      expect(result.previewObject.height).toBeGreaterThan(0)
+      expect(mockCurrentRect.width).toBe(-150) // 100 to -50 = -150
+      expect(mockCurrentRect.height).toBe(-150)
     })
 
     it('should handle very large rectangles', () => {
-      rectangleTool.onMouseDown({}, mockStage, mockState, mockHelpers)
-      mockStage.getPointerPosition.mockReturnValue({ x: 100000, y: 100000 })
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
+      mockHelpers.pos = { x: 100000, y: 100000 }
       
-      const result = rectangleTool.onMouseMove({}, mockStage, mockState, mockHelpers)
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
       
-      expect(result.previewObject).toBeDefined()
-      expect(result.previewObject.width).toBe(99900)
-      expect(result.previewObject.height).toBe(99900)
+      expect(mockCurrentRect.width).toBe(99900)
+      expect(mockCurrentRect.height).toBe(99900)
+    })
+
+    it('should handle errors during save gracefully', async () => {
+      createObject.mockRejectedValueOnce(new Error('Firestore error'))
+      
+      rectangleTool.onMouseDown({}, mockState, mockHelpers)
+      mockHelpers.pos = { x: 200, y: 200 }
+      rectangleTool.onMouseMove({}, mockState, mockHelpers)
+      mockState.clampRectToCanvas = vi.fn((rect) => rect)
+      
+      // Should not throw
+      await expect(rectangleTool.onMouseUp({}, mockState, mockHelpers)).resolves.not.toThrow()
+      
+      // Should still reset state even on error
+      expect(mockState.setIsDrawing).toHaveBeenCalledWith(false)
+      expect(mockState.setCurrentRect).toHaveBeenCalledWith(null)
+    })
+  })
+
+  describe('tool properties', () => {
+    it('should have correct minimum dimensions', () => {
+      expect(rectangleTool.minWidth).toBe(2)
+      expect(rectangleTool.minHeight).toBe(1)
+    })
+
+    it('should return crosshair cursor', () => {
+      expect(rectangleTool.getCursor()).toBe('crosshair')
     })
   })
 })

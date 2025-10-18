@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { useState } from 'react'
 import Canvas from '../canvas/Canvas.jsx'
 import Toolbar, { TOOLS } from '../canvas/Toolbar.jsx'
+import { CanvasContext } from '../../contexts/CanvasContext.jsx'
 
 // Mock the constants
 vi.mock('../../constants/canvas.constants.js', () => ({
@@ -13,28 +14,39 @@ vi.mock('../../constants/canvas.constants.js', () => ({
   INITIAL_Y: 2500,
   INITIAL_ZOOM: 1,
   CANVAS_BACKGROUND: '#ffffff',
-  BOUNDARY_BACKGROUND: '#f0f0f0'
+  BOUNDARY_BACKGROUND: '#f0f0f0',
+  CURSOR_UPDATE_THROTTLE: 50
 }))
 
 // Integration component that combines Toolbar and Canvas like in App.jsx
 const CanvasWithToolbar = () => {
-  const [selectedTool, setSelectedTool] = useState(TOOLS.ARROW)
+  const [selectedTool, setSelectedTool] = useState(TOOLS.PAN)
   
   const handleToolChange = (tool) => {
     setSelectedTool(tool)
   }
   
+  // Mock canvas context value
+  const mockCanvasContext = {
+    canvasId: 'test-canvas-id',
+    canvasName: 'Test Canvas',
+    canvases: [{ id: 'test-canvas-id', name: 'Test Canvas' }],
+    loading: false
+  }
+  
   return (
-    <div>
-      <Toolbar 
-        selectedTool={selectedTool}
-        onToolChange={handleToolChange}
-      />
-      <Canvas 
-        selectedTool={selectedTool}
-        onToolChange={handleToolChange}
-      />
-    </div>
+    <CanvasContext.Provider value={mockCanvasContext}>
+      <div>
+        <Toolbar 
+          selectedTool={selectedTool}
+          onToolChange={handleToolChange}
+        />
+        <Canvas 
+          selectedTool={selectedTool}
+          onToolChange={handleToolChange}
+        />
+      </div>
+    </CanvasContext.Provider>
   )
 }
 
@@ -51,11 +63,11 @@ describe('Canvas Integration Tests', () => {
     )
     
     // Initially Arrow tool should be selected
-    const arrowButton = screen.getByTitle('Arrow Tool (Select)')
+    const arrowButton = screen.getByTitle('Select Tool (Press V)')
     expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
     
     // Click Hand tool
-    const handButton = screen.getByTitle('Hand Tool (Pan)')
+    const handButton = screen.getByTitle('Pan Tool (Hold Space)')
     fireEvent.click(handButton)
     
     // Hand tool should now be selected
@@ -86,7 +98,7 @@ describe('Canvas Integration Tests', () => {
     fireEvent.mouseUp(stage, { clientX: 200, clientY: 200 })
     
     // After rectangle creation, should auto-switch to Arrow tool
-    const arrowButton = screen.getByTitle('Arrow Tool (Select)')
+    const arrowButton = screen.getByTitle('Select Tool (Press V)')
     expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
     expect(rectangleButton).toHaveStyle({ backgroundColor: '#ffffff' })
   })
@@ -103,7 +115,7 @@ describe('Canvas Integration Tests', () => {
     fireEvent.click(rectangleButton)
     
     // Switch to Hand tool mid-operation
-    const handButton = screen.getByTitle('Hand Tool (Pan)')
+    const handButton = screen.getByTitle('Pan Tool (Hold Space)')
     fireEvent.click(handButton)
     
     // Hand tool should be selected
@@ -139,7 +151,7 @@ describe('Canvas Integration Tests', () => {
       fireEvent.mouseUp(stage, { clientX: 200, clientY: 200 })
       
       // Should auto-switch to Arrow tool
-      const arrowButton = screen.getByTitle('Arrow Tool (Select)')
+      const arrowButton = screen.getByTitle('Select Tool (Press V)')
       expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
       
       // Step 2: Select and move (simulated)
@@ -161,7 +173,7 @@ describe('Canvas Integration Tests', () => {
       const stage = screen.getByTestId('konva-stage')
       
       // Select Hand tool
-      const handButton = screen.getByTitle('Hand Tool (Pan)')
+      const handButton = screen.getByTitle('Pan Tool (Hold Space)')
       fireEvent.click(handButton)
       
       // Simulate panning
@@ -187,7 +199,7 @@ describe('Canvas Integration Tests', () => {
       expect(stage).toBeInTheDocument()
       
       // Switch to Hand tool and test zoom
-      const handButton = screen.getByTitle('Hand Tool (Pan)')
+      const handButton = screen.getByTitle('Pan Tool (Hold Space)')
       fireEvent.click(handButton)
       
       fireEvent.wheel(stage, { deltaY: 100 })
@@ -210,8 +222,8 @@ describe('Canvas Integration Tests', () => {
         </BrowserRouter>
       )
       
-      const handButton = screen.getByTitle('Hand Tool (Pan)')
-      const arrowButton = screen.getByTitle('Arrow Tool (Select)')
+      const handButton = screen.getByTitle('Pan Tool (Hold Space)')
+      const arrowButton = screen.getByTitle('Select Tool (Press V)')
       const rectangleButton = screen.getByTitle('Rectangle Tool')
       
       // Rapidly switch tools

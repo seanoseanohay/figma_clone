@@ -33,7 +33,8 @@ vi.mock('firebase/database', () => ({
   remove: vi.fn(() => Promise.resolve()),
   onDisconnect: vi.fn(() => ({ remove: vi.fn(() => Promise.resolve()) })),
   on: vi.fn(),
-  off: vi.fn()
+  off: vi.fn(),
+  onValue: vi.fn(() => vi.fn()) // Returns unsubscribe function
 }))
 
 // Import the service after mocking
@@ -41,13 +42,13 @@ import {
   updateCursorPosition,
   setUserOnline,
   setUserOffline,
-  subscribeToGlobalPresence,
+  subscribeToCanvasPresence,
   getOnlineUserCount,
   isUserRecentlyActive
 } from '../presence.service.js'
 
 import { rtdb, auth } from '../../services/firebase.js'
-import { ref, set, update, remove, onDisconnect, on, off } from 'firebase/database'
+import { ref, set, update, remove, onDisconnect, on, off, onValue } from 'firebase/database'
 
 describe('Presence Service', () => {
   beforeEach(() => {
@@ -56,16 +57,19 @@ describe('Presence Service', () => {
 
   describe('updateCursorPosition', () => {
     it('updates user cursor position in realtime database', async () => {
-      const position = { x: 100, y: 200 }
+      const canvasId = 'test-canvas-123'
+      const x = 100
+      const y = 200
       
-      await updateCursorPosition(position)
+      await updateCursorPosition(canvasId, x, y)
       
-      expect(ref).toHaveBeenCalledWith(rtdb, '/globalCanvas/users/test-user-123')
+      expect(ref).toHaveBeenCalledWith(rtdb, '/canvases/test-canvas-123/presence/test-user-123')
       expect(update).toHaveBeenCalledWith(
         expect.anything(),
         {
-          cursorPosition: position,
-          lastSeen: expect.any(Number)
+          cursorX: x,
+          cursorY: y,
+          lastActive: expect.any(Number)
         }
       )
     })
@@ -74,9 +78,9 @@ describe('Presence Service', () => {
       const originalUser = auth.currentUser
       auth.currentUser = null
       
-      const position = { x: 100, y: 200 }
+      const canvasId = 'test-canvas-123'
       
-      await expect(updateCursorPosition(position)).resolves.not.toThrow()
+      await expect(updateCursorPosition(canvasId, 100, 200)).resolves.not.toThrow()
       
       auth.currentUser = originalUser
     })
@@ -84,25 +88,30 @@ describe('Presence Service', () => {
 
   describe('setUserOnline', () => {
     it('sets user online status with profile info', async () => {
-      await setUserOnline()
+      const canvasId = 'test-canvas-123'
       
-      expect(ref).toHaveBeenCalledWith(rtdb, '/globalCanvas/users/test-user-123')
+      await setUserOnline(canvasId)
+      
+      expect(ref).toHaveBeenCalledWith(rtdb, '/canvases/test-canvas-123/presence/test-user-123')
       expect(set).toHaveBeenCalledWith(
         expect.anything(),
         {
-          uid: 'test-user-123',
+          userId: 'test-user-123',
           displayName: 'Test User',
           email: 'test@example.com',
-          isOnline: true,
-          joinedAt: expect.any(Number),
-          lastSeen: expect.any(Number),
-          cursorPosition: null
+          cursorColor: expect.any(String),
+          cursorX: null,
+          cursorY: null,
+          lastActive: expect.any(Number),
+          connectedAt: expect.any(Number)
         }
       )
     })
 
     it('sets up disconnect cleanup', async () => {
-      await setUserOnline()
+      const canvasId = 'test-canvas-123'
+      
+      await setUserOnline(canvasId)
       
       expect(onDisconnect).toHaveBeenCalled()
     })
@@ -110,38 +119,49 @@ describe('Presence Service', () => {
 
   describe('setUserOffline', () => {
     it('removes user from presence', async () => {
-      await setUserOffline()
+      const canvasId = 'test-canvas-123'
       
-      expect(ref).toHaveBeenCalledWith(rtdb, '/globalCanvas/users/test-user-123')
+      await setUserOffline(canvasId)
+      
+      expect(ref).toHaveBeenCalledWith(rtdb, '/canvases/test-canvas-123/presence/test-user-123')
       expect(remove).toHaveBeenCalled()
     })
   })
 
-  describe('subscribeToGlobalPresence', () => {
+  describe('subscribeToCanvasPresence', () => {
     it('subscribes to presence updates', () => {
+      const canvasId = 'test-canvas-123'
       const callback = vi.fn()
       
-      subscribeToGlobalPresence(callback)
+      subscribeToCanvasPresence(canvasId, callback)
       
-      expect(ref).toHaveBeenCalledWith(rtdb, '/globalCanvas/users')
-      expect(on).toHaveBeenCalledWith(expect.anything(), 'value', expect.any(Function))
+      expect(ref).toHaveBeenCalledWith(rtdb, '/canvases/test-canvas-123/presence')
+      expect(onValue).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.any(Function),
+        expect.any(Function) // Error handler
+      )
     })
 
     it('returns unsubscribe function', () => {
+      const canvasId = 'test-canvas-123'
       const callback = vi.fn()
+      const mockUnsubscribe = vi.fn()
+      onValue.mockReturnValueOnce(mockUnsubscribe)
       
-      const unsubscribe = subscribeToGlobalPresence(callback)
+      const unsubscribe = subscribeToCanvasPresence(canvasId, callback)
       
       expect(typeof unsubscribe).toBe('function')
       
       unsubscribe()
       
-      expect(off).toHaveBeenCalled()
+      expect(mockUnsubscribe).toHaveBeenCalled()
     })
   })
 
   describe('Performance and Throttling', () => {
     it('should handle high frequency cursor updates', async () => {
+      const canvasId = 'test-canvas-123'
       // Test multiple rapid cursor updates
       const positions = [
         { x: 10, y: 10 },
@@ -150,7 +170,7 @@ describe('Presence Service', () => {
       ]
       
       for (const position of positions) {
-        await updateCursorPosition(position)
+        await updateCursorPosition(canvasId, position.x, position.y)
       }
       
       expect(update).toHaveBeenCalledTimes(3)
@@ -160,13 +180,14 @@ describe('Presence Service', () => {
   describe('Utility Functions', () => {
     describe('getOnlineUserCount', () => {
       it('counts online users correctly', () => {
+        // In canvas-scoped presence, all users in the array are considered online
         const users = [
-          { uid: '1', isOnline: true },
-          { uid: '2', isOnline: false },
-          { uid: '3', isOnline: true }
+          { userId: '1', lastActive: Date.now() },
+          { userId: '2', lastActive: Date.now() - 10000 },
+          { userId: '3', lastActive: Date.now() - 20000 }
         ]
         
-        expect(getOnlineUserCount(users)).toBe(2)
+        expect(getOnlineUserCount(users)).toBe(3)
       })
 
       it('returns 0 for empty array', () => {
@@ -176,12 +197,12 @@ describe('Presence Service', () => {
 
     describe('isUserRecentlyActive', () => {
       it('returns true for recently active user', () => {
-        const user = { lastSeen: Date.now() - 10000 } // 10 seconds ago
+        const user = { lastActive: Date.now() - 10000 } // 10 seconds ago
         expect(isUserRecentlyActive(user)).toBe(true)
       })
 
       it('returns false for inactive user', () => {
-        const user = { lastSeen: Date.now() - 60000 } // 60 seconds ago
+        const user = { lastActive: Date.now() - 60000 } // 60 seconds ago (beyond 30s threshold)
         expect(isUserRecentlyActive(user)).toBe(false)
       })
     })
@@ -191,15 +212,17 @@ describe('Presence Service', () => {
     it('handles database errors gracefully in updateCursorPosition', async () => {
       update.mockRejectedValueOnce(new Error('Database error'))
       
-      const position = { x: 100, y: 200 }
+      const canvasId = 'test-canvas-123'
       
-      await expect(updateCursorPosition(position)).resolves.not.toThrow()
+      await expect(updateCursorPosition(canvasId, 100, 200)).resolves.not.toThrow()
     })
 
     it('handles database errors gracefully in setUserOnline', async () => {
       set.mockRejectedValueOnce(new Error('Database error'))
       
-      await expect(setUserOnline()).resolves.not.toThrow()
+      const canvasId = 'test-canvas-123'
+      
+      await expect(setUserOnline(canvasId)).resolves.not.toThrow()
     })
   })
 })

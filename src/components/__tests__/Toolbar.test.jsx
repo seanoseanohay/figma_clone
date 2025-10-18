@@ -5,29 +5,29 @@ import Toolbar, { TOOLS } from '../canvas/Toolbar.jsx'
 describe('Toolbar Component', () => {
   it('renders all three tool buttons', () => {
     const mockOnToolChange = vi.fn()
-    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.ARROW} />)
+    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.SELECT} />)
     
-    expect(screen.getByTitle('Hand Tool (Pan)')).toBeInTheDocument()
-    expect(screen.getByTitle('Arrow Tool (Select)')).toBeInTheDocument()
+    expect(screen.getByTitle('Pan Tool (Hold Space)')).toBeInTheDocument()
+    expect(screen.getByTitle('Select Tool (Press V)')).toBeInTheDocument()
     expect(screen.getByTitle('Rectangle Tool')).toBeInTheDocument()
   })
 
   it('shows correct visual feedback for selected tool', () => {
     const mockOnToolChange = vi.fn()
-    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.HAND} />)
+    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.PAN} />)
     
-    const handButton = screen.getByTitle('Hand Tool (Pan)')
-    const arrowButton = screen.getByTitle('Arrow Tool (Select)')
+    const panButton = screen.getByTitle('Pan Tool (Hold Space)')
+    const selectButton = screen.getByTitle('Select Tool (Press V)')
     
-    // Selected tool (Hand) should have blue background
-    expect(handButton).toHaveStyle({ backgroundColor: '#2563eb' })
-    // Unselected tool (Arrow) should have white background
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#ffffff' })
+    // Selected tool (Pan) should have blue background
+    expect(panButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    // Unselected tool (Select) should have white background
+    expect(selectButton).toHaveStyle({ backgroundColor: '#ffffff' })
   })
 
   it('calls onToolChange when tool is clicked', () => {
     const mockOnToolChange = vi.fn()
-    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.ARROW} />)
+    render(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.SELECT} />)
     
     const rectangleButton = screen.getByTitle('Rectangle Tool')
     fireEvent.click(rectangleButton)
@@ -45,32 +45,32 @@ describe('Toolbar Component', () => {
   it('updates visual feedback when selectedTool prop changes', () => {
     const mockOnToolChange = vi.fn()
     const { rerender } = render(
-      <Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.ARROW} />
+      <Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.SELECT} />
     )
     
-    let arrowButton = screen.getByTitle('Arrow Tool (Select)')
-    let handButton = screen.getByTitle('Hand Tool (Pan)')
+    let selectButton = screen.getByTitle('Select Tool (Press V)')
+    let panButton = screen.getByTitle('Pan Tool (Hold Space)')
     
-    // Initially Arrow is selected
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
-    expect(handButton).toHaveStyle({ backgroundColor: '#ffffff' })
+    // Initially Select is selected
+    expect(selectButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    expect(panButton).toHaveStyle({ backgroundColor: '#ffffff' })
     
-    // Re-render with Hand selected
-    rerender(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.HAND} />)
+    // Re-render with Pan selected
+    rerender(<Toolbar onToolChange={mockOnToolChange} selectedTool={TOOLS.PAN} />)
     
-    arrowButton = screen.getByTitle('Arrow Tool (Select)')
-    handButton = screen.getByTitle('Hand Tool (Pan)')
+    selectButton = screen.getByTitle('Select Tool (Press V)')
+    panButton = screen.getByTitle('Pan Tool (Hold Space)')
     
-    // Now Hand is selected
-    expect(handButton).toHaveStyle({ backgroundColor: '#2563eb' })
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#ffffff' })
+    // Now Pan is selected
+    expect(panButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    expect(selectButton).toHaveStyle({ backgroundColor: '#ffffff' })
   })
 
   it('has correct default selected tool', () => {
     const mockOnToolChange = vi.fn()
     render(<Toolbar onToolChange={mockOnToolChange} />)
     
-    const arrowButton = screen.getByTitle('Arrow Tool (Select)')
-    expect(arrowButton).toHaveStyle({ backgroundColor: '#2563eb' })
+    const panButton = screen.getByTitle('Pan Tool (Hold Space)')
+    expect(panButton).toHaveStyle({ backgroundColor: '#2563eb' })
   })
 })

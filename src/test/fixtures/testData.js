@@ -1,286 +1,201 @@
 /**
- * Test fixtures for shapes, users, canvases, and other test data
- * These factories create realistic test data with defaults that can be overridden
+ * Test data fixtures for consistent test data across test suites
  */
 
 /**
  * Create a test user
  */
-export function createTestUser(overrides = {}) {
-  return {
-    uid: 'test-user-id',
-    email: 'bobtester@test.com',
-    displayName: 'Bob Tester',
-    photoURL: null,
-    avatarColor: '#4F46E5',
-    ...overrides,
-  };
-}
+export const createTestUser = (overrides = {}) => ({
+  uid: 'test-user-id',
+  email: 'bobtester@test.com',
+  displayName: 'Bob Tester',
+  photoURL: null,
+  ...overrides,
+});
 
 /**
- * Create multiple test users for multi-user scenarios
+ * Create a second test user for multi-user scenarios
  */
-export function createTestUsers(count = 2) {
-  return Array.from({ length: count }, (_, i) => createTestUser({
-    uid: `test-user-${i + 1}`,
-    email: `user${i + 1}@test.com`,
-    displayName: `Test User ${i + 1}`,
-    avatarColor: ['#4F46E5', '#EF4444', '#10B981', '#F59E0B'][i % 4],
-  }));
-}
+export const createSecondTestUser = (overrides = {}) => ({
+  uid: 'test-user-2-id',
+  email: 'alice@test.com',
+  displayName: 'Alice Test',
+  photoURL: null,
+  ...overrides,
+});
 
 /**
  * Create a test canvas
  */
-export function createTestCanvas(overrides = {}) {
-  return {
-    id: 'test-canvas-id',
-    name: 'Test Canvas',
-    ownerId: 'test-user-id',
-    collaborators: [],
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-    updatedAt: new Date('2025-01-01T00:00:00Z'),
-    ...overrides,
-  };
-}
+export const createTestCanvas = (overrides = {}) => ({
+  id: 'test-canvas-id',
+  name: 'Test Canvas',
+  ownerId: 'test-user-id',
+  createdAt: new Date('2025-01-01T00:00:00Z'),
+  updatedAt: new Date('2025-01-01T00:00:00Z'),
+  ...overrides,
+});
 
 /**
- * Create a test rectangle shape
+ * Create a test rectangle object
  */
-export function createTestRectangle(overrides = {}) {
-  return {
-    id: `rect-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    type: 'rectangle',
-    x: 100,
-    y: 100,
-    width: 150,
-    height: 100,
-    fill: '#000000',
-    rotation: 0,
-    zIndex: 0,
-    createdBy: 'test-user-id',
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-    updatedAt: new Date('2025-01-01T00:00:00Z'),
-    ...overrides,
-  };
-}
+export const createTestRectangle = (overrides = {}) => ({
+  id: 'rect-1',
+  type: 'rectangle',
+  x: 100,
+  y: 100,
+  width: 150,
+  height: 100,
+  fill: '#3b82f6',
+  rotation: 0,
+  ownerId: 'test-user-id',
+  createdAt: new Date('2025-01-01T00:00:00Z'),
+  updatedAt: new Date('2025-01-01T00:00:00Z'),
+  zIndex: 0,
+  ...overrides,
+});
 
 /**
- * Create a test circle shape
+ * Create a test circle object
  */
-export function createTestCircle(overrides = {}) {
-  return {
-    id: `circle-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    type: 'circle',
-    x: 200,
-    y: 200,
-    radius: 75,
-    fill: '#FF0000',
-    rotation: 0,
-    zIndex: 0,
-    createdBy: 'test-user-id',
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-    updatedAt: new Date('2025-01-01T00:00:00Z'),
-    ...overrides,
-  };
-}
+export const createTestCircle = (overrides = {}) => ({
+  id: 'circle-1',
+  type: 'circle',
+  x: 300,
+  y: 200,
+  radius: 75,
+  fill: '#ef4444',
+  rotation: 0,
+  ownerId: 'test-user-id',
+  createdAt: new Date('2025-01-01T00:00:00Z'),
+  updatedAt: new Date('2025-01-01T00:00:00Z'),
+  zIndex: 1,
+  ...overrides,
+});
 
 /**
- * Create a test star shape
+ * Create a test star object
  */
-export function createTestStar(overrides = {}) {
-  return {
-    id: `star-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    type: 'star',
-    x: 300,
-    y: 300,
-    numPoints: 5,
-    innerRadius: 40,
-    outerRadius: 80,
-    fill: '#FFFF00',
-    rotation: 0,
-    zIndex: 0,
-    createdBy: 'test-user-id',
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-    updatedAt: new Date('2025-01-01T00:00:00Z'),
-    ...overrides,
-  };
-}
+export const createTestStar = (overrides = {}) => ({
+  id: 'star-1',
+  type: 'star',
+  x: 500,
+  y: 250,
+  numPoints: 5,
+  innerRadius: 30,
+  outerRadius: 60,
+  fill: '#fbbf24',
+  rotation: 0,
+  ownerId: 'test-user-id',
+  createdAt: new Date('2025-01-01T00:00:00Z'),
+  updatedAt: new Date('2025-01-01T00:00:00Z'),
+  zIndex: 2,
+  ...overrides,
+});
 
 /**
  * Create a test text object
  */
-export function createTestText(overrides = {}) {
-  return {
-    id: `text-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-    type: 'text',
-    x: 400,
-    y: 400,
-    text: 'Test Text',
-    fontSize: 24,
-    fontFamily: 'Arial',
-    fill: '#000000',
-    bold: false,
-    italic: false,
-    underline: false,
-    rotation: 0,
-    zIndex: 0,
-    createdBy: 'test-user-id',
-    createdAt: new Date('2025-01-01T00:00:00Z'),
-    updatedAt: new Date('2025-01-01T00:00:00Z'),
+export const createTestText = (overrides = {}) => ({
+  id: 'text-1',
+  type: 'text',
+  x: 150,
+  y: 350,
+  text: 'Hello World',
+  fontSize: 24,
+  fontFamily: 'Arial',
+  fill: '#000000',
+  bold: false,
+  italic: false,
+  underline: false,
+  rotation: 0,
+  ownerId: 'test-user-id',
+  createdAt: new Date('2025-01-01T00:00:00Z'),
+  updatedAt: new Date('2025-01-01T00:00:00Z'),
+  zIndex: 3,
+  ...overrides,
+});
+
+/**
+ * Create a test canvas state with multiple objects
+ */
+export const createTestCanvasState = () => ({
+  canvas: createTestCanvas(),
+  objects: [
+    createTestRectangle(),
+    createTestCircle(),
+    createTestStar(),
+    createTestText(),
+  ],
+  users: [createTestUser()],
+  selectedObjectId: null,
+  activeTool: 'select',
+});
+
+/**
+ * Create a multi-user canvas state
+ */
+export const createMultiUserCanvasState = () => ({
+  canvas: createTestCanvas(),
+  objects: [
+    createTestRectangle({ ownerId: 'test-user-id' }),
+    createTestCircle({ ownerId: 'test-user-2-id' }),
+  ],
+  users: [createTestUser(), createSecondTestUser()],
+  selectedObjectId: null,
+  activeTool: 'select',
+});
+
+/**
+ * Create a rotated rectangle (for testing rotation-aware operations)
+ */
+export const createRotatedRectangle = (rotation = 45, overrides = {}) =>
+  createTestRectangle({
+    rotation,
     ...overrides,
-  };
-}
+  });
 
 /**
- * Create a rotated shape (any type)
+ * Create cursor position data
  */
-export function createRotatedShape(type = 'rectangle', rotation = 45, overrides = {}) {
-  const factories = {
-    rectangle: createTestRectangle,
-    circle: createTestCircle,
-    star: createTestStar,
-    text: createTestText,
-  };
-  
-  const factory = factories[type] || createTestRectangle;
-  return factory({ rotation, ...overrides });
-}
+export const createCursorPosition = (x = 100, y = 100, userId = 'test-user-id') => ({
+  x,
+  y,
+  userId,
+  userName: 'Bob Tester',
+  timestamp: Date.now(),
+});
 
 /**
- * Create overlapping shapes for z-index testing
+ * Create object ownership/lock data
  */
-export function createOverlappingShapes() {
-  return [
-    createTestRectangle({ id: 'rect-1', x: 100, y: 100, zIndex: 0, fill: '#FF0000' }),
-    createTestRectangle({ id: 'rect-2', x: 120, y: 120, zIndex: 1, fill: '#00FF00' }),
-    createTestRectangle({ id: 'rect-3', x: 140, y: 140, zIndex: 2, fill: '#0000FF' }),
-  ];
-}
+export const createObjectLock = (objectId = 'rect-1', userId = 'test-user-id') => ({
+  objectId,
+  userId,
+  userName: 'Bob Tester',
+  lockedAt: Date.now(),
+});
 
 /**
- * Create a canvas with multiple objects
+ * Create tool context (helpers object for tool handlers)
  */
-export function createCanvasWithObjects(objectCount = 5) {
-  const canvas = createTestCanvas();
-  const objects = [];
-  
-  for (let i = 0; i < objectCount; i++) {
-    const type = ['rectangle', 'circle', 'star', 'text'][i % 4];
-    const factories = {
-      rectangle: createTestRectangle,
-      circle: createTestCircle,
-      star: createTestStar,
-      text: createTestText,
-    };
-    
-    objects.push(factories[type]({
-      id: `object-${i}`,
-      x: 100 + (i * 50),
-      y: 100 + (i * 50),
-      zIndex: i,
-    }));
-  }
-  
-  return { canvas, objects };
-}
+export const createToolContext = (overrides = {}) => ({
+  pos: { x: 100, y: 100 },
+  canvasId: 'test-canvas-id',
+  ...overrides,
+});
 
 /**
- * Create object ownership data for testing locking/unlocking
+ * Create a mock mouse event
  */
-export function createObjectOwnership(objectId, userId = 'test-user-id') {
-  return {
-    objectId,
-    ownerId: userId,
-    lockedAt: Date.now(),
-    lockedBy: userId,
-  };
-}
-
-/**
- * Create cursor position data for presence testing
- */
-export function createCursorData(userId = 'test-user-id', x = 100, y = 100) {
-  return {
-    userId,
-    x,
-    y,
-    timestamp: Date.now(),
-  };
-}
-
-/**
- * Create presence data for a user
- */
-export function createPresenceData(user = createTestUser()) {
-  return {
-    userId: user.uid,
-    displayName: user.displayName,
-    avatarColor: user.avatarColor,
-    online: true,
-    lastSeen: Date.now(),
-  };
-}
-
-/**
- * Create mouse event data for tool testing
- */
-export function createMouseEventData(x = 100, y = 100, button = 0) {
-  return {
-    clientX: x,
-    clientY: y,
-    button,
-    buttons: 1,
-    ctrlKey: false,
+export const createMouseEvent = (overrides = {}) => ({
+  evt: {
     shiftKey: false,
+    ctrlKey: false,
     altKey: false,
     metaKey: false,
-  };
-}
-
-/**
- * Create keyboard event data for tool testing
- */
-export function createKeyboardEventData(key = 'Enter', modifiers = {}) {
-  return {
-    key,
-    code: `Key${key.toUpperCase()}`,
-    ctrlKey: modifiers.ctrl || false,
-    shiftKey: modifiers.shift || false,
-    altKey: modifiers.alt || false,
-    metaKey: modifiers.meta || false,
     preventDefault: () => {},
     stopPropagation: () => {},
-  };
-}
-
-/**
- * Create canvas state for testing
- */
-export function createCanvasState(overrides = {}) {
-  return {
-    objects: [],
-    selectedObject: null,
-    currentTool: 'select',
-    zoom: 1,
-    pan: { x: 0, y: 0 },
     ...overrides,
-  };
-}
-
-/**
- * Create tool handler context for testing
- */
-export function createToolContext(overrides = {}) {
-  return {
-    canvas: createTestCanvas(),
-    objects: [],
-    currentUser: createTestUser(),
-    selectedObject: null,
-    setSelectedObject: () => {},
-    onObjectCreate: () => {},
-    onObjectUpdate: () => {},
-    ...overrides,
-  };
-}
-
+  },
+});

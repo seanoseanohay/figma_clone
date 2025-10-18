@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getMockAgentResponse, validateAgentOutput } from '../services/agent.service.js';
+import { getMockAgentResponse } from '../services/agent.service.js';
 import { validateAgentResponse, validateCommand } from '../utils/agentSchemas.js';
 
 describe('AI Agent Mock Service', () => {
@@ -82,7 +82,8 @@ describe('AI Agent Mock Service', () => {
       expect(response.data.commands).toHaveLength(1);
       expect(response.data.commands[0].type).toBe('createStar');
       expect(response.data.commands[0]).toHaveProperty('position');
-      expect(response.data.commands[0]).toHaveProperty('radius');
+      expect(response.data.commands[0]).toHaveProperty('innerRadius');
+      expect(response.data.commands[0]).toHaveProperty('outerRadius');
       expect(response.data.commands[0]).toHaveProperty('fill');
     });
 
@@ -110,8 +111,8 @@ describe('AI Agent Mock Service', () => {
       await getMockAgentResponse('test', mockCanvasState);
       const processingTime = Date.now() - startTime;
 
-      // Should take at least 400ms (we simulate 500ms delay)
-      expect(processingTime).toBeGreaterThan(400);
+      // Should take at least 250ms (we simulate 300ms delay)
+      expect(processingTime).toBeGreaterThan(250);
     });
   });
 
@@ -260,25 +261,5 @@ describe('AI Agent Mock Service', () => {
   });
 });
 
-describe('Agent Output Validation Utility', () => {
-  it('should export validateAgentOutput function', () => {
-    expect(typeof validateAgentOutput).toBe('function');
-  });
-
-  it('should validate agent output same as validateAgentResponse', () => {
-    const response = {
-      commands: [{
-        type: 'createRectangle',
-        position: { x: 100, y: 100 },
-        size: { width: 150, height: 100 },
-        fill: '#3b82f6'
-      }],
-      explanation: 'Test response'
-    };
-
-    const result1 = validateAgentOutput(response);
-    const result2 = validateAgentResponse(response);
-
-    expect(result1).toEqual(result2);
-  });
-});
+// Note: validateAgentOutput was removed as it's redundant with validateAgentResponse
+// All agent output validation should use validateAgentResponse from agentSchemas.js

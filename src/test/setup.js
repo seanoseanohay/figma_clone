@@ -1,107 +1,92 @@
-import '@testing-library/jest-dom'
-import { vi } from 'vitest'
-import { createElement } from 'react'
+import { expect, afterEach, vi } from 'vitest';
+import { cleanup } from '@testing-library/react';
+import '@testing-library/jest-dom';
 
-// Mock Konva Stage API with proper methods
-const mockStage = {
-  container: vi.fn(() => ({
-    offsetWidth: 800,
-    offsetHeight: 600,
-    style: { cursor: 'default' }
+// Extend expect with jest-dom matchers
+import * as matchers from '@testing-library/jest-dom/matchers';
+expect.extend(matchers);
+
+// Cleanup after each test
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
+// Mock Firebase services globally
+vi.mock('@/config/firebase', () => ({
+  db: {
+    collection: vi.fn(),
+    doc: vi.fn(),
+  },
+  rtdb: {
+    ref: vi.fn(),
+  },
+  auth: {
+    currentUser: {
+      uid: 'test-user-id',
+      email: 'bobtester@test.com',
+      displayName: 'Bob Tester',
+    },
+    onAuthStateChanged: vi.fn(),
+  },
+  storage: {
+    ref: vi.fn(),
+  },
+}));
+
+// Mock ResizeObserver
+global.ResizeObserver = vi.fn().mockImplementation(() => ({
+  observe: vi.fn(),
+  unobserve: vi.fn(),
+  disconnect: vi.fn(),
+}));
+
+// Mock window.matchMedia
+Object.defineProperty(window, 'matchMedia', {
+  writable: true,
+  value: vi.fn().mockImplementation(query => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
   })),
-  getPointerPosition: vi.fn(() => ({ x: 100, y: 100 })),
-  getAbsoluteTransform: vi.fn(() => ({
-    copy: vi.fn(() => ({
-      invert: vi.fn(),
-      point: vi.fn((point) => point)
-    }))
-  })),
+});
+
+// Mock HTMLCanvasElement methods
+HTMLCanvasElement.prototype.getContext = vi.fn(() => ({
+  fillRect: vi.fn(),
+  clearRect: vi.fn(),
+  getImageData: vi.fn(),
+  putImageData: vi.fn(),
+  createImageData: vi.fn(),
+  setTransform: vi.fn(),
+  drawImage: vi.fn(),
+  save: vi.fn(),
+  fillText: vi.fn(),
+  restore: vi.fn(),
+  beginPath: vi.fn(),
+  moveTo: vi.fn(),
+  lineTo: vi.fn(),
+  closePath: vi.fn(),
+  stroke: vi.fn(),
+  translate: vi.fn(),
   scale: vi.fn(),
-  position: vi.fn(),
-  scaleX: vi.fn(() => 1),
-  scaleY: vi.fn(() => 1),
-  x: vi.fn(() => 0),
-  y: vi.fn(() => 0)
-}
+  rotate: vi.fn(),
+  arc: vi.fn(),
+  fill: vi.fn(),
+  measureText: vi.fn(() => ({ width: 0 })),
+  transform: vi.fn(),
+  rect: vi.fn(),
+  clip: vi.fn(),
+}));
 
-// Mock Konva since it requires canvas
-vi.mock('konva', () => ({
-  Stage: vi.fn(),
-  Layer: vi.fn(),
-  Rect: vi.fn(),
-}))
-
-// Create a more realistic Stage mock that can be referenced
-const StageComponent = ({ children, onWheel, onMouseDown, onMouseMove, onMouseUp, ...props }) => {
-  const stageElement = createElement('div', {
-    'data-testid': 'konva-stage',
-    onWheel,
-    onMouseDown,
-    onMouseMove,
-    onMouseUp,
-    ...props
-  }, children)
-  
-  // Attach mock methods to the element for ref access
-  Object.defineProperty(stageElement, 'container', {
-    value: mockStage.container
-  })
-  Object.defineProperty(stageElement, 'getPointerPosition', {
-    value: mockStage.getPointerPosition
-  })
-  Object.defineProperty(stageElement, 'getAbsoluteTransform', {
-    value: mockStage.getAbsoluteTransform
-  })
-  Object.defineProperty(stageElement, 'scale', {
-    value: mockStage.scale
-  })
-  Object.defineProperty(stageElement, 'position', {
-    value: mockStage.position
-  })
-  Object.defineProperty(stageElement, 'scaleX', {
-    value: mockStage.scaleX
-  })
-  Object.defineProperty(stageElement, 'scaleY', {
-    value: mockStage.scaleY
-  })
-  Object.defineProperty(stageElement, 'x', {
-    value: mockStage.x
-  })
-  Object.defineProperty(stageElement, 'y', {
-    value: mockStage.y
-  })
-  
-  return stageElement
-}
-
-vi.mock('react-konva', () => ({
-  Stage: StageComponent,
-  Layer: ({ children, ...props }) => createElement('div', { 'data-testid': 'konva-layer', ...props }, children),
-  Rect: ({ listening, ...props }) => createElement('div', { 'data-testid': 'konva-rect', 'data-listening': String(listening), ...props }),
-}))
-
-// Mock Firebase
-vi.mock('../services/firebase.js', () => ({
-  auth: {},
-  db: {},
-  rtdb: {},
-}))
-
-// Mock window methods that might not exist in test environment
-Object.defineProperty(window, 'getComputedStyle', {
-  value: () => ({
-    getPropertyValue: () => '',
-  }),
-})
-
-// Mock window.innerWidth and innerHeight
-Object.defineProperty(window, 'innerWidth', {
-  writable: true,
-  configurable: true,
-  value: 1024,
-})
-Object.defineProperty(window, 'innerHeight', {
-  writable: true,
-  configurable: true,
-  value: 768,
-})
+// Suppress console errors during tests (unless needed for debugging)
+// global.console = {
+//   ...console,
+//   error: vi.fn(),
+//   warn: vi.fn(),
+// };
