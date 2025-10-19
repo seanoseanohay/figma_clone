@@ -7,10 +7,13 @@ import {
 import { ACTION_TYPES } from '../hooks/useHistory.js'
 
 /**
- * ResizeTool - Handles object resizing via corner handles for PRE-SELECTED objects
+ * ResizeTool - Handles object resizing via corner handles with auto-selection
  * 
- * NOTE: This tool NO LONGER handles selection. Use SelectTool to select objects first.
- * ResizeTool only resizes objects that are already selected.
+ * Interaction Model:
+ * - Auto-selects objects when clicked (if none selected or different object clicked)
+ * - Shows resize handles for selected objects
+ * - Single-object constraint: only works on one object at a time
+ * - Maintains selection after resize for consecutive operations
  */
 export class ResizeTool {
   constructor() {
@@ -273,7 +276,7 @@ export class ResizeTool {
   }
 
   /**
-   * Handle mouse down - start resizing pre-selected object via corner handles
+   * Handle mouse down - start resizing object (auto-selects if needed)
    */
   async onMouseDown(e, state, helpers) {
     const { pos, canvasId } = helpers
@@ -282,6 +285,8 @@ export class ResizeTool {
       canvasObjects,
       localRectUpdates,
       isResizing,
+      canEditObject,
+      setSelectedObjectId,
       setResizeSelectedId,
       setIsResizing,
       setResizeHandle,
@@ -290,20 +295,132 @@ export class ResizeTool {
 
     console.log('Resize tool mouse down')
 
-    // Resize tool requires a pre-selected object
+    // Auto-select logic: handle object selection
+    const clickedObject = state.findObjectAt(pos)
+    
     if (!selectedObjectId) {
-      console.log('Resize tool: No object selected. Use Select tool first.')
+      // No object currently selected - try to auto-select clicked object
+      if (clickedObject && canEditObject(clickedObject.id)) {
+        console.log('🔧 Resize tool: Auto-selecting object', clickedObject.id)
+        
+        // Auto-select the clicked object
+        setSelectedObjectId(clickedObject.id)
+        
+        // Import lock functionality from canvas service
+        const { lockObject } = await import('../services/canvas.service.js')
+        
+        // Lock the object for editing
+        try {
+          await lockObject(clickedObject.id)
+          console.log('✅ Object auto-selected and locked for resizing')
+        } catch (error) {
+          console.error('Failed to lock auto-selected object:', error)
+          return
+        }
+        
+        // Continue with resize handle detection using the newly selected object
+        // Fall through to the resize handle detection below
+      } else {
+        console.log('Resize tool: No object clicked or cannot edit clicked object')
+        return
+      }
+    } else if (clickedObject && clickedObject.id !== selectedObjectId && canEditObject(clickedObject.id)) {
+      // Different object clicked - switch selection
+      console.log('🔧 Resize tool: Switching to different object', clickedObject.id)
+      
+      // CRITICAL FIX: Clear all resize state from previous object before switching
+      const {
+        setIsResizing,
+        setResizeHandle,
+        setResizeStartData,
+        setResizeSelectedId,
+        setLocalRectUpdates
+      } = state
+      
+      console.log('🧹 Clearing resize state from previous object')
+      setIsResizing(false)
+      setResizeHandle(null)
+      setResizeStartData(null)
+      setResizeSelectedId(null)
+      
+      // Clear local updates for the previous object
+      setLocalRectUpdates(prev => {
+        const updated = { ...prev }
+        delete updated[selectedObjectId]
+        return updated
+      })
+      
+      // Unlock previous selection
+      const { unlockObject, lockObject } = await import('../services/canvas.service.js')
+      
+      try {
+        await unlockObject(selectedObjectId)
+        console.log('✅ Previous object unlocked and state cleared')
+      } catch (error) {
+        console.error('Failed to unlock previous object:', error)
+      }
+      
+      // Select and lock the new object
+      setSelectedObjectId(clickedObject.id)
+      
+      try {
+        await lockObject(clickedObject.id)
+        console.log('✅ New object selected and locked for resizing')
+      } catch (error) {
+        console.error('Failed to lock new object:', error)
+        return
+      }
+      
+      // Continue with resize handle detection using the newly selected object
+      // Fall through to the resize handle detection below
+    } else if (!clickedObject) {
+      // Clicked on empty space - deselect current object
+      console.log('🔧 Resize tool: Clicked empty space, deselecting')
+      
+      // Clear all resize state before deselecting
+      const {
+        setIsResizing,
+        setResizeHandle,
+        setResizeStartData,
+        setResizeSelectedId,
+        setLocalRectUpdates
+      } = state
+      
+      console.log('🧹 Clearing resize state before deselecting')
+      setIsResizing(false)
+      setResizeHandle(null)
+      setResizeStartData(null)
+      setResizeSelectedId(null)
+      
+      // Clear local updates for the current object
+      setLocalRectUpdates(prev => {
+        const updated = { ...prev }
+        delete updated[selectedObjectId]
+        return updated
+      })
+      
+      const { unlockObject } = await import('../services/canvas.service.js')
+      
+      try {
+        await unlockObject(selectedObjectId)
+        console.log('✅ Object deselected, unlocked, and state cleared')
+      } catch (error) {
+        console.error('Failed to unlock on deselect:', error)
+      }
+      
+      setSelectedObjectId(null)
       return
     }
 
-    // Find the selected object - with fallback to local updates for post-rotation state
-    let selectedObject = canvasObjects.find(o => o.id === selectedObjectId)
+    // Find the currently selected object (may have been updated by auto-selection logic above)
+    const currentSelectedId = state.selectedObjectId || selectedObjectId
+    let selectedObject = canvasObjects.find(o => o.id === currentSelectedId)
     
     // CRITICAL FIX: If object not found in canvasObjects (stale after rotation),
     // try to use local updates as fallback
-    if (!selectedObject && localRectUpdates[selectedObjectId]) {
+    if (!selectedObject && localRectUpdates[currentSelectedId]) {
       console.log('🔧 Using local updates for object not yet synced from Firestore')
-      selectedObject = localRectUpdates[selectedObjectId]
+      selectedObject = localRectUpdates[currentSelectedId]
     }
     
     if (!selectedObject) {
@@ -315,10 +432,10 @@ export class ResizeTool {
     
     // If we have both Firestore data and local updates, merge them
     // (local updates take precedence for immediate post-rotation state) 
-    if (localRectUpdates[selectedObjectId]) {
+    if (localRectUpdates[currentSelectedId]) {
       selectedObject = {
         ...selectedObject,
-        ...localRectUpdates[selectedObjectId]
+        ...localRectUpdates[currentSelectedId]
       }
       console.log('🔧 Merged object with local updates for resize:', {
         id: selectedObject.id,
@@ -357,7 +474,7 @@ export class ResizeTool {
       if (!isResizing) {
         setIsResizing(true)
         setResizeHandle(handle)
-        setResizeSelectedId(selectedObjectId) // Track which object is being resized
+        setResizeSelectedId(currentSelectedId) // Track which object is being resized
         setResizeStartData({
           object: { ...selectedObject },
           startPos: pos
