@@ -913,7 +913,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
 
   // Handle zoom functionality
   const handleWheel = useCallback((e) => {
-    e.evt.preventDefault();
+    if (e.evt) {
+      e.evt.preventDefault();
+    }
     
     const stage = e.target.getStage();
     const pointer = stage.getPointerPosition();
@@ -1273,7 +1275,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData, undo, redo, canUndo, canRedo, multiSelection]);
+  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, undo, redo, canUndo, canRedo, multiSelection]);
 
   // Clear/manage state when switching tools
   useEffect(() => {
@@ -2365,7 +2367,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       </div>
       
       {/* Text Editor Overlay */}
-      {isEditingText && textEditData && (
+      {(() => {
+        console.log('🔤 Canvas render check:', { isEditingText, textEditData });
+        return isEditingText && textEditData;
+      })() && (
         <TextEditor
           position={textEditData.newTextPosition || { x: textEditData.object?.x || 0, y: textEditData.object?.y || 0 }}
           initialText={textEditData.originalText || ''}

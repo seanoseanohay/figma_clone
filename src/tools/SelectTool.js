@@ -134,9 +134,14 @@ export class SelectTool {
     }
 
     // Case 2c: Single click - replace selection
-    await multiSelection.selectSingle(objectId)
-    setSelectedObjectId(objectId)
-    console.log('Select tool: Selected object', objectId)
+    try {
+      await multiSelection.selectSingle(objectId)
+      setSelectedObjectId(objectId)
+      console.log('Select tool: Selected object', objectId)
+    } catch (error) {
+      console.log('Failed to select object:', objectId, error.message)
+      // Don't update selectedObjectId if selection failed
+    }
   }
 
   /**

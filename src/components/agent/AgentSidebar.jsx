@@ -64,9 +64,19 @@ const AgentSidebar = ({ isOpen, onClose }) => {
         BackdropProps: {
           sx: {
             bgcolor: 'rgba(0, 0, 0, 0.25)',
-            zIndex: 9998,
+            // Fix: Ensure backdrop doesn't intercept clicks that should go to drawer content
+            pointerEvents: 'auto',
+          },
+          // Only close on backdrop click, not on clicks inside drawer
+          onClick: (e) => {
+            // Only close if clicking directly on backdrop (not on drawer content)
+            if (e.target === e.currentTarget) {
+              onClose();
+            }
           },
         },
+        // Prevent modal from closing on inside clicks
+        disableEscapeKeyDown: false,
       }}
     >
       {/* Header */}

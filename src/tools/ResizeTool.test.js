@@ -87,6 +87,15 @@ describe('ResizeTool', () => {
       clampRectToCanvas: vi.fn((rect) => rect),
       clampCircleToCanvas: vi.fn((circle) => circle),
       clampStarToCanvas: vi.fn((star) => star),
+      // Add missing functions required by ResizeTool
+      findObjectAt: vi.fn((pos) => {
+        // Return the selected object if clicking within its bounds (for resize handle detection)
+        if (mockState.selectedObjectId) {
+          return mockState.canvasObjects.find(obj => obj.id === mockState.selectedObjectId);
+        }
+        return null;
+      }),
+      canEditObject: vi.fn(() => true),
     };
 
     // Mock helpers
@@ -201,6 +210,8 @@ describe('ResizeTool', () => {
       expect(mockState.setResizeStartData).toHaveBeenCalledWith({
         object: testRect,
         startPos: mockHelpers.pos,
+        handle: 'nw',
+        timestamp: expect.any(Number),
       });
     });
 

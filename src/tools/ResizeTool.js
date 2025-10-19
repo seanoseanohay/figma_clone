@@ -5,6 +5,14 @@ import {
   clearActiveObject
 } from '../services/canvas.service.js'
 import { ACTION_TYPES } from '../hooks/useHistory.js'
+import { detectResizeHandle, detectResizeHandleWithDebug } from '../utils/handleDetector.js'
+import { 
+  validateObjectForResize, 
+  validateResizeState, 
+  validateObjectUpdate,
+  sanitizeObjectUpdate
+} from '../utils/resizeValidation.js'
+import { detectResizeCrossover } from '../utils/resizeCalculators.js'
 
 /**
  * ResizeTool - Handles object resizing via corner handles with auto-selection
@@ -22,134 +30,51 @@ export class ResizeTool {
 
   /**
    * Find closest corner to click position (works for rectangles, circles, and stars)
-   * Now properly handles rotated objects by transforming corner positions
+   * Now uses centralized handle detection utility
    */
   getClosestCorner(pos, obj) {
-    // CRITICAL VALIDATION: Ensure object has valid properties
-    if (!obj || typeof obj.x !== 'number' || typeof obj.y !== 'number') {
-      console.error('❌ HANDLE DETECTION ERROR: Invalid object position:', obj)
-      return null
-    }
-    
-    // Calculate bounding box based on shape type
-    let bounds
-    if (obj.type === 'circle') {
-      if (typeof obj.radius !== 'number' || !isFinite(obj.radius) || obj.radius <= 0) {
-        console.error('❌ HANDLE DETECTION ERROR: Invalid circle radius:', obj.radius)
-        return null
-      }
-      bounds = {
-        x: obj.x - obj.radius,
-        y: obj.y - obj.radius,
-        width: obj.radius * 2,
-        height: obj.radius * 2
-      }
-    } else if (obj.type === 'star') {
-      // CRITICAL FIX: Validate star properties 
-      if (typeof obj.outerRadius !== 'number' || !isFinite(obj.outerRadius) || obj.outerRadius <= 0) {
-        console.error('❌ HANDLE DETECTION ERROR: Invalid star outerRadius:', {
-          outerRadius: obj.outerRadius,
-          innerRadius: obj.innerRadius,
-          allProps: Object.keys(obj)
-        })
-        return null
-      }
-      bounds = {
-        x: obj.x - obj.outerRadius,
-        y: obj.y - obj.outerRadius,
-        width: obj.outerRadius * 2,
-        height: obj.outerRadius * 2
-      }
-    } else {
-      // Rectangles and other shapes with width/height
-      if (typeof obj.width !== 'number' || typeof obj.height !== 'number' || 
-          !isFinite(obj.width) || !isFinite(obj.height) || 
-          obj.width <= 0 || obj.height <= 0) {
-        console.error('❌ HANDLE DETECTION ERROR: Invalid rectangle dimensions:', {
-          width: obj.width,
-          height: obj.height,
-          type: obj.type
-        })
-        return null
-      }
-      bounds = {
-        x: obj.x,
-        y: obj.y,
-        width: obj.width,
-        height: obj.height
-      }
-    }
-    
-    // VALIDATION: Ensure bounds are valid
-    if (!isFinite(bounds.x) || !isFinite(bounds.y) || !isFinite(bounds.width) || !isFinite(bounds.height)) {
-      console.error('❌ HANDLE DETECTION ERROR: Invalid calculated bounds:', bounds)
-      return null
-    }
-    
-    // Define base corners (unrotated)
-    const baseCorners = [
-      { name: 'nw', x: bounds.x, y: bounds.y },
-      { name: 'ne', x: bounds.x + bounds.width, y: bounds.y },
-      { name: 'sw', x: bounds.x, y: bounds.y + bounds.height },
-      { name: 'se', x: bounds.x + bounds.width, y: bounds.y + bounds.height }
-    ]
-    
-    // Transform corners based on object rotation (if any)
-    const rotation = obj.rotation || 0
-    const corners = baseCorners.map(corner => {
-      if (rotation === 0) {
-        return corner // No transformation needed
-      }
-      
-      // Transform corner position based on rotation around object center
-      const centerX = bounds.x + bounds.width / 2
-      const centerY = bounds.y + bounds.height / 2
-      
-      // Translate to origin
-      const translatedX = corner.x - centerX
-      const translatedY = corner.y - centerY
-      
-      // Rotate
-      const rotationRad = (rotation * Math.PI) / 180
-      const rotatedX = translatedX * Math.cos(rotationRad) - translatedY * Math.sin(rotationRad)
-      const rotatedY = translatedX * Math.sin(rotationRad) + translatedY * Math.cos(rotationRad)
-      
-      // Translate back
-      return {
-        name: corner.name,
-        x: rotatedX + centerX,
-        y: rotatedY + centerY
-      }
-    })
-    
-    // Check if click is within reasonable distance of the object
-    const centerX = bounds.x + bounds.width / 2
-    const centerY = bounds.y + bounds.height / 2
-    const maxDistance = Math.max(bounds.width, bounds.height) * 0.75 // Allow some margin
-    const distanceFromCenter = Math.sqrt(
-      Math.pow(pos.x - centerX, 2) + Math.pow(pos.y - centerY, 2)
-    )
-    
-    if (distanceFromCenter > maxDistance) {
-      return null
-    }
-    
-    let closestCorner = null
-    let minDistance = Infinity
-    
-    corners.forEach(corner => {
+    return detectResizeHandle(pos, obj);
+  }
+
+  /**
+   * Calculate the closest handle to a click position within an object
+   * This enables clicking anywhere on the object to resize from the nearest corner
+   * @param {Object} pos - Click position with x, y
+   * @param {Object} obj - Object being resized
+   * @returns {string} - Handle name (nw, ne, sw, se)
+   */
+  calculateClosestHandle(pos, obj) {
+    // Define the four corner positions
+    const corners = {
+      'nw': { x: obj.x, y: obj.y },
+      'ne': { x: obj.x + obj.width, y: obj.y },
+      'sw': { x: obj.x, y: obj.y + obj.height },
+      'se': { x: obj.x + obj.width, y: obj.y + obj.height }
+    };
+
+    // Calculate distance to each corner
+    let closestHandle = 'se'; // Default to bottom-right
+    let minDistance = Infinity;
+
+    for (const [handleName, cornerPos] of Object.entries(corners)) {
       const distance = Math.sqrt(
-        Math.pow(pos.x - corner.x, 2) + Math.pow(pos.y - corner.y, 2)
-      )
+        Math.pow(pos.x - cornerPos.x, 2) + Math.pow(pos.y - cornerPos.y, 2)
+      );
       
       if (distance < minDistance) {
-        minDistance = distance
-        closestCorner = corner.name
+        minDistance = distance;
+        closestHandle = handleName;
       }
-    })
-    
-    console.log('🎯 Closest corner detected:', closestCorner, 'for', obj.type, 'rotation:', rotation + '°')
-    return closestCorner
+    }
+
+    console.log('🔍 Handle distance calculation:', {
+      click: pos,
+      corners,
+      closestHandle,
+      minDistance: Math.round(minDistance)
+    });
+
+    return closestHandle;
   }
 
   /**
@@ -389,8 +314,34 @@ export class ResizeTool {
           return
         }
         
-        // Continue with resize handle detection using the newly selected object
-        // Fall through to the resize handle detection below
+        // CRITICAL FIX: Use the clicked object directly for resize detection
+        // since React state hasn't updated yet
+        
+        // SMART RESIZE: Calculate closest handle to click position
+        // This allows clicking anywhere on the object to resize from the nearest corner
+        console.log('🎯 SMART RESIZE: Click anywhere on object, using closest handle');
+        
+        const handle = this.calculateClosestHandle(pos, clickedObject);
+        
+        console.log('🎯 Calculated closest handle:', handle, 'for click at', pos);
+        
+        console.log('✅ RESIZE HANDLE FOUND:', handle, 'for auto-selected object', clickedObject.id)
+        
+        // Initialize resize operation with the clicked object
+        console.log('🚀 INITIALIZING RESIZE OPERATION FOR AUTO-SELECTED OBJECT...')
+        
+        setIsResizing(true)
+        setResizeHandle(handle)
+        setResizeSelectedId(clickedObject.id)
+        setResizeStartData({
+          object: clickedObject,
+          startPos: pos,
+          handle,
+          timestamp: Date.now()
+        })
+        
+        console.log('✅ RESIZE TOOL: Ready to resize auto-selected object', clickedObject.id)
+        return
       } else {
         console.log('Resize tool: No object clicked or cannot edit clicked object')
         return
@@ -591,8 +542,9 @@ export class ResizeTool {
     
     console.log('=== END RESIZE DEBUG ===')
 
-    // ENHANCED VALIDATION: Check if we clicked on a resize handle
-    const handle = this.getClosestCorner(pos, selectedObject)
+    // ENHANCED VALIDATION: Check if we clicked on a resize handle using smart detection
+    // Use the same smart detection logic that works for auto-selection
+    const handle = this.calculateClosestHandle(pos, selectedObject)
     
     console.log('🎯 RESIZE HANDLE DETECTION:', {
       clickPos: pos,

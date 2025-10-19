@@ -53,11 +53,71 @@ describe('SelectTool', () => {
       setIsEditingText: vi.fn(),
       setTextEditData: vi.fn(),
       setTextSelectedId: vi.fn(),
+      multiSelection: {
+        selectionInfo: new Map(),
+        isSelecting: false,
+        clearSelection: vi.fn(async () => {
+          // Simulate unlocking previously selected object
+          if (mockState.selectedObjectId) {
+            try {
+              await canvasService.unlockObject(mockState.selectedObjectId);
+            } catch (error) {
+              console.log('Unlock failed during clear selection:', error.message);
+              // Continue despite unlock error
+            }
+          }
+          return Promise.resolve();
+        }),
+        startDragSelection: vi.fn(),
+        canSelectObject: vi.fn((objectId) => {
+          // Respect the canEditObject function if it's been overridden in tests
+          return mockState.canEditObject(objectId);
+        }),
+        selectObject: vi.fn(() => Promise.resolve()),
+        selectSingle: vi.fn(async (objectId) => {
+          try {
+            // Simulate unlocking previous selection and locking new object
+            if (mockState.selectedObjectId && mockState.selectedObjectId !== objectId) {
+              await canvasService.unlockObject(mockState.selectedObjectId);
+            }
+            await canvasService.lockObject(objectId);
+            
+            // Update selection info
+            mockState.multiSelection.selectionInfo.clear();
+            mockState.multiSelection.selectionInfo.set(objectId, true);
+            mockState.multiSelection.selectionInfo.isSingle = true;
+            mockState.multiSelection.selectionInfo.primaryId = objectId;
+            
+            return Promise.resolve();
+          } catch (error) {
+            // For the error handling test, we need to actually throw the error
+            // so that the SelectTool can handle it properly
+            console.log('Selection failed:', error.message);
+            throw error; // Re-throw the error
+          }
+        }),
+        updateDragSelection: vi.fn(),
+        endDragSelection: vi.fn()
+      }
     };
 
     mockHelpers = {
       pos: { x: 0, y: 0 },
       canvasId: 'test-canvas-id',
+    };
+
+    // Helper function to set up selection state
+    mockState.setSelection = (objectId) => {
+      mockState.selectedObjectId = objectId;
+      mockState.multiSelection.selectionInfo.clear();
+      if (objectId) {
+        mockState.multiSelection.selectionInfo.set(objectId, true);
+        mockState.multiSelection.selectionInfo.isSingle = true;
+        mockState.multiSelection.selectionInfo.primaryId = objectId;
+      } else {
+        mockState.multiSelection.selectionInfo.isSingle = false;
+        mockState.multiSelection.selectionInfo.primaryId = null;
+      }
     };
 
     // Reset mocks
@@ -91,7 +151,7 @@ describe('SelectTool', () => {
 
     it('should deselect when clicking empty space', async () => {
       // First select an object
-      mockState.selectedObjectId = 'rect-1';
+      mockState.setSelection('rect-1');
       
       // Click outside any object
       mockHelpers.pos = { x: 500, y: 500 };
@@ -116,7 +176,7 @@ describe('SelectTool', () => {
 
     it('should unlock previous selection when selecting new object', async () => {
       // First object is already selected
-      mockState.selectedObjectId = 'rect-1';
+      mockState.setSelection('rect-1');
       
       // Click on text object
       mockHelpers.pos = { x: 310, y: 210 };
@@ -130,7 +190,7 @@ describe('SelectTool', () => {
 
     it('should keep object selected if clicking it again', async () => {
       // Object is already selected
-      mockState.selectedObjectId = 'rect-1';
+      mockState.setSelection('rect-1');
       
       // Click on same object
       mockHelpers.pos = { x: 150, y: 150 };
