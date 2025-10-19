@@ -172,17 +172,17 @@ const Header = () => {
               <Button
                 onClick={() => setAgentSidebarOpen(true)}
                 disabled={!canvasId}
-                variant="outlined"
+                variant="contained"
                 size="small"
                 sx={{
-                  borderColor: 'primary.light',
-                  color: 'primary.main',
-                  bgcolor: 'primary.light',
-                  opacity: 0.2,
+                  bgcolor: 'primary.main',
+                  color: 'white',
                   '&:hover': {
-                    bgcolor: 'primary.light',
-                    opacity: 0.3,
-                    borderColor: 'primary.light',
+                    bgcolor: 'primary.dark',
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.300',
+                    color: 'grey.500',
                   },
                 }}
               >

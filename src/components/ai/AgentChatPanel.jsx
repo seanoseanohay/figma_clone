@@ -1,4 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { 
+  Box, 
+  Typography, 
+  Button, 
+  TextField, 
+  Paper, 
+  Alert, 
+  Chip,
+  Divider,
+  CircularProgress 
+} from '@mui/material'
 import { MessageCircle, Send, Loader2, AlertCircle, Bot, User, Sparkles } from 'lucide-react'
 import { useAgentChat } from '../../hooks/useAgentChat.js'
 
@@ -67,207 +78,335 @@ const AgentChatPanel = ({ canvasId, canvasState, isVisible, onToggle }) => {
   if (!isVisible) return null
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', bgcolor: 'white' }}>
       {/* Welcome Message - Shown only when embedded in sidebar */}
       {isVisible && (
-        <div className="p-4 border-b border-gray-200 bg-blue-50 flex-shrink-0">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-5 h-5 text-blue-600" />
-            <h3 className="font-medium text-blue-900">Ready to help!</h3>
-          </div>
-          <p className="text-sm text-blue-700">
+        <Box sx={{ 
+          p: 2, 
+          borderBottom: 1, 
+          borderColor: 'grey.300', 
+          bgcolor: 'primary.light', 
+          flexShrink: 0 
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
+            <Sparkles style={{ width: 20, height: 20, color: '#1976d2' }} />
+            <Typography variant="subtitle1" sx={{ fontWeight: 500, color: 'primary.dark' }}>
+              Ready to help!
+            </Typography>
+          </Box>
+          <Typography variant="body2" sx={{ color: 'primary.dark' }}>
             Create and modify canvas objects with natural language commands.
-          </p>
-        </div>
+          </Typography>
+        </Box>
       )}
 
       {/* Messages Area - Constrained to leave space for input */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
+      <Box sx={{ flex: 1, overflowY: 'auto', p: 2, minHeight: 0 }}>
         {messages.length === 0 ? (
-          <div className="text-center py-8">
-            <div className="flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mx-auto mb-4">
-              <Sparkles className="w-8 h-8 text-blue-600" />
-            </div>
-            <h4 className="font-medium text-gray-900 mb-2">Welcome to AI Canvas Agent!</h4>
-            <p className="text-gray-600 text-sm mb-4">
+          <Box sx={{ textAlign: 'center', py: 4 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: 64, 
+              height: 64, 
+              bgcolor: 'primary.light', 
+              borderRadius: '50%', 
+              mx: 'auto', 
+              mb: 2 
+            }}>
+              <Sparkles style={{ width: 32, height: 32, color: '#1976d2' }} />
+            </Box>
+            <Typography variant="h6" sx={{ fontWeight: 500, color: 'text.primary', mb: 1 }}>
+              Welcome to AI Canvas Agent!
+            </Typography>
+            <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
               Try commands like:
-            </p>
-            <div className="space-y-2 text-sm text-gray-500">
-              <div className="bg-gray-50 p-2 rounded text-left">
-                "Create a red rectangle in the center"
-              </div>
-              <div className="bg-gray-50 p-2 rounded text-left">
-                "Add three blue circles in a row"
-              </div>
-              <div className="bg-gray-50 p-2 rounded text-left">
-                "Move the selected object to the right"
-              </div>
-            </div>
-          </div>
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  "Create a red rectangle in the center"
+                </Typography>
+              </Paper>
+              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  "Add three blue circles in a row"
+                </Typography>
+              </Paper>
+              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  "Move the selected object to the right"
+                </Typography>
+              </Paper>
+            </Box>
+          </Box>
         ) : (
-          messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex gap-3 ${
-                message.type === 'user' ? 'justify-end' : 'justify-start'
-              }`}
-            >
-              {message.type === 'agent' && (
-                <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full flex-shrink-0">
-                  <Bot className="w-4 h-4 text-blue-600" />
-                </div>
-              )}
-              
-              <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                  message.type === 'user'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {messages.map((message) => (
+              <Box
+                key={message.id}
+                sx={{ 
+                  display: 'flex', 
+                  gap: 1.5,
+                  justifyContent: message.type === 'user' ? 'flex-end' : 'flex-start'
+                }}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                <div className={`text-xs mt-1 ${
-                  message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                }`}>
-                  {new Date(message.timestamp).toLocaleTimeString()}
-                </div>
-                
-                {/* Show command execution results */}
-                {message.type === 'agent' && message.commandsExecuted !== undefined && (
-                  <div className={`text-xs mt-2 ${
-                    message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
-                  }`}>
-                    {message.commandsExecuted > 0 ? (
-                      <>
-                        ✅ Executed {message.commandsExecuted} command{message.commandsExecuted !== 1 ? 's' : ''}
-                        {message.createdObjects > 0 && ` • Created ${message.createdObjects} object${message.createdObjects !== 1 ? 's' : ''}`}
-                        {message.modifiedObjects > 0 && ` • Modified ${message.modifiedObjects} object${message.modifiedObjects !== 1 ? 's' : ''}`}
-                        {message.executionTimeMs && ` • ${message.executionTimeMs}ms`}
-                      </>
-                    ) : (
-                      <>❌ No commands executed</>
-                    )}
-                  </div>
+                {message.type === 'agent' && (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    width: 32, 
+                    height: 32, 
+                    bgcolor: 'primary.light', 
+                    borderRadius: '50%', 
+                    flexShrink: 0 
+                  }}>
+                    <Bot style={{ width: 16, height: 16, color: '#1976d2' }} />
+                  </Box>
                 )}
                 
-                {/* Show errors */}
-                {message.error && (
-                  <div className="text-xs mt-2 text-red-600 bg-red-50 p-2 rounded">
-                    Error: {message.error}
-                  </div>
+                <Paper
+                  sx={{
+                    maxWidth: { xs: '75%', lg: '60%' },
+                    px: 2,
+                    py: 1.5,
+                    bgcolor: message.type === 'user' ? 'primary.main' : 'grey.100',
+                    color: message.type === 'user' ? 'primary.contrastText' : 'text.primary'
+                  }}
+                >
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {message.content}
+                  </Typography>
+                  <Typography 
+                    variant="caption" 
+                    sx={{ 
+                      display: 'block',
+                      mt: 0.5,
+                      color: message.type === 'user' ? 'primary.light' : 'text.secondary'
+                    }}
+                  >
+                    {new Date(message.timestamp).toLocaleTimeString()}
+                  </Typography>
+                  
+                  {/* Show command execution results */}
+                  {message.type === 'agent' && message.commandsExecuted !== undefined && (
+                    <Typography 
+                      variant="caption" 
+                      sx={{ 
+                        display: 'block',
+                        mt: 1,
+                        color: 'text.secondary'
+                      }}
+                    >
+                      {message.commandsExecuted > 0 ? (
+                        <>
+                          ✅ Executed {message.commandsExecuted} command{message.commandsExecuted !== 1 ? 's' : ''}
+                          {message.createdObjects > 0 && ` • Created ${message.createdObjects} object${message.createdObjects !== 1 ? 's' : ''}`}
+                          {message.modifiedObjects > 0 && ` • Modified ${message.modifiedObjects} object${message.modifiedObjects !== 1 ? 's' : ''}`}
+                          {message.executionTimeMs && ` • ${message.executionTimeMs}ms`}
+                        </>
+                      ) : (
+                        <>❌ No commands executed</>
+                      )}
+                    </Typography>
+                  )}
+                  
+                  {/* Show errors */}
+                  {message.error && (
+                    <Alert severity="error" sx={{ mt: 1, fontSize: '0.75rem' }}>
+                      {message.error}
+                    </Alert>
+                  )}
+                </Paper>
+                
+                {message.type === 'user' && (
+                  <Box sx={{ 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    width: 32, 
+                    height: 32, 
+                    bgcolor: 'grey.300', 
+                    borderRadius: '50%', 
+                    flexShrink: 0 
+                  }}>
+                    <User style={{ width: 16, height: 16, color: '#666' }} />
+                  </Box>
                 )}
-              </div>
-              
-              {message.type === 'user' && (
-                <div className="flex items-center justify-center w-8 h-8 bg-gray-200 rounded-full flex-shrink-0">
-                  <User className="w-4 h-4 text-gray-600" />
-                </div>
-              )}
-            </div>
-          ))
+              </Box>
+            ))}
+          </Box>
         )}
 
         {/* Loading indicator */}
         {isLoading && (
-          <div className="flex gap-3 justify-start">
-            <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-full flex-shrink-0">
-              <Bot className="w-4 h-4 text-blue-600" />
-            </div>
-            <div className="bg-gray-100 px-4 py-2 rounded-lg">
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm text-gray-600">AI is thinking...</span>
-              </div>
-            </div>
-          </div>
+          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-start' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: 32, 
+              height: 32, 
+              bgcolor: 'primary.light', 
+              borderRadius: '50%', 
+              flexShrink: 0 
+            }}>
+              <Bot style={{ width: 16, height: 16, color: '#1976d2' }} />
+            </Box>
+            <Paper sx={{ bgcolor: 'grey.100', px: 2, py: 1.5 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <CircularProgress size={16} />
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+                  AI is thinking...
+                </Typography>
+              </Box>
+            </Paper>
+          </Box>
         )}
 
         {/* Error state with retry */}
         {error && (
-          <div className="flex gap-3 justify-start">
-            <div className="flex items-center justify-center w-8 h-8 bg-red-100 rounded-full flex-shrink-0">
-              <AlertCircle className="w-4 h-4 text-red-600" />
-            </div>
-            <div className="bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
-              <p className="text-sm text-red-800 mb-2">
-                {error}
-              </p>
-              <button
-                onClick={handleRetry}
-                className="text-xs bg-red-100 hover:bg-red-200 px-2 py-1 rounded text-red-800"
-              >
-                Retry
-              </button>
-            </div>
-          </div>
+          <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'flex-start' }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              justifyContent: 'center', 
+              width: 32, 
+              height: 32, 
+              bgcolor: 'error.light', 
+              borderRadius: '50%', 
+              flexShrink: 0 
+            }}>
+              <AlertCircle style={{ width: 16, height: 16, color: '#d32f2f' }} />
+            </Box>
+            <Alert 
+              severity="error" 
+              action={
+                <Button 
+                  color="inherit" 
+                  size="small" 
+                  onClick={handleRetry}
+                >
+                  Retry
+                </Button>
+              }
+            >
+              {error}
+            </Alert>
+          </Box>
         )}
 
-        <div ref={messagesEndRef} />
-      </div>
+        <Box ref={messagesEndRef} />
+      </Box>
 
       {/* Input Area - Fixed at bottom with clean styling */}
-      <form onSubmit={handleSubmit} className="flex-shrink-0 border-t border-gray-200 p-4 bg-white">
-        <div className="flex gap-3">
-          <div className="flex-1 relative">
-            <textarea
-              ref={inputRef}
+      <Box 
+        component="form" 
+        onSubmit={handleSubmit} 
+        sx={{ 
+          flexShrink: 0, 
+          borderTop: 1, 
+          borderColor: 'grey.300', 
+          p: 2, 
+          bgcolor: 'white' 
+        }}
+      >
+        <Box sx={{ display: 'flex', gap: 1.5 }}>
+          <Box sx={{ flex: 1, position: 'relative' }}>
+            <TextField
+              inputRef={inputRef}
+              multiline
+              minRows={3}
+              maxRows={6}
               value={inputMessage}
               onChange={(e) => setInputMessage(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Type your AI command here... (e.g., 'Create a red rectangle')"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-sm"
-              rows={3}
               disabled={isLoading}
-              style={{ 
-                minHeight: '80px'
+              fullWidth
+              variant="outlined"
+              sx={{ 
+                '& .MuiOutlinedInput-root': {
+                  fontSize: '0.875rem'
+                }
               }}
             />
             
             {/* Character count / helper text */}
-            <div className="absolute bottom-2 right-2 text-xs text-gray-400">
-              {inputMessage.length > 0 && `${inputMessage.length} chars`}
-            </div>
-          </div>
+            {inputMessage.length > 0 && (
+              <Typography 
+                variant="caption" 
+                sx={{ 
+                  position: 'absolute', 
+                  bottom: 8, 
+                  right: 8, 
+                  color: 'text.secondary',
+                  bgcolor: 'white',
+                  px: 0.5
+                }}
+              >
+                {inputMessage.length} chars
+              </Typography>
+            )}
+          </Box>
           
-          <button
+          <Button
             type="submit"
             disabled={!inputMessage.trim() || isLoading}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-colors self-end"
-            style={{ minHeight: '48px', minWidth: '48px' }}
+            variant="contained"
+            sx={{ 
+              minHeight: 48, 
+              minWidth: 48, 
+              alignSelf: 'flex-end' 
+            }}
             title={isLoading ? 'Processing...' : 'Send message'}
           >
             {isLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <CircularProgress size={20} color="inherit" />
             ) : (
-              <Send className="w-5 h-5" />
+              <Send style={{ width: 20, height: 20 }} />
             )}
-          </button>
-        </div>
+          </Button>
+        </Box>
 
         {/* Quick Actions */}
-        <div className="flex items-center justify-between mt-3 pt-2 border-t border-gray-100">
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span>Press Enter to send, Shift+Enter for new line</span>
-          </div>
+        <Box sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'space-between', 
+          mt: 1.5, 
+          pt: 1, 
+          borderTop: 1, 
+          borderColor: 'grey.100' 
+        }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            Press Enter to send, Shift+Enter for new line
+          </Typography>
           
-          <div className="flex items-center gap-2">
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             {messages.length > 0 && (
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">
-                {messages.length} message{messages.length !== 1 ? 's' : ''}
-              </span>
+              <Chip 
+                label={`${messages.length} message${messages.length !== 1 ? 's' : ''}`}
+                size="small"
+                variant="outlined"
+              />
             )}
-            <button
+            <Button
               type="button"
               onClick={clearMessages}
-              className="text-xs text-gray-500 hover:text-gray-700 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-full transition-colors"
+              size="small"
+              variant="outlined"
+              sx={{ minWidth: 'auto' }}
               disabled={isLoading || messages.length === 0}
             >
               Clear chat
-            </button>
-          </div>
-        </div>
-      </form>
-    </div>
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   )
 }
 

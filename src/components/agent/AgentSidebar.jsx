@@ -63,7 +63,7 @@ const AgentSidebar = ({ isOpen, onClose }) => {
       ModalProps={{
         BackdropProps: {
           sx: {
-            bgcolor: 'rgba(0, 0, 0, 0.5)',
+            bgcolor: 'rgba(0, 0, 0, 0.25)',
             zIndex: 9998,
           },
         },
