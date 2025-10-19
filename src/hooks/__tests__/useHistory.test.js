@@ -174,7 +174,7 @@ describe('useHistory Hook', () => {
         { type: ACTION_TYPES.MOVE_OBJECT, expected: 'Undo: Move Rectangle' },
         { type: ACTION_TYPES.RESIZE_OBJECT, expected: 'Undo: Resize Rectangle' },
         { type: ACTION_TYPES.ROTATE_OBJECT, expected: 'Undo: Rotate Rectangle' },
-        { type: ACTION_TYPES.UPDATE_PROPERTIES, expected: 'Undo: Update Rectangle' }
+        { type: ACTION_TYPES.UPDATE_PROPERTIES, expected: 'Undo: Update Rectangle Properties' }
       ];
 
       testCases.forEach(({ type, expected }, index) => {

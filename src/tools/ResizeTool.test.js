@@ -605,6 +605,7 @@ describe('ResizeTool', () => {
   describe('Post-Rotation State Fallback', () => {
     it('should use localRectUpdates when object not found in canvasObjects', async () => {
       // Simulate post-rotation state: object missing from canvasObjects but in localUpdates
+      mockState.selectedObjectId = 'star-1'; // Object is selected
       mockState.canvasObjects = []; // Empty - object not synced from Firestore yet
       mockState.localRectUpdates = {
         'star-1': {
@@ -636,6 +637,7 @@ describe('ResizeTool', () => {
 
     it('should merge canvasObjects with localRectUpdates when both exist', async () => {
       // Object exists in both canvasObjects (stale) and localUpdates (fresh)
+      mockState.selectedObjectId = 'star-1'; // Object is selected
       mockState.canvasObjects = [{ ...testStar, rotation: 0 }]; // Stale Firestore data
       mockState.localRectUpdates = {
         'star-1': {
@@ -664,6 +666,7 @@ describe('ResizeTool', () => {
       const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
       
       // Object completely missing
+      mockState.selectedObjectId = 'missing-object'; // Object selected but doesn't exist
       mockState.canvasObjects = [];
       mockState.localRectUpdates = {};
       

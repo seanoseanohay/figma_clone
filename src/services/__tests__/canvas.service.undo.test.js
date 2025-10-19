@@ -15,12 +15,12 @@ vi.mock('../firebase.js', () => ({
 
 // Mock Firestore functions
 vi.mock('firebase/firestore', () => ({
-  collection: vi.fn(),
-  doc: vi.fn(),
-  addDoc: vi.fn().mockResolvedValue({ id: 'test-object-id' }),
-  updateDoc: vi.fn().mockResolvedValue(true),
-  deleteDoc: vi.fn().mockResolvedValue(true),
-  getDoc: vi.fn().mockResolvedValue({
+  collection: vi.fn(() => ({})),
+  doc: vi.fn(() => ({})),
+  addDoc: vi.fn(() => Promise.resolve({ id: 'test-object-id' })),
+  updateDoc: vi.fn(() => Promise.resolve(true)),
+  deleteDoc: vi.fn(() => Promise.resolve(true)),
+  getDoc: vi.fn(() => Promise.resolve({
     exists: () => true,
     data: () => ({
       type: 'rectangle',
@@ -30,7 +30,7 @@ vi.mock('firebase/firestore', () => ({
       height: 30,
       fill: '#ff0000'
     })
-  }),
+  })),
   onSnapshot: vi.fn(),
   query: vi.fn(),
   orderBy: vi.fn(),

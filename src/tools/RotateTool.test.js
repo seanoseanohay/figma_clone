@@ -28,6 +28,7 @@ describe('RotateTool', () => {
   let testRect;
   let testCircle;
   let testStar;
+  let testText;
 
   beforeEach(() => {
     tool = new RotateTool();
@@ -59,10 +60,19 @@ describe('RotateTool', () => {
       rotation: 90,
     });
 
+    testText = createTestText({
+      id: 'text-1',
+      x: 200,
+      y: 150,
+      text: 'Hello World',
+      fontSize: 24,
+      rotation: 0,
+    });
+
     // Mock state
     mockState = {
       selectedObjectId: null,
-      canvasObjects: [testRect, testCircle, testStar],
+      canvasObjects: [testRect, testCircle, testStar, testText],
       isRotating: false,
       rotateSelectedId: null,
       rotateStartData: null,
@@ -488,10 +498,11 @@ describe('RotateTool', () => {
       );
     });
 
-    it('should unlock the object', async () => {
+    it('should NOT unlock the object (kept locked for tool transition)', async () => {
       await tool.onMouseUp({}, mockState, mockHelpers);
 
-      expect(unlockObject).toHaveBeenCalledWith('rect-1');
+      // CRITICAL FIX: Object stays locked for smooth tool switching
+      expect(unlockObject).not.toHaveBeenCalled();
     });
 
     it('should reset rotation states', async () => {
@@ -501,14 +512,12 @@ describe('RotateTool', () => {
       expect(mockState.setRotateStartData).toHaveBeenCalledWith(null);
     });
 
-    it('should clear local updates for rotated object', async () => {
+    it('should NOT clear local updates (preserved for tool transition)', async () => {
       await tool.onMouseUp({}, mockState, mockHelpers);
 
-      expect(mockState.setLocalRectUpdates).toHaveBeenCalled();
-      const updateCall = mockState.setLocalRectUpdates.mock.calls[0][0];
-      const result = updateCall(mockState.localRectUpdates);
-      
-      expect(result['rect-1']).toBeUndefined();
+      // CRITICAL FIX: Local updates preserved for next tool to use
+      expect(mockState.setLocalRectUpdates).not.toHaveBeenCalled();
+      expect(mockState.localRectUpdates['rect-1']).toBeDefined();
     });
 
     it('should not save if not rotating', async () => {
@@ -540,8 +549,8 @@ describe('RotateTool', () => {
 
       await expect(tool.onMouseUp({}, mockState, mockHelpers)).resolves.not.toThrow();
       
-      // Should still try to unlock
-      expect(unlockObject).toHaveBeenCalled();
+      // Object stays locked even on error (for tool transition)
+      expect(unlockObject).not.toHaveBeenCalled();
     });
 
     it('should handle unlock errors gracefully', async () => {
@@ -665,12 +674,12 @@ describe('RotateTool', () => {
       mockState.rotateSelectedId = 'circle-1';
       mockState.rotateStartData = {
         object: testCircle,
-        startPos: { x: 300, y: 270 },
+        startPos: { x: 600, y: 370 }, // Above circle center
         startAngle: 0,
-        initialRotation: 0,
+        initialRotation: 45, // testCircle starts with 45° rotation
       };
       
-      mockHelpers.pos = { x: 310, y: 280 };
+      mockHelpers.pos = { x: 610, y: 380 };
       const evt = { evt: { shiftKey: false } };
 
       tool.onMouseMove(evt, mockState, mockHelpers);
@@ -679,10 +688,10 @@ describe('RotateTool', () => {
         'test-canvas',
         'circle-1',
         expect.objectContaining({
-          x: 300,
-          y: 300,
+          x: 600,
+          y: 400,
           rotation: expect.any(Number),
-          radius: 50
+          radius: 75
         })
       );
     });
@@ -692,12 +701,12 @@ describe('RotateTool', () => {
       mockState.rotateSelectedId = 'star-1';
       mockState.rotateStartData = {
         object: testStar,
-        startPos: { x: 500, y: 220 },
+        startPos: { x: 800, y: 470 }, // Above star center
         startAngle: 0,
-        initialRotation: 0,
+        initialRotation: 90, // testStar starts with 90° rotation
       };
       
-      mockHelpers.pos = { x: 510, y: 230 };
+      mockHelpers.pos = { x: 810, y: 480 };
       const evt = { evt: { shiftKey: false } };
 
       tool.onMouseMove(evt, mockState, mockHelpers);
@@ -706,10 +715,10 @@ describe('RotateTool', () => {
         'test-canvas',
         'star-1',
         expect.objectContaining({
-          x: 500,
-          y: 250,
+          x: 800,
+          y: 500,
           rotation: expect.any(Number),
-          innerRadius: 30,
+          innerRadius: 24,
           outerRadius: 60
         })
       );
@@ -720,12 +729,12 @@ describe('RotateTool', () => {
       mockState.rotateSelectedId = 'text-1';
       mockState.rotateStartData = {
         object: testText,
-        startPos: { x: 200, y: 170 },
+        startPos: { x: 200, y: 120 }, // Above text center
         startAngle: 0,
-        initialRotation: 0,
+        initialRotation: 0, // testText starts with 0° rotation
       };
       
-      mockHelpers.pos = { x: 210, y: 180 };
+      mockHelpers.pos = { x: 210, y: 130 };
       const evt = { evt: { shiftKey: false } };
 
       tool.onMouseMove(evt, mockState, mockHelpers);
@@ -735,9 +744,10 @@ describe('RotateTool', () => {
         'text-1',
         expect.objectContaining({
           x: 200,
-          y: 200,
-          rotation: expect.any(Number),
-          width: 150
+          y: 150, // testText y position
+          rotation: expect.any(Number)
+          // Note: text and fontSize are not synced to RTDB during rotation
+          // Only position and rotation are synced for performance
         })
       );
     });

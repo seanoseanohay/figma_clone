@@ -81,7 +81,7 @@ export class RectangleTool {
 
         try {
           // Save rectangle to Firestore with undo/redo support
-          await createObject(
+          const createArgs = [
             'rectangle', 
             clampedRect, 
             canvasId, 
@@ -89,9 +89,15 @@ export class RectangleTool {
               fill: selectedColor || '#808080',
               stroke: '#333333',
               strokeWidth: 1
-            },
-            recordAction // Pass recordAction callback for undo/redo
-          )
+            }
+          ]
+          
+          // Only pass recordAction if it exists
+          if (recordAction) {
+            createArgs.push(recordAction)
+          }
+          
+          await createObject(...createArgs)
           console.log('Rectangle created and saved to Firestore with color:', selectedColor)
         } catch (error) {
           console.error('Failed to save rectangle:', error)

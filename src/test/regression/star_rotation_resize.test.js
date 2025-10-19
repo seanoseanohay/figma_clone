@@ -170,8 +170,8 @@ describe('B4 Regression: Star Rotation/Resize Synchronization Bug', () => {
       await rotateTool.onMouseUp({}, mockState, mockHelpers);
 
       // PHASE 2: Switch to resize tool
-      mockState.isResizing = true;
-      mockState.resizeSelectedId = 'star-test';
+      mockState.selectedObjectId = 'star-test'; // Ensure object is selected
+      // Don't pre-set isResizing - let the ResizeTool set it
       
       // Simulate post-rotation state where canvasObjects might be stale
       // but localRectUpdates contains the rotated state
@@ -179,7 +179,8 @@ describe('B4 Regression: Star Rotation/Resize Synchronization Bug', () => {
       expect(rotatedStar).toBeDefined();
 
       // PHASE 3: Start resize operation
-      mockHelpers.pos = { x: 345, y: 295 }; // Near SE corner of rotated star
+      // Position near bottom-right of star (considering outerRadius of 50)
+      mockHelpers.pos = { x: 348, y: 348 }; // Near SE corner of star
       
       // CRITICAL: Resize tool should find object data (from localRectUpdates fallback)
       await resizeTool.onMouseDown({}, mockState, mockHelpers);

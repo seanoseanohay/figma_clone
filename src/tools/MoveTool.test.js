@@ -7,7 +7,8 @@ import { createTestRectangle, createTestCircle } from '../test/fixtures/testData
 vi.mock('../services/canvas.service.js', () => ({
   updateActiveObjectPosition: vi.fn(),
   updateObjectPosition: vi.fn(),
-  clearActiveObject: vi.fn(),
+  updateObject: vi.fn(() => Promise.resolve()),
+  clearActiveObject: vi.fn(() => Promise.resolve()),
 }));
 
 describe('MoveTool', () => {
@@ -296,10 +297,15 @@ describe('MoveTool', () => {
       await tool.onMouseUp({}, mockState, mockHelpers);
       
       expect(canvasService.clearActiveObject).toHaveBeenCalledWith('test-canvas-id', 'rect-1');
-      expect(canvasService.updateObjectPosition).toHaveBeenCalledWith(
+      expect(canvasService.updateObject).toHaveBeenCalledWith(
         'rect-1',
         { x: 150, y: 130 },
-        false // Keep locked
+        undefined, // recordAction callback (undefined in tests)
+        expect.objectContaining({
+          actionType: 'MOVE_OBJECT',
+          before: { x: 100, y: 100 },
+          objectType: 'Rectangle'
+        })
       );
     });
 
