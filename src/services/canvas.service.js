@@ -249,7 +249,14 @@ export const batchLockObjects = async (objectIds) => {
     await batch.commit()
     console.log(`🔒 Batch locked ${objectIds.length} objects in single transaction`)
   } catch (error) {
-    console.error('Error batch locking objects:', objectIds, error)
+    const context = `${objectIds.length} objects (${objectIds.slice(0, 3).join(', ')}${objectIds.length > 3 ? '...' : ''})`
+    console.error(`❌ Error batch locking ${context}:`, error)
+    console.error('🔍 Batch lock failure details:', {
+      objectCount: objectIds.length,
+      userId: auth.currentUser?.uid,
+      errorCode: error.code,
+      errorMessage: error.message
+    })
     throw error
   }
 }
@@ -293,7 +300,14 @@ export const batchUnlockObjects = async (objectIds) => {
     await batch.commit()
     console.log(`🔓 Batch unlocked ${objectIds.length} objects in single transaction`)
   } catch (error) {
-    console.error('Error batch unlocking objects:', objectIds, error)
+    const context = `${objectIds.length} objects (${objectIds.slice(0, 3).join(', ')}${objectIds.length > 3 ? '...' : ''})`
+    console.error(`❌ Error batch unlocking ${context}:`, error)
+    console.error('🔍 Batch unlock failure details:', {
+      objectCount: objectIds.length,
+      userId: auth.currentUser?.uid,
+      errorCode: error.code,
+      errorMessage: error.message
+    })
     throw error
   }
 }
@@ -439,6 +453,108 @@ export const deleteObject = async (objectId, recordAction = null) => {
     }
   } catch (error) {
     console.error('Error deleting canvas object:', error)
+    throw error
+  }
+}
+
+/**
+ * Delete multiple canvas objects in batches for better performance
+ * @param {Array<string>} objectIds - Array of object IDs to delete
+ * @param {Function} recordAction - Optional callback to record action for undo/redo
+ * @returns {Promise<{deleted: number, errors: Array}>}
+ */
+export const batchDeleteObjects = async (objectIds, recordAction = null) => {
+  try {
+    if (!auth.currentUser) {
+      throw new Error('User must be authenticated to delete objects')
+    }
+
+    if (!Array.isArray(objectIds) || objectIds.length === 0) {
+      return { deleted: 0, errors: [] }
+    }
+
+    const result = { deleted: 0, errors: [] }
+    const maxBatchSize = 90 // Stay under API limit of 100
+    
+    // Process in batches to stay within API limits
+    for (let i = 0; i < objectIds.length; i += maxBatchSize) {
+      const batch = objectIds.slice(i, i + maxBatchSize)
+      
+      try {
+        // Use direct Firestore batch deletion (matches existing architecture)
+        const firestoreBatch = writeBatch(db)
+        const batchNumber = Math.floor(i/maxBatchSize) + 1
+        
+        // Get object data for undo functionality before deletion
+        const objectDataPromises = batch.map(async (objectId) => {
+          try {
+            const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId)
+            const docSnap = await getDoc(docRef)
+            return docSnap.exists() ? { id: objectId, ...docSnap.data() } : null
+          } catch (error) {
+            console.warn(`Failed to get object data for undo: ${objectId}`, error)
+            return null
+          }
+        })
+        
+        const objectsData = await Promise.all(objectDataPromises)
+        const validObjects = objectsData.filter(obj => obj !== null)
+        
+        // Add deletions to Firestore batch
+        validObjects.forEach(objectData => {
+          const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectData.id)
+          firestoreBatch.delete(docRef)
+        })
+        
+        // Commit the batch deletion
+        await firestoreBatch.commit()
+        
+        const deletedCount = validObjects.length
+        result.deleted += deletedCount
+        
+        console.log(`✅ Batch deleted ${deletedCount} objects via Firestore (batch ${batchNumber})`)
+        
+        // Record batch action for undo/redo if callback provided
+        if (recordAction && typeof recordAction === 'function' && deletedCount > 0) {
+          try {
+            recordAction(
+              'BATCH_DELETE_OBJECTS',
+              validObjects.map(obj => obj.id), // IDs that were successfully deleted
+              { deletedCount, objects: validObjects }, // before state info
+              null, // after: objects deleted
+              { objectType: 'Multiple Objects', count: deletedCount }
+            );
+          } catch (error) {
+            console.warn('Failed to record BATCH_DELETE_OBJECTS action:', error);
+          }
+        }
+        
+      } catch (error) {
+        const batchNumber = Math.floor(i/maxBatchSize) + 1
+        const batchInfo = `batch ${batchNumber} (${batch.length} objects: ${batch.slice(0, 3).join(', ')}${batch.length > 3 ? '...' : ''})`
+        console.error(`❌ Batch delete failed for ${batchInfo}:`, error)
+        result.errors.push(`Batch ${batchNumber}: ${error.message}`)
+        
+        // Fall back to individual deletion for this batch
+        console.log('🔄 Falling back to individual deletion for failed batch')
+        for (const objectId of batch) {
+          try {
+            await deleteObject(objectId, recordAction)
+            result.deleted++
+          } catch (err) {
+            result.errors.push(`Individual delete failed for ${objectId}: ${err.message}`)
+          }
+        }
+      }
+    }
+
+
+    console.log(`🗑️ Batch deletion completed: ${result.deleted}/${objectIds.length} objects deleted`)
+    
+    return result
+    
+  } catch (error) {
+    console.error('Error in batch delete operation:', error)
     throw error
   }
 }

@@ -1,15 +1,44 @@
 import { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Typography,
+  Box,
+  ToggleButtonGroup,
+  ToggleButton,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  IconButton,
+  Divider,
+  Paper,
+  Fade,
+  Chip
+} from '@mui/material';
+import {
+  Close as CloseIcon,
+  FormatBold as BoldIcon,
+  FormatItalic as ItalicIcon,
+  FormatUnderlined as UnderlineIcon,
+  Palette as PaletteIcon,
+  TextFields as TextFieldsIcon
+} from '@mui/icons-material';
 
 /**
- * TextEditor - Centered modal for text editing with professional UI
+ * TextEditor - Professional Material-UI modal for text editing
  * 
  * Features:
- * - Centered modal with overlay backdrop
- * - Clean, professional design with proper spacing
- * - Auto-focus text input with clear visual boundaries
- * - Responsive design that works on all screen sizes
- * - Keyboard shortcuts (Enter to save, Esc to cancel)
+ * - Material-UI Dialog with proper focus management
+ * - Professional design system integration
+ * - Responsive layout with consistent spacing
+ * - Accessible form controls with proper labeling
+ * - Smooth animations and transitions
+ * - Keyboard shortcuts (Ctrl+Enter to save, Esc to cancel)
  */
 const TextEditor = ({ 
   position,           // { x, y } canvas coordinates (used for positioning logic)
@@ -20,25 +49,34 @@ const TextEditor = ({
   stageScale = 1,    // Current canvas zoom level
   stagePos = { x: 0, y: 0 } // Current canvas pan position
 }) => {
+  const [open, setOpen] = useState(true);
   const [text, setText] = useState(initialText);
-  const [bold, setBold] = useState(initialFormatting.bold || false);
-  const [italic, setItalic] = useState(initialFormatting.italic || false);
-  const [underline, setUnderline] = useState(initialFormatting.underline || false);
+  const [formatting, setFormatting] = useState([]);
   const [fontSize, setFontSize] = useState(initialFormatting.fontSize || 24);
   const [fontFamily, setFontFamily] = useState(initialFormatting.fontFamily || 'Arial');
   const [color, setColor] = useState(initialFormatting.fill || '#000000');
   
-  const textAreaRef = useRef(null);
-  const modalRef = useRef(null);
+  const textFieldRef = useRef(null);
 
-  // Auto-focus on mount
+  // Initialize formatting toggles
   useEffect(() => {
-    if (textAreaRef.current) {
-      textAreaRef.current.focus();
-      // Place cursor at end of text
-      const len = textAreaRef.current.value.length;
-      textAreaRef.current.setSelectionRange(len, len);
-    }
+    const activeFormatting = [];
+    if (initialFormatting.bold) activeFormatting.push('bold');
+    if (initialFormatting.italic) activeFormatting.push('italic');
+    if (initialFormatting.underline) activeFormatting.push('underline');
+    setFormatting(activeFormatting);
+  }, [initialFormatting]);
+
+  // Auto-focus text input when modal opens
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (textFieldRef.current) {
+        textFieldRef.current.focus();
+        // Select all text for editing
+        textFieldRef.current.select();
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, []);
 
   // Handle keyboard shortcuts
@@ -46,219 +84,314 @@ const TextEditor = ({
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSave();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
     }
   };
 
-  // Handle clicking outside modal to close
-  const handleBackdropClick = (e) => {
-    if (modalRef.current && !modalRef.current.contains(e.target)) {
-      onCancel();
-    }
+  const handleClose = () => {
+    setOpen(false);
+    // Small delay to allow animation to complete
+    setTimeout(onCancel, 200);
   };
 
   const handleSave = () => {
-    const finalText = textAreaRef.current?.value || text;
-    if (finalText.trim()) {
-      onSave(finalText, {
-        bold,
-        italic,
-        underline,
+    if (text.trim()) {
+      onSave(text, {
+        bold: formatting.includes('bold'),
+        italic: formatting.includes('italic'),
+        underline: formatting.includes('underline'),
         fontSize,
         fontFamily,
         fill: color
       });
     } else {
-      onCancel(); // Don't create empty text
+      handleClose();
     }
   };
 
-  const handleTextChange = (e) => {
-    setText(e.target.value);
+  const handleFormattingChange = (event, newFormatting) => {
+    setFormatting(newFormatting);
   };
 
-  // Build font style for preview
-  const fontStyle = `${bold ? 'bold ' : ''}${italic ? 'italic ' : ''}${fontSize}px ${fontFamily}`;
-  const textDecoration = underline ? 'underline' : 'none';
+  // Build preview style
+  const previewStyle = {
+    fontWeight: formatting.includes('bold') ? 'bold' : 'normal',
+    fontStyle: formatting.includes('italic') ? 'italic' : 'normal',
+    textDecoration: formatting.includes('underline') ? 'underline' : 'none',
+    fontSize: `${fontSize}px`,
+    fontFamily: fontFamily,
+    color: color,
+    lineHeight: 1.2
+  };
 
-  // Create the modal content
-  const modalContent = (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={handleBackdropClick}
-      style={{ zIndex: 10000 }}
+  const fontSizeOptions = [12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
+  const fontFamilyOptions = [
+    'Arial',
+    'Helvetica',
+    'Times New Roman',
+    'Georgia',
+    'Verdana',
+    'Courier New',
+    'Impact',
+    'Comic Sans MS'
+  ];
+
+  return (
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      maxWidth="sm"
+      fullWidth
+      TransitionComponent={Fade}
+      TransitionProps={{ timeout: 300 }}
+      PaperProps={{
+        elevation: 8,
+        sx: {
+          borderRadius: 3,
+          minHeight: 400,
+        }
+      }}
     >
-      {/* Modal Container */}
-      <div
-        ref={modalRef}
-        className="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()} // Prevent backdrop click when clicking inside modal
+      <DialogTitle
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: (theme) => 
+            `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+          color: 'white',
+          py: 2,
+        }}
       >
-        {/* Modal Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-semibold">
-              {initialText ? '✏️ Edit Text' : '✏️ Add Text'}
-            </h2>
-            <button
-              onClick={onCancel}
-              className="text-white hover:text-blue-200 transition-colors p-1 rounded-md hover:bg-blue-800"
-              title="Close (Esc)"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <TextFieldsIcon />
+          <Typography variant="h6" component="div">
+            {initialText ? 'Edit Text' : 'Add Text'}
+          </Typography>
+        </Box>
+        <IconButton
+          onClick={handleClose}
+          size="small"
+          sx={{
+            color: 'white',
+            '&:hover': {
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+            },
+          }}
+        >
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
 
-        {/* Modal Body */}
-        <div className="p-6">
-          {/* Formatting Controls */}
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              Text Formatting
-            </label>
-            <div className="flex flex-wrap items-center gap-4 p-3 bg-gray-50 rounded-lg">
-              {/* Bold/Italic/Underline */}
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setBold(!bold)}
-                  className={`px-3 py-1.5 rounded-md font-bold text-sm transition-all ${
-                    bold 
-                      ? 'bg-blue-500 text-white shadow-sm' 
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
-                  title="Bold"
-                >
-                  B
-                </button>
-                <button
-                  onClick={() => setItalic(!italic)}
-                  className={`px-3 py-1.5 rounded-md italic text-sm transition-all ${
-                    italic 
-                      ? 'bg-blue-500 text-white shadow-sm' 
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
-                  title="Italic"
-                >
-                  I
-                </button>
-                <button
-                  onClick={() => setUnderline(!underline)}
-                  className={`px-3 py-1.5 rounded-md underline text-sm transition-all ${
-                    underline 
-                      ? 'bg-blue-500 text-white shadow-sm' 
-                      : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
-                  }`}
-                  title="Underline"
-                >
-                  U
-                </button>
-              </div>
+      <DialogContent sx={{ p: 3 }}>
+        {/* Text Formatting Section */}
+        <Paper 
+          elevation={1} 
+          sx={{ 
+            p: 2.5, 
+            mb: 3,
+            backgroundColor: (theme) => theme.palette.grey[50],
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 2
+          }}
+        >
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 2 }}>
+            Text Formatting
+          </Typography>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+            {/* Bold, Italic, Underline Toggle Buttons */}
+            <Box>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Style
+              </Typography>
+              <ToggleButtonGroup
+                value={formatting}
+                onChange={handleFormattingChange}
+                size="small"
+                sx={{ 
+                  '& .MuiToggleButton-root': {
+                    borderRadius: 1,
+                    px: 2,
+                    py: 1,
+                  }
+                }}
+              >
+                <ToggleButton value="bold" aria-label="bold">
+                  <BoldIcon fontSize="small" />
+                  <Typography variant="body2" sx={{ ml: 0.5, fontWeight: 'bold' }}>
+                    Bold
+                  </Typography>
+                </ToggleButton>
+                <ToggleButton value="italic" aria-label="italic">
+                  <ItalicIcon fontSize="small" />
+                  <Typography variant="body2" sx={{ ml: 0.5, fontStyle: 'italic' }}>
+                    Italic
+                  </Typography>
+                </ToggleButton>
+                <ToggleButton value="underline" aria-label="underline">
+                  <UnderlineIcon fontSize="small" />
+                  <Typography variant="body2" sx={{ ml: 0.5, textDecoration: 'underline' }}>
+                    Underline
+                  </Typography>
+                </ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
 
-              {/* Font Size */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Size:</label>
-                <select 
-                  value={fontSize} 
-                  onChange={(e) => setFontSize(Number(e.target.value))}
-                  className="px-2 py-1 text-sm border border-gray-200 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
+            {/* Font Size and Family Row */}
+            <Box sx={{ display: 'flex', gap: 2 }}>
+              <FormControl size="small" sx={{ minWidth: 100 }}>
+                <InputLabel>Size</InputLabel>
+                <Select
+                  value={fontSize}
+                  label="Size"
+                  onChange={(e) => setFontSize(e.target.value)}
                 >
-                  <option value="12">12px</option>
-                  <option value="14">14px</option>
-                  <option value="16">16px</option>
-                  <option value="18">18px</option>
-                  <option value="24">24px</option>
-                  <option value="32">32px</option>
-                  <option value="40">40px</option>
-                  <option value="48">48px</option>
-                </select>
-              </div>
+                  {fontSizeOptions.map((size) => (
+                    <MenuItem key={size} value={size}>
+                      {size}px
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-              {/* Font Family */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Font:</label>
-                <select 
-                  value={fontFamily} 
+              <FormControl size="small" sx={{ minWidth: 140 }}>
+                <InputLabel>Font</InputLabel>
+                <Select
+                  value={fontFamily}
+                  label="Font"
                   onChange={(e) => setFontFamily(e.target.value)}
-                  className="px-2 py-1 text-sm border border-gray-200 rounded-md bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none"
                 >
-                  <option value="Arial">Arial</option>
-                  <option value="Helvetica">Helvetica</option>
-                  <option value="Times New Roman">Times New Roman</option>
-                  <option value="Georgia">Georgia</option>
-                  <option value="Verdana">Verdana</option>
-                  <option value="Courier New">Courier New</option>
-                </select>
-              </div>
+                  {fontFamilyOptions.map((font) => (
+                    <MenuItem key={font} value={font} sx={{ fontFamily: font }}>
+                      {font}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
 
-              {/* Color */}
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Color:</label>
-                <div className="relative">
-                  <input
-                    type="color"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    className="w-10 h-8 rounded-md border border-gray-200 cursor-pointer"
-                    title="Text Color"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Color:
+                </Typography>
+                <Box
+                  component="input"
+                  type="color"
+                  value={color}
+                  onChange={(e) => setColor(e.target.value)}
+                  sx={{
+                    width: 40,
+                    height: 32,
+                    border: 1,
+                    borderColor: 'divider',
+                    borderRadius: 1,
+                    cursor: 'pointer',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                    },
+                  }}
+                />
+              </Box>
+            </Box>
+          </Box>
+        </Paper>
 
-          {/* Text Input Area */}
-          <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Text Content
-            </label>
-            <textarea
-              ref={textAreaRef}
-              value={text}
-              onChange={handleTextChange}
-              onKeyDown={handleKeyDown}
-              className="w-full h-32 px-4 py-3 border border-gray-300 rounded-lg resize-vertical focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 outline-none transition-all"
-              style={{
-                font: fontStyle,
-                color: color,
-                textDecoration: textDecoration,
-                minHeight: '120px',
-                maxHeight: '300px'
+        {/* Text Input */}
+        <Box sx={{ mb: 2 }}>
+          <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1.5 }}>
+            Text Content
+          </Typography>
+          <TextField
+            inputRef={textFieldRef}
+            fullWidth
+            multiline
+            rows={4}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type your text here..."
+            variant="outlined"
+            InputProps={{
+              sx: {
+                ...previewStyle,
+                lineHeight: 1.4,
+                '& textarea': {
+                  resize: 'vertical',
+                },
+              }
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
+            }}
+          />
+        </Box>
+
+        {/* Preview */}
+        {text && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600, mb: 1 }}>
+              Preview
+            </Typography>
+            <Paper 
+              elevation={0} 
+              sx={{ 
+                p: 2, 
+                backgroundColor: (theme) => theme.palette.grey[50],
+                border: 1,
+                borderColor: 'divider',
+                borderRadius: 1,
+                minHeight: 60,
+                display: 'flex',
+                alignItems: 'center'
               }}
-              placeholder="Type your text here..."
-            />
-            <p className="text-xs text-gray-500 mt-2">
-              Press <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono">Ctrl+Enter</kbd> to save, 
-              <kbd className="px-1.5 py-0.5 bg-gray-100 border border-gray-300 rounded text-xs font-mono ml-1">Esc</kbd> to cancel
-            </p>
-          </div>
+            >
+              <Typography style={previewStyle}>
+                {text || 'Your text will appear here...'}
+              </Typography>
+            </Paper>
+          </Box>
+        )}
 
-          {/* Action Buttons */}
-          <div className="flex justify-end gap-3">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 border border-gray-300 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-20 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-20 transition-all shadow-sm"
-            >
-              {initialText ? 'Update Text' : 'Add Text'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+        {/* Keyboard Shortcuts */}
+        <Box sx={{ mt: 2 }}>
+          <Typography variant="caption" color="text.secondary">
+            Keyboard shortcuts: 
+            <Chip label="Ctrl+Enter" size="small" sx={{ mx: 0.5, height: 18 }} /> to save,
+            <Chip label="Esc" size="small" sx={{ mx: 0.5, height: 18 }} /> to cancel
+          </Typography>
+        </Box>
+      </DialogContent>
+
+      <Divider />
+
+      <DialogActions sx={{ p: 2.5, gap: 1 }}>
+        <Button
+          onClick={handleClose}
+          variant="outlined"
+          color="inherit"
+          sx={{ minWidth: 100 }}
+        >
+          Cancel
+        </Button>
+        <Button
+          onClick={handleSave}
+          variant="contained"
+          disabled={!text.trim()}
+          sx={{ 
+            minWidth: 100,
+            background: (theme) => 
+              `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
+          }}
+        >
+          {initialText ? 'Update Text' : 'Add Text'}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
-
-  // Render the modal using a portal to ensure it's rendered at the document body level
-  return createPortal(modalContent, document.body);
 };
 
 export default TextEditor;

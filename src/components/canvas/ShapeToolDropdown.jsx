@@ -75,10 +75,12 @@ const ShapeToolDropdown = ({
           variant={isShapeToolSelected ? 'contained' : 'outlined'}
           title={`${displayShape.label} Tool${displayShape.shortcut ? ` (${displayShape.shortcut})` : ''}`}
           sx={{
-            minWidth: 'auto',
-            px: 1.5,
-            py: 1,
-            fontSize: '1.25rem',
+            minWidth: 32,
+            width: 32,
+            height: 32,
+            px: 0.5,
+            py: 0.5,
+            fontSize: '1.125rem',
           }}
         >
           <Box component="span" role="img" aria-label={displayShape.label}>
@@ -92,9 +94,11 @@ const ShapeToolDropdown = ({
           variant={isShapeToolSelected ? 'contained' : 'outlined'}
           title="Choose shape tool"
           sx={{
-            minWidth: 'auto',
-            px: 0.5,
-            py: 1,
+            minWidth: 20,
+            width: 20,
+            height: 32,
+            px: 0.25,
+            py: 0.5,
             borderLeft: '1px solid',
             borderLeftColor: 'divider',
           }}

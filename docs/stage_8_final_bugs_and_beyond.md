@@ -252,6 +252,45 @@ Avoid resizing rectangles past their bounds (crossing corners) before rotating.
 
 ---
 
+## ⚡ Performance Optimizations (NEW)
+
+### Multi-Object Performance Improvements ✅ **COMPLETED**
+
+**Issues Fixed:**
+1. **Slow Multi-Object Deletion**: Sequential API calls (1 per object) → **Batch API calls (90 objects per request)**
+2. **AI Grid Creation Bottleneck**: 5 commands per batch → **50 commands per batch** (10x faster for large grids)
+3. **Laggy Large Selection Movement**: Individual RTDB calls for each object → **Throttled & sampled updates**
+
+**Performance Gains:**
+- **Deletion**: 125 objects now deleted in ~1-2 API calls instead of 125 individual calls
+- **AI Grid Creation**: 25×25 grid (625 stars) now created in ~13 batches instead of 125 batches
+- **Movement**: Large selections (>20 objects) use adaptive throttling and sampling to prevent network overload
+
+**Implementation Details:**
+
+1. **Batch Deletion Service** (`canvas.service.js`)
+   - New `batchDeleteObjects()` function with 90-object batches
+   - Automatic fallback to individual deletion on API errors
+   - Updated Canvas.jsx and useCanvasKeyboard.js to use batch deletion for multiple objects
+
+2. **AI Agent Batch Size Optimization** (`agentCommandParser.js`)
+   - Increased batch size from 5 → 50 commands for creation operations
+   - Maintains individual execution for canvas-level operations (clearCanvas, etc.)
+
+3. **Large Selection Movement Optimization** (`MoveInteraction.js`)
+   - Adaptive throttling: 16ms (normal) → 100ms (large selections >20 objects)
+   - RTDB update sampling: Send updates for every 10th object in very large selections
+   - Performance logging for monitoring large selection behavior
+
+**Files Modified:**
+- `/src/services/canvas.service.js` - Added batch deletion function
+- `/src/components/canvas/Canvas.jsx` - Updated to use batch deletion
+- `/src/hooks/useCanvasKeyboard.js` - Updated to use batch deletion  
+- `/src/utils/agentCommandParser.js` - Increased batch size limit
+- `/src/tools/MoveInteraction.js` - Added throttling and sampling for large selections
+
+---
+
 ## 🚀 Future Enhancements
 
 ### Bug Fixes & Technical Improvements

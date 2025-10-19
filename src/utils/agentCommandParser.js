@@ -572,8 +572,8 @@ export const batchCommands = (commands) => {
       // Add to current batch
       currentBatch.push(command)
       
-      // Limit batch size to 5 commands for performance
-      if (currentBatch.length >= 5) {
+      // Limit batch size to 50 commands for performance (optimized for large grids)
+      if (currentBatch.length >= 50) {
         batches.push(currentBatch)
         currentBatch = []
       }

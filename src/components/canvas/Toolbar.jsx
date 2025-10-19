@@ -136,7 +136,7 @@ const TOOL_CONFIG = {
     shortcut: 'Press T'
   },
   [TOOLS.TEXT]: {
-    icon: '📝',
+    icon: 'Tt',
     label: 'Text Tool',
     shortLabel: 'Text',
     cursor: 'text',

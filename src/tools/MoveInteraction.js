@@ -74,8 +74,15 @@ export class MoveInteraction {
     // Active flag to prevent RTDB updates after interaction ends
     this._active = true;
     
+    // Performance optimization for large selections
+    this.isLargeSelection = selectedShapes.length > 20;
+    this.rtdbUpdateQueue = [];
+    this.rtdbUpdateThrottle = this.isLargeSelection ? 100 : 16; // Throttle more aggressively for large selections
+    this.lastRtdbUpdate = 0;
+    
     console.log('🎯 MoveInteraction created for', this.selectedShapes.length, 'objects');
     console.log('📍 Start point:', this.startPoint);
+    console.log('🚀 Performance mode:', this.isLargeSelection ? 'Large Selection (throttled)' : 'Normal');
     console.log('📋 Objects to move:', this.selectedShapes.map(s => `${s.type}:${s.id}`));
   }
 
@@ -171,7 +178,7 @@ export class MoveInteraction {
       // Store for local rendering
       this.localUpdates[shapeInfo.id] = clampedShape;
       
-      // Send real-time updates to RTDB for multiplayer sync (if active and we can edit this object)
+      // Send real-time updates to RTDB for multiplayer sync (throttled for performance)
       if (this._active && this.canvasId && this.canEditObject(shapeInfo.id)) {
         const rtdbData = {
           x: clampedShape.x,
@@ -190,10 +197,13 @@ export class MoveInteraction {
           if (clampedShape.numPoints !== undefined) rtdbData.numPoints = clampedShape.numPoints;
         }
         
-        // Broadcast to other users via RTDB
-        updateActiveObjectPosition(this.canvasId, shapeInfo.id, rtdbData);
+        // Queue RTDB update for throttled sending
+        this.rtdbUpdateQueue.push({ id: shapeInfo.id, data: rtdbData });
       }
     });
+    
+    // Process throttled RTDB updates for multiplayer sync
+    this._processRtdbUpdates();
     
     // Trigger canvas re-render with updated positions
     if (this.onUpdate) {
@@ -201,6 +211,40 @@ export class MoveInteraction {
     }
     
     return this.localUpdates;
+  }
+
+  /**
+   * Process throttled RTDB updates for better performance with large selections
+   * @private
+   */
+  _processRtdbUpdates() {
+    if (this.rtdbUpdateQueue.length === 0) return;
+    
+    const now = Date.now();
+    const timeSinceLastUpdate = now - this.lastRtdbUpdate;
+    
+    // Only send updates if enough time has passed (throttling)
+    if (timeSinceLastUpdate >= this.rtdbUpdateThrottle) {
+      // For large selections, sample a subset of objects to reduce network load
+      let updatesToSend = this.rtdbUpdateQueue;
+      
+      if (this.isLargeSelection && this.rtdbUpdateQueue.length > 10) {
+        // Sample every nth object to reduce RTDB calls for very large selections
+        const sampleRate = Math.ceil(this.rtdbUpdateQueue.length / 10);
+        updatesToSend = this.rtdbUpdateQueue.filter((_, index) => index % sampleRate === 0);
+        console.log(`🎯 Large selection optimization: sending ${updatesToSend.length}/${this.rtdbUpdateQueue.length} RTDB updates`);
+      }
+      
+      // Send the RTDB updates
+      updatesToSend.forEach(({ id, data }) => {
+        updateActiveObjectPosition(this.canvasId, id, data);
+      });
+      
+      this.lastRtdbUpdate = now;
+    }
+    
+    // Clear the queue
+    this.rtdbUpdateQueue = [];
   }
 
   /**

@@ -97,8 +97,9 @@ export class SelectTool {
     if (!clickedObject) {
       // Start drag selection if not holding shift
       if (!this.isShiftPressed) {
-        await multiSelection.clearSelection()
-        setSelectedObjectId(null)
+        // DON'T clear selection immediately - wait to see if user drags
+        // This allows dragging existing multi-selections without clearing them
+        this.shouldClearSelectionOnMouseUp = true
         
         // Prepare for potential drag selection
         this.isDragging = false // Will be set to true in onMouseMove
@@ -183,7 +184,7 @@ export class SelectTool {
    * Handle mouse up - complete drag selection
    */
   async onMouseUp(e, state, helpers) {
-    const { multiSelection } = state
+    const { multiSelection, setSelectedObjectId } = state
 
     // Complete drag selection if we were dragging
     if (this.isDragging && multiSelection.isSelecting) {
@@ -191,14 +192,19 @@ export class SelectTool {
       
       // Update legacy selection state for compatibility
       const selection = multiSelection.selectionInfo
-      const { setSelectedObjectId } = state
       setSelectedObjectId(selection.isSingle ? selection.primaryId : null)
+    } else if (this.shouldClearSelectionOnMouseUp && !this.isDragging) {
+      // Clear selection if clicked empty space without dragging
+      await multiSelection.clearSelection()
+      setSelectedObjectId(null)
+      console.log('🖱️ Cleared selection after click on empty space (no drag detected)')
     }
 
     // Clean up drag state
     this.isDragging = false
     this.dragStartPos = null
     this.isShiftPressed = false
+    this.shouldClearSelectionOnMouseUp = false
   }
 
   /**

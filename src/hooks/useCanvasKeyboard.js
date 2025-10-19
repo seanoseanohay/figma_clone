@@ -128,15 +128,27 @@ export const useCanvasKeyboard = ({
         console.log('🗑️ Delete key pressed: Deleting', deletableObjects.length, 'objects');
         
         try {
-          // Import deleteObject dynamically to avoid circular imports
-          import('../services/canvas.service.js').then(async ({ deleteObject }) => {
-            // Delete all selected objects
-            for (const objectId of deletableObjects) {
+          // Import batch delete function for better performance
+          import('../services/canvas.service.js').then(async ({ batchDeleteObjects, deleteObject }) => {
+            let result;
+            
+            // Use batch deletion for multiple objects (much faster)
+            if (deletableObjects.length > 1) {
+              console.log('🚀 Using batch deletion for', deletableObjects.length, 'objects');
+              result = await batchDeleteObjects(deletableObjects);
+              
+              if (result.errors.length > 0) {
+                console.warn('⚠️ Some objects failed to delete:', result.errors);
+              }
+              
+              console.log(`✅ Batch deletion completed: ${result.deleted}/${deletableObjects.length} objects deleted`);
+            } else {
+              // Single object - use regular deletion
               try {
-                await deleteObject(objectId);
-                console.log('✅ Object deleted successfully:', objectId);
+                await deleteObject(deletableObjects[0]);
+                console.log('✅ Single object deleted successfully:', deletableObjects[0]);
               } catch (err) {
-                console.error('❌ Failed to delete object:', objectId, err);
+                console.error('❌ Failed to delete single object:', deletableObjects[0], err);
               }
             }
             
@@ -147,11 +159,9 @@ export const useCanvasKeyboard = ({
             setResizeSelectedId(null);
             setRotateSelectedId(null);
             setTextSelectedId(null);
-            
-            console.log('✅ Batch deletion completed:', deletableObjects.length, 'objects');
           });
         } catch (error) {
-          console.error('❌ Failed to import deleteObject:', error);
+          console.error('❌ Failed to import delete functions:', error);
         }
         return;
       }
@@ -206,7 +216,7 @@ export const useCanvasKeyboard = ({
         // Update legacy selection state for compatibility
         const selection = multiSelection.selectionInfo;
         setSelectedObjectId(selection.isSingle ? selection.primaryId : null);
-        console.log('⌨️ Select All: Selected', selection.count, 'objects');
+        console.log('⌨️ Select All: Selected', selection.count, 'objects (multi-selection active:', !selection.isSingle, ')');
         return;
       }
 
