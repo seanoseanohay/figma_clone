@@ -35,7 +35,8 @@ export class MoveInteraction {
       startX: shape.x,
       startY: shape.y,
       type: shape.type,
-      originalShape: { ...shape } // Full shape data for boundary calculations
+      // Deep clone to avoid stale object reference reuse across drags
+      originalShape: this._deepClone(shape)
     }));
     
     this.startPoint = { x: startPoint.x, y: startPoint.y };
@@ -49,6 +50,9 @@ export class MoveInteraction {
     // Track local updates for immediate visual feedback
     this.localUpdates = {};
     
+    // Active flag to prevent RTDB updates after interaction ends
+    this._active = true;
+    
     console.log('🎯 MoveInteraction created for', this.selectedShapes.length, 'objects');
     console.log('📍 Start point:', this.startPoint);
     console.log('📋 Objects to move:', this.selectedShapes.map(s => `${s.type}:${s.id}`));
@@ -60,6 +64,9 @@ export class MoveInteraction {
    * @returns {Object} localUpdates - Updated object positions for immediate rendering
    */
   move(currentPoint) {
+    // Stop processing if interaction is no longer active
+    if (!this._active) return this.localUpdates;
+    
     // Calculate delta from start point
     const dx = currentPoint.x - this.startPoint.x;
     const dy = currentPoint.y - this.startPoint.y;
@@ -101,23 +108,23 @@ export class MoveInteraction {
       // Store for local rendering
       this.localUpdates[shapeInfo.id] = clampedShape;
       
-      // Send real-time updates to RTDB for multiplayer sync (if we can edit this object)
-      if (this.canvasId && this.canEditObject(shapeInfo.id)) {
+      // Send real-time updates to RTDB for multiplayer sync (if active and we can edit this object)
+      if (this._active && this.canvasId && this.canEditObject(shapeInfo.id)) {
         const rtdbData = {
           x: clampedShape.x,
           y: clampedShape.y
         };
         
-        // Add shape-specific properties for complete sync
+        // Add shape-specific properties for complete sync (only if defined)
         if (shapeInfo.type === 'rectangle') {
-          rtdbData.width = clampedShape.width;
-          rtdbData.height = clampedShape.height;
+          if (clampedShape.width !== undefined) rtdbData.width = clampedShape.width;
+          if (clampedShape.height !== undefined) rtdbData.height = clampedShape.height;
         } else if (shapeInfo.type === 'circle') {
-          rtdbData.radius = clampedShape.radius;
+          if (clampedShape.radius !== undefined) rtdbData.radius = clampedShape.radius;
         } else if (shapeInfo.type === 'star') {
-          rtdbData.innerRadius = clampedShape.innerRadius;
-          rtdbData.outerRadius = clampedShape.outerRadius;
-          rtdbData.numPoints = clampedShape.numPoints;
+          if (clampedShape.innerRadius !== undefined) rtdbData.innerRadius = clampedShape.innerRadius;
+          if (clampedShape.outerRadius !== undefined) rtdbData.outerRadius = clampedShape.outerRadius;
+          if (clampedShape.numPoints !== undefined) rtdbData.numPoints = clampedShape.numPoints;
         }
         
         // Broadcast to other users via RTDB
@@ -139,6 +146,9 @@ export class MoveInteraction {
    * @returns {Promise} Promise that resolves when all operations complete
    */
   async end(recordAction) {
+    // Immediately stop RTDB updates to prevent trailing movement
+    this._active = false;
+    
     console.log('🏁 Finalizing move interaction for', this.selectedShapes.length, 'objects');
     
     if (Object.keys(this.localUpdates).length === 0) {
@@ -232,6 +242,9 @@ export class MoveInteraction {
    * Cancel the move operation (restore original positions)
    */
   cancel() {
+    // Immediately stop RTDB updates
+    this._active = false;
+    
     console.log('❌ Cancelling move interaction');
     
     // Clear any RTDB tracking
@@ -271,6 +284,37 @@ export class MoveInteraction {
       objectIds: this.selectedShapes.map(s => s.id),
       hasLocalUpdates: Object.keys(this.localUpdates).length > 0
     };
+  }
+
+  /**
+   * Deep clone an object while preserving Date objects and other types
+   * @param {*} obj - Object to clone
+   * @returns {*} Deep cloned object
+   */
+  _deepClone(obj) {
+    if (obj === null || typeof obj !== 'object') {
+      return obj;
+    }
+    
+    if (obj instanceof Date) {
+      return new Date(obj.getTime());
+    }
+    
+    if (obj instanceof Array) {
+      return obj.map(item => this._deepClone(item));
+    }
+    
+    if (typeof obj === 'object') {
+      const cloned = {};
+      for (const key in obj) {
+        if (obj.hasOwnProperty(key)) {
+          cloned[key] = this._deepClone(obj[key]);
+        }
+      }
+      return cloned;
+    }
+    
+    return obj;
   }
 }
 

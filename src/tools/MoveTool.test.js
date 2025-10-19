@@ -18,7 +18,8 @@ const mockMoveInteraction = {
   move: vi.fn(),
   end: vi.fn(() => Promise.resolve()),
   cancel: vi.fn(),
-  getLocalUpdates: vi.fn(() => ({ 'rect-1': { x: 150, y: 130 } }))
+  getLocalUpdates: vi.fn(() => ({ 'rect-1': { x: 150, y: 130 } })),
+  selectedShapes: [{ id: 'rect-1' }] // Mock shapes array for logging
 };
 
 vi.mock('./MoveInteraction.js', () => ({
@@ -273,8 +274,9 @@ describe('MoveTool', () => {
       mockHelpers.pos = { x: 150, y: 150 };
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Manually set the mock interaction
+      // Manually set the mock interaction and simulate actual dragging
       tool.moveInteraction = mockMoveInteraction;
+      tool.isDragging = true; // simulate that actual dragging occurred
       mockState.isMoving = true;
       
       // Clear mocks from setup
@@ -306,6 +308,7 @@ describe('MoveTool', () => {
 
     it('should handle click without drag', async () => {
       mockState.isMoving = false;
+      tool.isDragging = false; // simulate click without actual dragging
       
       await tool.onMouseUp({}, mockState, mockHelpers);
       

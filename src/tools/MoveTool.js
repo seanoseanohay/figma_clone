@@ -17,6 +17,7 @@ export class MoveTool {
   constructor() {
     // Current move interaction instance (null when not moving)
     this.moveInteraction = null
+    this.isDragging = false // internal immediate flag
   }
 
   /**
@@ -43,44 +44,56 @@ export class MoveTool {
     if (this.moveInteraction) {
       this.moveInteraction.cancel()
       this.moveInteraction = null
+      // Small async delay to ensure previous cleanup and state updates settle
+      await new Promise(resolve => setTimeout(resolve, 0))
     }
 
     // Auto-select logic: handle object selection
     const clickedObject = findObjectAt(pos)
     
+    // Check if clicking inside existing multi-selection (skip auto-select to prevent initiator switch lag)
+    const clickingInsideExistingMulti =
+      !!clickedObject &&
+      multiSelection &&
+      multiSelection.selectionInfo &&
+      multiSelection.selectionInfo.isMulti &&
+      typeof multiSelection.selectionInfo.has === 'function' &&
+      multiSelection.selectionInfo.has(clickedObject.id)
+    
     // Handle auto-selection if no object selected or different object clicked
-    if (!selectedObjectId || (clickedObject && clickedObject.id !== selectedObjectId)) {
+    // BUT skip if clicking inside existing multi-selection to prevent lag
+    if (!clickingInsideExistingMulti && (!selectedObjectId || (clickedObject && clickedObject.id !== selectedObjectId))) {
       if (clickedObject && canEditObject(clickedObject.id)) {
         console.log('👆 Move tool: Auto-selecting object', clickedObject.id)
         
-        // Unlock previous selection if exists
+        // Unlock previous selection in background
         if (selectedObjectId) {
-          try {
-            await unlockObject(selectedObjectId)
-          } catch (error) {
-            console.error('Failed to unlock previous object:', error)
-          }
+          unlockObject(selectedObjectId).catch(err =>
+            console.error('Failed to unlock previous object:', err)
+          )
         }
         
-        // Select and lock the new object
+        // CRITICAL: Clear multi-selection when auto-selecting a single object
+        // This prevents moving wrong objects when switching from multi-selection to single
+        if (multiSelection && multiSelection.clearSelection) {
+          await multiSelection.clearSelection()
+        }
+        
+        // Immediately select the new object
         setSelectedObjectId(clickedObject.id)
         
-        try {
-          await lockObject(clickedObject.id)
-          console.log('✅ Object auto-selected and locked for moving')
-        } catch (error) {
-          console.error('Failed to lock auto-selected object:', error)
-          return
-        }
+        // Fire lock call asynchronously (don't block UI)
+        lockObject(clickedObject.id)
+          .then(() => console.log('✅ Object auto-selected and locked (async)'))
+          .catch(err => console.error('Failed to lock auto-selected object:', err))
       } else if (!clickedObject) {
         // Clicked empty space - deselect and clear selection
         if (selectedObjectId) {
-          try {
-            await unlockObject(selectedObjectId)
-            setSelectedObjectId(null)
-          } catch (error) {
-            console.error('Failed to unlock on deselect:', error)
-          }
+          // Unlock in background and immediately clear selection
+          unlockObject(selectedObjectId).catch(err =>
+            console.error('Failed to unlock on deselect:', err)
+          )
+          setSelectedObjectId(null)
         }
         await multiSelection.clearSelection()
         return
@@ -112,13 +125,17 @@ export class MoveTool {
         objectsToMove = [primaryObject]
       }
       console.log('👤 Move tool: Single selection movement for object:', primaryId)
-    } else if (selectedObjectId) {
-      // Legacy single selection
-      const selectedObject = canvasObjects.find(o => o.id === selectedObjectId)
-      if (selectedObject && canEditObject(selectedObject.id)) {
-        objectsToMove = [selectedObject]
+    } else {
+      // Use the clicked object if we just auto-selected it, otherwise fall back to selectedObjectId
+      // This prevents React state timing issues where selectedObjectId is still the old value
+      const targetObjectId = (clickedObject && !clickingInsideExistingMulti) ? clickedObject.id : selectedObjectId
+      if (targetObjectId) {
+        const targetObject = canvasObjects.find(o => o.id === targetObjectId)
+        if (targetObject && canEditObject(targetObject.id)) {
+          objectsToMove = [targetObject]
+        }
+        console.log('👤 Move tool: Single object movement for:', targetObjectId)
       }
-      console.log('👤 Move tool: Legacy single selection movement for object:', selectedObjectId)
     }
 
     if (objectsToMove.length === 0) {
@@ -126,16 +143,20 @@ export class MoveTool {
       return
     }
 
+    // Clear previous frame ghosting before starting a fresh session
+    setLocalRectUpdates({})
+
+    // Reset dragging flag before creating new interaction
+    this.isDragging = false
+
     // Create MoveInteraction with proper boundary constraint functions
     this.moveInteraction = new MoveInteraction(
       objectsToMove, 
       pos,
       (localUpdates) => {
-        // Update local state for immediate visual feedback
-        setLocalRectUpdates(prev => ({
-          ...prev,
-          ...localUpdates
-        }))
+        // Overwrite to avoid lingering entries for non-moving IDs
+        setLocalRectUpdates(localUpdates || {})
+        this.isDragging = true // immediate flag, not delayed React state
         setIsMoving(true)
       },
       {
@@ -167,50 +188,40 @@ export class MoveTool {
    */
   async onMouseUp(e, state, helpers) {
     const { recordAction } = helpers
-    const {
-      isMoving,
-      setIsMoving,
-      setLocalRectUpdates
-    } = state
+    const { setIsMoving, setLocalRectUpdates } = state
 
-    if (!this.moveInteraction) {
-      // No active move interaction - just a click
-      console.log('Move: Click only - objects stay selected')
+    const interaction = this.moveInteraction
+    if (!interaction) {
+      console.log('Move: no active interaction, likely a click.')
       return
     }
 
-    if (!isMoving) {
-      // Just a click without drag - clean up interaction but keep selection
-      console.log('Move: Click without drag - cleaning up interaction')
+    if (!this.isDragging) {
+      // Click without drag, keep selection, cancel interaction safely
+      console.log('Move: click only, cancelling interaction')
+      interaction.cancel()
       this.moveInteraction = null
+      setIsMoving(false)
       return
     }
+
+    console.log('🖱️ MouseUp: finishing move for', interaction.selectedShapes.length, 'objects')
 
     try {
-      // Finalize the move operation with undo/redo support
-      await this.moveInteraction.end(recordAction)
-      console.log('✅ Move interaction completed successfully')
-      
-      // Clear local updates for all moved objects
-      const movedObjectIds = Object.keys(this.moveInteraction.getLocalUpdates())
-      setLocalRectUpdates(prev => {
-        const updated = { ...prev }
-        movedObjectIds.forEach(id => {
-          delete updated[id]
-        })
-        return updated
-      })
-      
-    } catch (error) {
-      console.error('❌ Failed to finalize move interaction:', error)
-      // MoveInteraction handles its own cleanup on error
+      // Prevent double-clean before end finishes
+      await interaction.end(recordAction)
+      console.log('✅ Move finalized properly')
+    } catch (err) {
+      console.error('❌ Move finalize failed:', err)
     }
 
-    // Clean up interaction and movement state
-    this.moveInteraction = null
+    // Always reset cleanly
+    setLocalRectUpdates({})
     setIsMoving(false)
-    
-    console.log('🧹 Move interaction cleaned up, objects remain selected and locked')
+    this.isDragging = false
+    this.moveInteraction = null
+
+    console.log('🧹 Cleanup complete, ready for next drag')
   }
 
   /**
