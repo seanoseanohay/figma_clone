@@ -182,6 +182,24 @@ export class RotateTool {
       rotation: newRotation
     };
     
+    // CRITICAL VALIDATION: Ensure updated object doesn't contain NaN values before local state update
+    const hasInvalidValues = ['x', 'y', 'width', 'height', 'radius', 'innerRadius', 'outerRadius', 'rotation']
+      .filter(prop => updatedObject.hasOwnProperty(prop))
+      .some(prop => typeof updatedObject[prop] === 'number' && !isFinite(updatedObject[prop]));
+    
+    if (hasInvalidValues) {
+      console.error('🚨 ROTATE TOOL ERROR: Updated object contains NaN values, not updating local state:', {
+        objectId: rotateSelectedId,
+        updatedObject: {
+          x: updatedObject.x,
+          y: updatedObject.y,
+          rotation: updatedObject.rotation,
+          type: updatedObject.type
+        }
+      });
+      return; // Don't update local state with corrupted data
+    }
+    
     setLocalRectUpdates(prev => ({
       ...prev,
       [rotateSelectedId]: updatedObject
@@ -189,6 +207,17 @@ export class RotateTool {
     
     // Send real-time updates via RTDB if we own this object
     if (doWeOwnObject(rotateSelectedId)) {
+      // CRITICAL VALIDATION: Ensure coordinates and rotation are valid before sending to RTDB
+      if (!isFinite(startObject.x) || !isFinite(startObject.y) || !isFinite(newRotation)) {
+        console.error('🚨 ROTATE TOOL ERROR: Invalid values for RTDB update:', {
+          x: startObject.x,
+          y: startObject.y,
+          rotation: newRotation,
+          objectId: rotateSelectedId
+        });
+        return; // Don't send invalid data to RTDB
+      }
+      
       const rtdbData = {
         x: startObject.x,
         y: startObject.y,
@@ -197,15 +226,15 @@ export class RotateTool {
       
       // CRITICAL FIX: Include shape-specific properties for proper resize tool operation
       if (startObject.type === 'rectangle') {
-        rtdbData.width = startObject.width;
-        rtdbData.height = startObject.height;
+        if (isFinite(startObject.width)) rtdbData.width = startObject.width;
+        if (isFinite(startObject.height)) rtdbData.height = startObject.height;
       } else if (startObject.type === 'circle') {
-        rtdbData.radius = startObject.radius;
+        if (isFinite(startObject.radius)) rtdbData.radius = startObject.radius;
       } else if (startObject.type === 'star') {
-        rtdbData.innerRadius = startObject.innerRadius;
-        rtdbData.outerRadius = startObject.outerRadius;
+        if (isFinite(startObject.innerRadius)) rtdbData.innerRadius = startObject.innerRadius;
+        if (isFinite(startObject.outerRadius)) rtdbData.outerRadius = startObject.outerRadius;
       } else if (startObject.type === 'text') {
-        rtdbData.width = startObject.width;
+        if (isFinite(startObject.width)) rtdbData.width = startObject.width;
       }
       
       updateActiveObjectPosition(canvasId, rotateSelectedId, rtdbData);

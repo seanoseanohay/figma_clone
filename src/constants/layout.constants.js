@@ -9,11 +9,11 @@
 // Fixed header height at top of page
 export const HEADER_HEIGHT = 90; // pixels
 
-// Toolbar container height (includes padding and content)
-export const TOOLBAR_HEIGHT = 80; // pixels (reduced from 110 to fix excessive spacing)
+// Toolbar container height (includes padding and content) - Figma-compact standard
+export const TOOLBAR_HEIGHT = 60; // pixels (Figma-style compact: reduced from 80px to match design tools)
 
 // Total offset from top of viewport to start of interactive canvas area
-export const CANVAS_TOP_OFFSET = HEADER_HEIGHT + TOOLBAR_HEIGHT; // 170px (90 + 80)
+export const CANVAS_TOP_OFFSET = HEADER_HEIGHT + TOOLBAR_HEIGHT; // 150px (90 + 60)
 
 // Z-index layers for stacking
 export const Z_INDEX = {

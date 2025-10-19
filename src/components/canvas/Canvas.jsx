@@ -323,9 +323,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       .map(rect => {
         // If WE are controlling this object, show our local updates for immediate feedback
         if (localRectUpdates[rect.id] && rect.lockedBy === auth.currentUser?.uid) {
+          // CRITICAL FIX: Validate local updates before merging to prevent NaN values
+          const localUpdate = localRectUpdates[rect.id]
+          const hasInvalidValues = Object.entries(localUpdate).some(([key, value]) => 
+            typeof value === 'number' && !isFinite(value)
+          )
+          
+          if (hasInvalidValues) {
+            console.error('🚨 CANVAS: Corrupted local update detected, using Firestore data instead:', {
+              objectId: rect.id,
+              localUpdate,
+              invalidKeys: Object.entries(localUpdate)
+                .filter(([key, value]) => typeof value === 'number' && !isFinite(value))
+                .map(([key]) => key)
+            })
+            return rect; // Use clean Firestore data
+          }
+          
           return {
             ...rect,
-            ...localRectUpdates[rect.id]
+            ...localUpdate
           };
         }
         
@@ -367,9 +384,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       .map(circle => {
         // If WE are controlling this object, show our local updates
         if (localRectUpdates[circle.id] && circle.lockedBy === auth.currentUser?.uid) {
+          // CRITICAL FIX: Validate local updates before merging to prevent NaN values
+          const localUpdate = localRectUpdates[circle.id]
+          const hasInvalidValues = Object.entries(localUpdate).some(([key, value]) => 
+            typeof value === 'number' && !isFinite(value)
+          )
+          
+          if (hasInvalidValues) {
+            console.error('🚨 CANVAS: Corrupted local update detected for circle, using Firestore data instead:', {
+              objectId: circle.id,
+              localUpdate,
+              invalidKeys: Object.entries(localUpdate)
+                .filter(([key, value]) => typeof value === 'number' && !isFinite(value))
+                .map(([key]) => key)
+            })
+            return circle; // Use clean Firestore data
+          }
+          
           return {
             ...circle,
-            ...localRectUpdates[circle.id]
+            ...localUpdate
           };
         }
         
@@ -409,9 +443,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       .map(star => {
         // If WE are controlling this object, show our local updates
         if (localRectUpdates[star.id] && star.lockedBy === auth.currentUser?.uid) {
+          // CRITICAL FIX: Validate local updates before merging to prevent NaN values
+          const localUpdate = localRectUpdates[star.id]
+          const hasInvalidValues = Object.entries(localUpdate).some(([key, value]) => 
+            typeof value === 'number' && !isFinite(value)
+          )
+          
+          if (hasInvalidValues) {
+            console.error('🚨 CANVAS: Corrupted local update detected for star, using Firestore data instead:', {
+              objectId: star.id,
+              localUpdate,
+              invalidKeys: Object.entries(localUpdate)
+                .filter(([key, value]) => typeof value === 'number' && !isFinite(value))
+                .map(([key]) => key)
+            })
+            return star; // Use clean Firestore data
+          }
+          
           return {
             ...star,
-            ...localRectUpdates[star.id]
+            ...localUpdate
           };
         }
         
@@ -453,9 +504,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       .map(text => {
         // If WE are controlling this object, show our local updates
         if (localRectUpdates[text.id] && text.lockedBy === auth.currentUser?.uid) {
+          // CRITICAL FIX: Validate local updates before merging to prevent NaN values
+          const localUpdate = localRectUpdates[text.id]
+          const hasInvalidValues = Object.entries(localUpdate).some(([key, value]) => 
+            typeof value === 'number' && !isFinite(value)
+          )
+          
+          if (hasInvalidValues) {
+            console.error('🚨 CANVAS: Corrupted local update detected for text, using Firestore data instead:', {
+              objectId: text.id,
+              localUpdate,
+              invalidKeys: Object.entries(localUpdate)
+                .filter(([key, value]) => typeof value === 'number' && !isFinite(value))
+                .map(([key]) => key)
+            })
+            return text; // Use clean Firestore data
+          }
+          
           return {
             ...text,
-            ...localRectUpdates[text.id]
+            ...localUpdate
           };
         }
         
@@ -1224,31 +1292,48 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       setLocalRectUpdates({});
     }
     
-    // Enhanced sync for resize tool - handle post-rotation state
+    // FIXED: Enhanced sync for resize tool - handle post-rotation state properly
     if (selectedTool === TOOLS.RESIZE && selectedObjectId) {
       console.log('🔧 Switching to Resize tool for object:', selectedObjectId);
       
-      // Sync resizeSelectedId with selectedObjectId
+      // CRITICAL FIX: Always sync resizeSelectedId immediately
       setResizeSelectedId(selectedObjectId);
       
-      // CRITICAL FIX: Ensure object state is available for resize tool
+      // Ensure object state is available - check both canvasObjects and localRectUpdates
       const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+      const localUpdates = localRectUpdates[selectedObjectId];
+      
       if (selectedObj) {
         console.log('✅ Object found for resize:', {
           id: selectedObj.id,
           type: selectedObj.type,
-          rotation: selectedObj.rotation,
-          hasLocalUpdates: !!localRectUpdates[selectedObjectId]
+          rotation: selectedObj.rotation || 0,
+          hasLocalUpdates: !!localUpdates
         });
+        
+        // IMPORTANT: If we have local updates from rotation, merge them immediately
+        if (localUpdates && localUpdates.rotation !== undefined) {
+          console.log('🔄 Merging rotation state for resize tool:', localUpdates.rotation);
+        }
       } else {
-        console.warn('⚠️ Object not found in canvasObjects - may be stale after rotation');
-        // Force a small delay to allow Firestore sync to complete
-        setTimeout(() => {
-          const refreshedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
-          if (refreshedObj) {
-            console.log('✅ Object found after refresh:', refreshedObj.id);
-          }
-        }, 100);
+        console.warn('⚠️ Object not found in canvasObjects - using local updates if available');
+        
+        if (localUpdates) {
+          console.log('✅ Using local updates for resize tool:', localUpdates);
+        } else {
+          console.error('❌ No object state available for resize - this will cause handle issues');
+          
+          // EMERGENCY FIX: Force a refresh and retry
+          setTimeout(() => {
+            const refreshedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+            if (refreshedObj) {
+              console.log('✅ Object found after emergency refresh:', refreshedObj.id);
+              setResizeSelectedId(selectedObjectId); // Re-trigger sync
+            } else {
+              console.error('❌ Emergency refresh failed - resize handles will not work');
+            }
+          }, 50); // Shorter delay for immediate fix
+        }
       }
     }
     
@@ -1297,13 +1382,21 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       setRotateSelectedId(null);
     }
     
-    // Clear stale local updates when switching away from rotation tool
+    // FIXED: Preserve local updates for transform tools, clear only for non-transform tools
     if (selectedTool !== TOOLS.ROTATE && Object.keys(localRectUpdates).length > 0) {
-      // Small delay to allow other tools to use the data first
-      setTimeout(() => {
-        console.log('🧹 Clearing stale local updates after tool switch');
-        setLocalRectUpdates({});
-      }, 200);
+      // CRITICAL FIX: Don't clear if switching to tools that need the updates
+      const isTransformTool = [TOOLS.RESIZE, TOOLS.MOVE].includes(selectedTool);
+      
+      if (!isTransformTool) {
+        // Delay clearing for non-transform tools (select, pan, shape creation)
+        setTimeout(() => {
+          console.log('🧹 Clearing stale local updates after switching to non-transform tool');
+          setLocalRectUpdates({});
+        }, 200);
+      } else {
+        console.log('🔄 Preserving local updates for transform tool:', selectedTool);
+        // Keep updates for resize/move tools - they'll clean up when done
+      }
     }
     
     // Pan tool doesn't deselect

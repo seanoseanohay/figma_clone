@@ -297,10 +297,12 @@ const Toolbar = ({
         size="small"
         title={tooltipText}
         sx={{
-          minWidth: 'auto',
-          px: 1.5,
-          py: 1,
-          fontSize: '1.25rem',
+          minWidth: 32,
+          width: 32,
+          height: 32,
+          px: 0.5,
+          py: 0.5,
+          fontSize: '1.125rem',
         }}
       >
         <Box component="span" role="img" aria-label={config.label}>
@@ -338,21 +340,21 @@ const Toolbar = ({
   return (
     <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
       <Paper elevation={3} sx={{ maxWidth: 900, width: 'auto' }}>
-        {/* Tool Icons and Controls */}
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: 3, py: 1.5, gap: 2 }}>
+        {/* Tool Icons and Controls - Figma-Compact Spacing */}
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', px: 1.5, py: 0.75, gap: 0.75 }}>
           {/* Selection Tools */}
           <ButtonGroup size="small" variant="outlined">
             {SELECTION_TOOLS.map(toolKey => renderToolButton(toolKey))}
           </ButtonGroup>
           
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           
           {/* Modification Tools */}
           <ButtonGroup size="small" variant="outlined">
             {MODIFICATION_TOOLS.map(toolKey => renderToolButton(toolKey))}
           </ButtonGroup>
           
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           
           {/* Undo/Redo Controls */}
           <ButtonGroup size="small" variant="outlined">
@@ -360,7 +362,7 @@ const Toolbar = ({
               onClick={onUndo}
               disabled={!canUndo}
               title={undoDescription ? `${undoDescription} (Ctrl+Z)` : 'Nothing to undo (Ctrl+Z)'}
-              sx={{ minWidth: 'auto', px: 1.5, py: 1 }}
+              sx={{ minWidth: 32, width: 32, height: 32, px: 0.5, py: 0.5 }}
             >
               ↶
             </Button>
@@ -368,13 +370,13 @@ const Toolbar = ({
               onClick={onRedo}
               disabled={!canRedo}
               title={redoDescription ? `${redoDescription} (Ctrl+Y)` : 'Nothing to redo (Ctrl+Y)'}
-              sx={{ minWidth: 'auto', px: 1.5, py: 1 }}
+              sx={{ minWidth: 32, width: 32, height: 32, px: 0.5, py: 0.5 }}
             >
               ↷
             </Button>
           </ButtonGroup>
           
-          <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
           
           {/* Creation Tools */}
           <Box sx={{ display: 'flex', gap: 1 }}>
@@ -392,9 +394,9 @@ const Toolbar = ({
           </Box>
         </Box>
         
-        {/* Description Area */}
-        <Box sx={{ px: 3, pb: 1.5, textAlign: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 0.5 }}>
+        {/* Description Area - Figma-Compact Spacing */}
+        <Box sx={{ px: 1.5, pb: 0.5, textAlign: 'center' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 0.25 }}>
             <Typography variant="caption" fontWeight={500} color="grey.700">
               {line1Text}
             </Typography>
@@ -407,32 +409,32 @@ const Toolbar = ({
             {hasAnySelection && (
               <>
                 <Typography variant="caption" color="grey.500">•</Typography>
-                <ButtonGroup size="small" variant="outlined" sx={{ height: 24 }}>
+                <ButtonGroup size="small" variant="outlined" sx={{ height: 20 }}>
                   <Button 
                     onClick={handleBringToFront} 
                     title="Bring to Front (Ctrl+Shift+])"
-                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                    sx={{ minWidth: 20, width: 20, height: 20, px: 0.25, py: 0, fontSize: '0.75rem' }}
                   >
                     ⬆️
                   </Button>
                   <Button 
                     onClick={handleMoveForward} 
                     title="Move Forward (Ctrl+])"
-                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                    sx={{ minWidth: 20, width: 20, height: 20, px: 0.25, py: 0, fontSize: '0.75rem' }}
                   >
                     🔼
                   </Button>
                   <Button 
                     onClick={handleMoveBackward} 
                     title="Move Backward (Ctrl+[)"
-                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                    sx={{ minWidth: 20, width: 20, height: 20, px: 0.25, py: 0, fontSize: '0.75rem' }}
                   >
                     🔽
                   </Button>
                   <Button 
                     onClick={handleSendToBack} 
                     title="Send to Back (Ctrl+Shift+[)"
-                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                    sx={{ minWidth: 20, width: 20, height: 20, px: 0.25, py: 0, fontSize: '0.75rem' }}
                   >
                     ⬇️
                   </Button>
@@ -441,7 +443,7 @@ const Toolbar = ({
             )}
           </Box>
           
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5 }}>
             <Typography variant="caption" color="grey.500">
               {line2Text}
             </Typography>

@@ -25,9 +25,19 @@ export class ResizeTool {
    * Now properly handles rotated objects by transforming corner positions
    */
   getClosestCorner(pos, obj) {
+    // CRITICAL VALIDATION: Ensure object has valid properties
+    if (!obj || typeof obj.x !== 'number' || typeof obj.y !== 'number') {
+      console.error('❌ HANDLE DETECTION ERROR: Invalid object position:', obj)
+      return null
+    }
+    
     // Calculate bounding box based on shape type
     let bounds
     if (obj.type === 'circle') {
+      if (typeof obj.radius !== 'number' || !isFinite(obj.radius) || obj.radius <= 0) {
+        console.error('❌ HANDLE DETECTION ERROR: Invalid circle radius:', obj.radius)
+        return null
+      }
       bounds = {
         x: obj.x - obj.radius,
         y: obj.y - obj.radius,
@@ -35,7 +45,15 @@ export class ResizeTool {
         height: obj.radius * 2
       }
     } else if (obj.type === 'star') {
-      // Stars use outerRadius for bounding box
+      // CRITICAL FIX: Validate star properties 
+      if (typeof obj.outerRadius !== 'number' || !isFinite(obj.outerRadius) || obj.outerRadius <= 0) {
+        console.error('❌ HANDLE DETECTION ERROR: Invalid star outerRadius:', {
+          outerRadius: obj.outerRadius,
+          innerRadius: obj.innerRadius,
+          allProps: Object.keys(obj)
+        })
+        return null
+      }
       bounds = {
         x: obj.x - obj.outerRadius,
         y: obj.y - obj.outerRadius,
@@ -44,12 +62,28 @@ export class ResizeTool {
       }
     } else {
       // Rectangles and other shapes with width/height
+      if (typeof obj.width !== 'number' || typeof obj.height !== 'number' || 
+          !isFinite(obj.width) || !isFinite(obj.height) || 
+          obj.width <= 0 || obj.height <= 0) {
+        console.error('❌ HANDLE DETECTION ERROR: Invalid rectangle dimensions:', {
+          width: obj.width,
+          height: obj.height,
+          type: obj.type
+        })
+        return null
+      }
       bounds = {
         x: obj.x,
         y: obj.y,
         width: obj.width,
         height: obj.height
       }
+    }
+    
+    // VALIDATION: Ensure bounds are valid
+    if (!isFinite(bounds.x) || !isFinite(bounds.y) || !isFinite(bounds.width) || !isFinite(bounds.height)) {
+      console.error('❌ HANDLE DETECTION ERROR: Invalid calculated bounds:', bounds)
+      return null
     }
     
     // Define base corners (unrotated)
@@ -228,19 +262,53 @@ export class ResizeTool {
    * Maintains the proportional relationship between inner and outer radius (40%)
    */
   calculateStarResize(star, handle, currentPos, startPos) {
+    // ENHANCED VALIDATION: Prevent NaN values in star calculations
+    if (!star || typeof star.x !== 'number' || typeof star.y !== 'number') {
+      console.error('❌ STAR RESIZE ERROR: Invalid star object:', star)
+      return star // Return original to prevent crashes
+    }
+    
+    if (!currentPos || typeof currentPos.x !== 'number' || typeof currentPos.y !== 'number') {
+      console.error('❌ STAR RESIZE ERROR: Invalid currentPos:', currentPos)
+      return star
+    }
+    
     // Calculate distance from center to current mouse position
     const dx = currentPos.x - star.x
     const dy = currentPos.y - star.y
     const newOuterRadius = Math.sqrt(dx * dx + dy * dy)
     
+    // CRITICAL VALIDATION: Ensure we don't get NaN
+    if (!isFinite(newOuterRadius) || newOuterRadius < 0) {
+      console.error('❌ STAR RESIZE ERROR: Invalid radius calculation:', { dx, dy, newOuterRadius })
+      return star
+    }
+    
     // Maintain the 40% ratio for inner radius
     const newInnerRadius = newOuterRadius * 0.4
     
-    return {
-      ...star,
-      outerRadius: Math.max(newOuterRadius, this.minSize / 2), // Minimum radius
-      innerRadius: Math.max(newInnerRadius, this.minSize / 4) // Minimum inner radius
+    // SAFETY: Ensure all values are finite numbers
+    const safeOuterRadius = Math.max(newOuterRadius, this.minSize / 2) // Minimum radius
+    const safeInnerRadius = Math.max(newInnerRadius, this.minSize / 4) // Minimum inner radius
+    
+    if (!isFinite(safeOuterRadius) || !isFinite(safeInnerRadius)) {
+      console.error('❌ STAR RESIZE ERROR: Non-finite radius values:', { safeOuterRadius, safeInnerRadius })
+      return star
     }
+    
+    const result = {
+      ...star,
+      outerRadius: safeOuterRadius,
+      innerRadius: safeInnerRadius
+    }
+    
+    // FINAL VALIDATION: Ensure result is safe
+    if (!isFinite(result.x) || !isFinite(result.y) || !isFinite(result.outerRadius) || !isFinite(result.innerRadius)) {
+      console.error('❌ STAR RESIZE ERROR: Final result contains invalid values:', result)
+      return star // Return original as fallback
+    }
+    
+    return result
   }
 
   /**
@@ -295,8 +363,11 @@ export class ResizeTool {
 
     console.log('Resize tool mouse down')
 
-    // Auto-select logic: handle object selection
-    const clickedObject = state.findObjectAt(pos)
+    // Auto-select logic: handle object selection (if findObjectAt is available)
+    let clickedObject = null
+    if (typeof state.findObjectAt === 'function') {
+      clickedObject = state.findObjectAt(pos)
+    }
     
     if (!selectedObjectId) {
       // No object currently selected - try to auto-select clicked object
@@ -412,35 +483,92 @@ export class ResizeTool {
       return
     }
 
-    // Find the currently selected object (may have been updated by auto-selection logic above)
+    // ENHANCED FIX: Find the currently selected object with robust fallback for post-rotation state
     const currentSelectedId = state.selectedObjectId || selectedObjectId
     let selectedObject = canvasObjects.find(o => o.id === currentSelectedId)
     
-    // CRITICAL FIX: If object not found in canvasObjects (stale after rotation),
-    // try to use local updates as fallback
+    console.log('🔍 Resize tool object lookup:', {
+      currentSelectedId,
+      foundInCanvasObjects: !!selectedObject,
+      hasLocalUpdates: !!localRectUpdates[currentSelectedId],
+      canvasObjectsCount: canvasObjects.length,
+      localUpdatesCount: Object.keys(localRectUpdates).length
+    });
+    
+    // CRITICAL FIX: Enhanced fallback for post-rotation state
     if (!selectedObject && localRectUpdates[currentSelectedId]) {
-      console.log('🔧 Using local updates for object not yet synced from Firestore')
-      selectedObject = localRectUpdates[currentSelectedId]
+      console.log('🔧 FALLBACK: Using local updates for object not yet synced from Firestore')
+      selectedObject = { 
+        ...localRectUpdates[currentSelectedId],
+        // Ensure we have an ID
+        id: currentSelectedId
+      }
     }
     
     if (!selectedObject) {
-      console.log('Resize tool: Selected object not found in canvasObjects or localUpdates')
-      console.log('Available objects:', canvasObjects.map(o => o.id))
-      console.log('Local updates:', Object.keys(localRectUpdates))
-      return
+      console.error('❌ RESIZE TOOL CRITICAL ERROR: Selected object not found!')
+      console.log('Debug info:', {
+        selectedObjectId: currentSelectedId,
+        availableObjects: canvasObjects.map(o => ({ id: o.id, type: o.type })),
+        localUpdates: Object.keys(localRectUpdates),
+        timestamp: Date.now()
+      })
+      
+      // EMERGENCY RECOVERY: Try to wait for Firestore sync
+      console.log('🚨 Attempting emergency recovery...')
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
+      // Retry finding the object
+      selectedObject = canvasObjects.find(o => o.id === currentSelectedId)
+      if (selectedObject) {
+        console.log('✅ Emergency recovery successful!')
+      } else {
+        console.error('❌ Emergency recovery failed - resize will not work')
+        return
+      }
     }
     
-    // If we have both Firestore data and local updates, merge them
+    // ENHANCED MERGE: If we have both Firestore data and local updates, merge intelligently
     // (local updates take precedence for immediate post-rotation state) 
     if (localRectUpdates[currentSelectedId]) {
-      selectedObject = {
-        ...selectedObject,
-        ...localRectUpdates[currentSelectedId]
+      const localUpdates = localRectUpdates[currentSelectedId]
+      
+      // CRITICAL VALIDATION: Check for NaN values in local updates before merging
+      const hasInvalidLocalValues = Object.entries(localUpdates).some(([key, value]) => 
+        typeof value === 'number' && !isFinite(value)
+      )
+      
+      if (hasInvalidLocalValues) {
+        console.error('🚨 CORRUPTED LOCAL UPDATES - NOT MERGING:', {
+          localUpdates,
+          invalidKeys: Object.entries(localUpdates)
+            .filter(([key, value]) => typeof value === 'number' && !isFinite(value))
+            .map(([key]) => key)
+        })
+        // Use only Firestore data, don't merge corrupted local updates
+      } else {
+        selectedObject = {
+          ...selectedObject,
+          ...localUpdates
+        }
+        console.log('🔄 ENHANCED MERGE: Combined Firestore + local state:', {
+          id: selectedObject.id,
+          type: selectedObject.type,
+          rotation: selectedObject.rotation,
+          fromLocal: Object.keys(localUpdates),
+          timestamp: Date.now()
+        })
       }
-      console.log('🔧 Merged object with local updates for resize:', {
-        id: selectedObject.id,
-        rotation: selectedObject.rotation
-      })
+    }
+    
+    // FINAL VALIDATION: Ensure selectedObject doesn't have NaN values
+    const hasInvalidObjectValues = ['x', 'y', 'width', 'height', 'radius', 'innerRadius', 'outerRadius']
+      .filter(prop => selectedObject.hasOwnProperty(prop))
+      .some(prop => typeof selectedObject[prop] === 'number' && !isFinite(selectedObject[prop]))
+    
+    if (hasInvalidObjectValues) {
+      console.error('🚨 SELECTED OBJECT HAS NaN VALUES - ABORTING RESIZE:', selectedObject)
+      return
     }
 
     console.log('=== RESIZE TOOL OBJECT DEBUG ===')
@@ -463,29 +591,93 @@ export class ResizeTool {
     
     console.log('=== END RESIZE DEBUG ===')
 
-    // Check if we clicked on a resize handle
+    // ENHANCED VALIDATION: Check if we clicked on a resize handle
     const handle = this.getClosestCorner(pos, selectedObject)
-    console.log('Checking closest corner on selected object:', handle)
+    
+    console.log('🎯 RESIZE HANDLE DETECTION:', {
+      clickPos: pos,
+      handle,
+      objectType: selectedObject.type,
+      objectId: selectedObject.id,
+      rotation: selectedObject.rotation || 0,
+      hasValidGeometry: !!(selectedObject.x !== undefined && selectedObject.y !== undefined)
+    })
     
     if (handle) {
-      console.log('Starting resize on corner:', handle, 'for selected', selectedObject.type)
+      console.log('✅ RESIZE HANDLE FOUND:', handle, 'for', selectedObject.type, selectedObject.id)
 
       // CRITICAL: Only start new resize if we're not already resizing
       if (!isResizing) {
+        console.log('🚀 INITIALIZING RESIZE OPERATION...')
+        
+        // ENHANCED VALIDATION: Ensure we have all required state
+        const resizeData = {
+          object: { ...selectedObject },
+          startPos: pos,
+          handle,
+          timestamp: Date.now()
+        }
+        
+        console.log('🔧 Resize initialization data:', {
+          objectId: selectedObject.id,
+          handle,
+          startPos: pos,
+          hasValidObject: !!(selectedObject.id && selectedObject.type),
+          objectProperties: Object.keys(selectedObject)
+        })
+        
+        // Set resize state
         setIsResizing(true)
         setResizeHandle(handle)
         setResizeSelectedId(currentSelectedId) // Track which object is being resized
-        setResizeStartData({
-          object: { ...selectedObject },
-          startPos: pos
-        })
+        setResizeStartData(resizeData)
 
-        console.log('Resize tool: Ready to resize selected object')
+        console.log('✅ RESIZE TOOL: Ready to resize', selectedObject.type, selectedObject.id)
+        console.log('🎯 Resize state set:', {
+          isResizing: true,
+          handle,
+          selectedId: currentSelectedId,
+          timestamp: Date.now()
+        })
       } else {
-        console.log('Already resizing - ignoring click to prevent jumping')
+        console.warn('⚠️ Already resizing - ignoring click to prevent state corruption')
       }
     } else {
-      console.log('Resize tool: Click was not on a resize handle')
+      console.log('❌ RESIZE HANDLE NOT FOUND: Click was not on a resize handle')
+      
+      // Enhanced debug info based on object type
+      const debugInfo = {
+        clickPos: pos,
+        objectType: selectedObject.type,
+        objectId: selectedObject.id,
+        basePosition: { x: selectedObject.x, y: selectedObject.y },
+        rotation: selectedObject.rotation || 0
+      }
+      
+      if (selectedObject.type === 'rectangle') {
+        debugInfo.dimensions = { width: selectedObject.width, height: selectedObject.height }
+      } else if (selectedObject.type === 'circle') {
+        debugInfo.dimensions = { radius: selectedObject.radius }
+      } else if (selectedObject.type === 'star') {
+        debugInfo.dimensions = { 
+          innerRadius: selectedObject.innerRadius, 
+          outerRadius: selectedObject.outerRadius,
+          numPoints: selectedObject.numPoints
+        }
+      } else if (selectedObject.type === 'text') {
+        debugInfo.dimensions = { width: selectedObject.width, text: selectedObject.text }
+      }
+      
+      // Check for invalid values
+      const hasInvalidProps = Object.entries(debugInfo.dimensions || {}).some(([key, value]) => 
+        typeof value === 'number' && (!isFinite(value) || value <= 0)
+      )
+      
+      if (hasInvalidProps) {
+        console.error('🚨 OBJECT HAS INVALID PROPERTIES:', debugInfo)
+      } else {
+        console.log('Handle detection debug:', debugInfo)
+      }
     }
   }
 
@@ -506,14 +698,55 @@ export class ResizeTool {
       setLocalRectUpdates
     } = state
 
-    if (!isResizing || !resizeStartData || !resizeHandle) return
+    // ENHANCED VALIDATION: Ensure we have all required state for resize operation
+    if (!isResizing) {
+      // console.log('Not resizing, ignoring mouse move')
+      return
+    }
+    
+    if (!resizeStartData) {
+      console.error('❌ RESIZE ERROR: Missing resizeStartData during mouse move')
+      return
+    }
+    
+    if (!resizeHandle) {
+      console.error('❌ RESIZE ERROR: Missing resizeHandle during mouse move')
+      return
+    }
+    
+    if (!resizeSelectedId) {
+      console.error('❌ RESIZE ERROR: Missing resizeSelectedId during mouse move')
+      return
+    }
 
     const { object: startObject, startPos } = resizeStartData
+    
+    // Validate startObject
+    if (!startObject || !startObject.id) {
+      console.error('❌ RESIZE ERROR: Invalid startObject in resizeStartData:', startObject)
+      return
+    }
+    
     const deltaX = pos.x - startPos.x
     const deltaY = pos.y - startPos.y
     
     let newObject
     let currentHandle = resizeHandle
+    
+    // Debug logging for first move to verify state
+    if (!this._debuggedThisResize) {
+      console.log('🎯 RESIZE MOUSE MOVE - First move validation:', {
+        isResizing,
+        hasStartData: !!resizeStartData,
+        hasHandle: !!resizeHandle,
+        selectedId: resizeSelectedId,
+        startObjectType: startObject?.type,
+        startObjectId: startObject?.id,
+        handle: currentHandle,
+        delta: { deltaX, deltaY }
+      })
+      this._debuggedThisResize = true
+    }
 
     // Calculate new dimensions based on object type
     if (startObject.type === 'circle') {
@@ -548,20 +781,39 @@ export class ResizeTool {
         newObject = state.clampStarToCanvas(newObject)
       }
       
-      // Update local state for immediate visual feedback
+      // Update local state for immediate visual feedback - WITH VALIDATION
+      // SAFETY CHECK: Ensure newObject has valid values before updating local state
+      const isValidStarObject = isFinite(newObject.x) && isFinite(newObject.y) && 
+                               isFinite(newObject.innerRadius) && isFinite(newObject.outerRadius)
+      
+      if (!isValidStarObject) {
+        console.error('❌ STAR LOCAL UPDATE ERROR: Invalid star object values:', newObject)
+        return // Don't update local state with invalid values
+      }
+      
       setLocalRectUpdates(prev => ({
         ...prev,
         [resizeSelectedId]: newObject
       }))
       
-      // Send updates if we own this object
+      // Send updates if we own this object - WITH VALIDATION
       if (doWeOwnObject(resizeSelectedId) && !resizeSelectedId.match(/^[12]$/)) {
-        updateActiveObjectPosition(canvasId, resizeSelectedId, {
+        // CRITICAL FIX: Validate all values before sending to RTDB
+        const rtdbUpdate = {
           x: newObject.x,
           y: newObject.y,
           innerRadius: newObject.innerRadius,
           outerRadius: newObject.outerRadius
-        })
+        }
+        
+        // Ensure no NaN values are sent
+        const hasInvalidValues = Object.entries(rtdbUpdate).some(([key, value]) => !isFinite(value))
+        
+        if (hasInvalidValues) {
+          console.error('❌ STAR RTDB ERROR: Prevented sending NaN values:', rtdbUpdate)
+        } else {
+          updateActiveObjectPosition(canvasId, resizeSelectedId, rtdbUpdate)
+        }
       }
       
       return // Stars don't need crossover detection
@@ -696,12 +948,29 @@ export class ResizeTool {
         rtdbData.height = newObject.height
       } else if (newObject.type === 'circle') {
         rtdbData.radius = newObject.radius
+      } else if (newObject.type === 'star') {
+        // CRITICAL FIX: Add missing star properties to prevent NaN values
+        rtdbData.innerRadius = newObject.innerRadius
+        rtdbData.outerRadius = newObject.outerRadius
+        rtdbData.numPoints = newObject.numPoints
       } else if (newObject.type === 'text') {
         rtdbData.width = newObject.width
         // Height is not sent - it's calculated dynamically
       }
       
-      updateActiveObjectPosition(canvasId, resizeSelectedId, rtdbData)
+      // ENHANCED VALIDATION: Ensure no NaN values are sent to RTDB/Konva
+      const hasInvalidValues = Object.entries(rtdbData).some(([key, value]) => 
+        typeof value === 'number' && !isFinite(value)
+      )
+      
+      if (hasInvalidValues) {
+        console.error('❌ RTDB ERROR: Prevented sending NaN/Infinity values:', rtdbData)
+        console.error('Object type:', newObject.type)
+        console.error('Original object:', startObject)
+        console.error('New object:', newObject)
+      } else {
+        updateActiveObjectPosition(canvasId, resizeSelectedId, rtdbData)
+      }
     }
   }
 
@@ -781,6 +1050,9 @@ export class ResizeTool {
     setIsResizing(false)
     setResizeHandle(null)
     setResizeStartData(null)
+    
+    // CLEANUP: Reset debug flag for next resize operation
+    this._debuggedThisResize = false
 
     // Don't clear resizeSelectedId - object stays selected
 
@@ -792,6 +1064,8 @@ export class ResizeTool {
         return updated
       })
     }
+    
+    console.log('✅ RESIZE OPERATION COMPLETE - Tool ready for next operation')
   }
 
   /**

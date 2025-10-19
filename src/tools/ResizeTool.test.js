@@ -14,6 +14,7 @@ vi.mock('../services/canvas.service.js', () => ({
   updateActiveObjectPosition: vi.fn(() => Promise.resolve()),
   updateObjectPosition: vi.fn(() => Promise.resolve()),
   clearActiveObject: vi.fn(() => Promise.resolve()),
+  unlockObject: vi.fn(() => Promise.resolve()),
 }));
 
 // Import after mocking
@@ -21,6 +22,7 @@ import {
   updateActiveObjectPosition,
   updateObjectPosition,
   clearActiveObject,
+  unlockObject,
 } from '../services/canvas.service.js';
 
 describe('ResizeTool', () => {
@@ -75,6 +77,7 @@ describe('ResizeTool', () => {
       resizeSelectedId: null,
       resizeStartData: null,
       localRectUpdates: {},
+      setSelectedObjectId: vi.fn(),
       setIsResizing: vi.fn(),
       setResizeHandle: vi.fn(),
       setResizeSelectedId: vi.fn(),

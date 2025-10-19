@@ -29,15 +29,36 @@ export class MoveInteraction {
    * @param {Function} options.clampStarToCanvas - Boundary constraint function for stars
    */
   constructor(selectedShapes, startPoint, onUpdate, options = {}) {
+    // CRITICAL VALIDATION: Ensure startPoint has valid coordinates
+    if (!startPoint || typeof startPoint.x !== 'number' || typeof startPoint.y !== 'number' ||
+        !isFinite(startPoint.x) || !isFinite(startPoint.y)) {
+      console.error('🚨 MOVE INTERACTION ERROR: Invalid startPoint:', startPoint);
+      throw new Error('MoveInteraction requires valid startPoint coordinates');
+    }
+    
     // Store original positions to prevent accumulation during drag
-    this.selectedShapes = selectedShapes.map(shape => ({
-      id: shape.id,
-      startX: shape.x,
-      startY: shape.y,
-      type: shape.type,
-      // Deep clone to avoid stale object reference reuse across drags
-      originalShape: this._deepClone(shape)
-    }));
+    this.selectedShapes = selectedShapes.map(shape => {
+      // CRITICAL VALIDATION: Ensure shape has valid coordinates
+      if (!shape || typeof shape.x !== 'number' || typeof shape.y !== 'number' ||
+          !isFinite(shape.x) || !isFinite(shape.y)) {
+        console.error('🚨 MOVE INTERACTION ERROR: Invalid shape coordinates:', {
+          id: shape?.id,
+          x: shape?.x,
+          y: shape?.y,
+          type: shape?.type
+        });
+        throw new Error(`MoveInteraction: Shape ${shape?.id} has invalid coordinates`);
+      }
+      
+      return {
+        id: shape.id,
+        startX: shape.x,
+        startY: shape.y,
+        type: shape.type,
+        // Deep clone to avoid stale object reference reuse across drags
+        originalShape: this._deepClone(shape)
+      };
+    });
     
     this.startPoint = { x: startPoint.x, y: startPoint.y };
     this.onUpdate = onUpdate;
@@ -67,9 +88,26 @@ export class MoveInteraction {
     // Stop processing if interaction is no longer active
     if (!this._active) return this.localUpdates;
     
+    // CRITICAL VALIDATION: Ensure currentPoint has valid coordinates
+    if (!currentPoint || typeof currentPoint.x !== 'number' || typeof currentPoint.y !== 'number' ||
+        !isFinite(currentPoint.x) || !isFinite(currentPoint.y)) {
+      console.error('🚨 MOVE INTERACTION ERROR: Invalid currentPoint:', currentPoint);
+      return this.localUpdates; // Return existing updates instead of continuing
+    }
+    
     // Calculate delta from start point
     const dx = currentPoint.x - this.startPoint.x;
     const dy = currentPoint.y - this.startPoint.y;
+    
+    // CRITICAL VALIDATION: Ensure delta calculations are valid
+    if (!isFinite(dx) || !isFinite(dy)) {
+      console.error('🚨 MOVE INTERACTION ERROR: Invalid delta calculation:', {
+        currentPoint,
+        startPoint: this.startPoint,
+        dx, dy
+      });
+      return this.localUpdates; // Return existing updates instead of continuing
+    }
     
     console.log('📐 Move delta:', { dx, dy });
     
@@ -81,6 +119,18 @@ export class MoveInteraction {
       // Calculate new position from original position (prevents accumulation)
       const newX = shapeInfo.startX + dx;
       const newY = shapeInfo.startY + dy;
+      
+      // CRITICAL VALIDATION: Ensure new position is valid
+      if (!isFinite(newX) || !isFinite(newY)) {
+        console.error('🚨 MOVE INTERACTION ERROR: Invalid new position calculated:', {
+          shapeId: shapeInfo.id,
+          startX: shapeInfo.startX,
+          startY: shapeInfo.startY,
+          dx, dy,
+          newX, newY
+        });
+        return; // Skip this shape
+      }
       
       // Create updated object with new position
       const updatedShape = {
@@ -103,6 +153,19 @@ export class MoveInteraction {
           break;
         default:
           clampedShape = updatedShape; // No clamping for unknown types
+      }
+      
+      // FINAL VALIDATION: Ensure clamped shape has valid coordinates
+      if (!isFinite(clampedShape.x) || !isFinite(clampedShape.y)) {
+        console.error('🚨 MOVE INTERACTION ERROR: Clamped shape has invalid coordinates:', {
+          shapeId: shapeInfo.id,
+          clampedShape: {
+            x: clampedShape.x,
+            y: clampedShape.y,
+            type: clampedShape.type
+          }
+        });
+        return; // Skip this shape entirely
       }
       
       // Store for local rendering
