@@ -1,6 +1,209 @@
 # Stage 8: Final Bugs and Beyond
 
-This document tracks bugs and issues discovered after the main implementation phases, along with potential future enhancements.
+This document tracks bugs and issues discovered after the main implementation phases, incomplete tasks moved from Stage 3, and potential future enhancements.
+
+## 📋 Incomplete Tasks from Stage 3
+
+The following tasks were not completed in Stage 3 and have been moved here for future implementation:
+
+### 🎯 Recommended Priority Order
+
+**Critical Issues (Address First)**:
+1. **B4**: Fix Rotation/Resize Tool State Synchronization Bug - Breaks core functionality
+2. **B1**: Redesign Toolbar with Figma-Compact Spacing - High-impact visual improvement
+
+**Major UX Improvements**:
+3. **E12**: Multi-Object Selection System - Foundation for modern design tool workflow  
+4. **E13**: Tool Consolidation (Select + Move) - Requires E12
+5. **A2**: Undo/Redo System - Critical safety net (6-sprint effort)
+
+**Advanced Features** (After core issues resolved):
+6. **E14**: Auto-Selection for Transform Tools - Completes unified interaction model
+7. **E16**: Object Grouping/Ungrouping - Foundation for AI features
+8. **E15**: AI Agent Form Generation - Depends on E16
+9. **A1**: Canvas Export Functionality - Important for workflow completion
+
+**Lower Priority**:
+- A0, A3, A4, B5, E17 - Address as time/resources permit
+
+### 🛠️ Enhanced Tools (6 tasks)
+
+#### Task E12: Multi-Object Selection System
+**Objective**: Implement comprehensive multi-object selection with drag selection, Shift+click, and group operations matching modern design tool standards
+
+**Selection Methods**:
+1. **Drag Selection**: Click and drag on empty space to create selection rectangle
+2. **Shift+Click**: Hold Shift and click objects to add/remove from selection  
+3. **Select All**: Ctrl+A to select all objects on canvas
+4. **Real-time Updates**: Selection count updates live in properties panel
+
+**Status**: ⏸️ Not Started
+**Priority**: 🟡 High - Essential productivity feature for design workflow
+
+---
+
+#### Task E13: Tool Consolidation (Merge Select + Move Tools)
+**Objective**: Combine Select and Move tools into unified selection/manipulation tool following Figma's exact behavior patterns
+
+**Current Problems**:
+- Inefficient workflow: Select Tool → Click object → Switch to Move Tool → Drag object
+- Tool switching overhead and industry mismatch
+
+**New Behavior**: Click unselected object → Immediate selection + movement capability
+
+**Status**: ⏸️ Not Started  
+**Dependencies**: Requires E12 (Multi-Selection)
+**Priority**: 🟡 High - Major workflow improvement
+
+---
+
+#### Task E14: Automatic Selection for Transform Tools
+**Objective**: Unify object interaction across Move, Rotate, and Resize tools so they automatically select any shape the user interacts with
+
+**Key Features**:
+- Auto-select on interaction for all transform tools
+- Single-target enforcement for Rotate & Resize (no multi-select)
+- Multi-selection support maintained for Move tool
+- Unified selection state across all tools
+
+**Status**: ⏸️ Not Started
+**Dependencies**: Requires E13 (Tool Consolidation)
+**Priority**: 🟡 High - Completes unified interaction model
+
+---
+
+#### Task E15: AI Agent – "Create Login Form" Tool Integration
+**Objective**: Enable the AI agent to interpret natural-language prompts and automatically generate properly arranged multi-element UI forms
+
+**Example**: "Create a login form with username and password fields" → 3+ well-arranged elements (inputs + button)
+
+**Status**: ⏸️ Not Started
+**Dependencies**: Requires E16 (Object Grouping)
+**Priority**: 🟢 High - Foundation for natural-language UI generation
+
+---
+
+#### Task E16: Object Grouping / Ungrouping System
+**Objective**: Enable users (and AI agents) to group multiple selected objects into a single manipulable entity
+
+**Key Features**:
+- Grouping: Ctrl+G combines selection into GroupObject container
+- Ungrouping: Ctrl+Shift+G removes container, restores independence
+- Group transforms: Move, rotate, resize around group centroid
+- Integration with multi-selection system
+
+**Status**: ⏸️ Not Started
+**Dependencies**: Works with E12 (Multi-Selection)
+**Priority**: 🟢 High - Foundation for AI layouts and multi-element workflows
+
+---
+
+#### Task E17: Real-Time Sync for Rotation and Resizing
+**Objective**: Extend existing real-time movement synchronization so all users instantly see rotation and resize changes as they occur
+
+**Current Gap**: Movement syncs in real-time, but rotation/resize only sync on completion (mouseup)
+
+**Implementation**: Add throttled RTDB updates during rotation and resize operations (matching existing movement sync)
+
+**Status**: ⏸️ Not Started
+**Dependencies**: Uses existing RTDB infrastructure
+**Priority**: 🟢 Medium-High - Completes real-time collaboration experience
+
+---
+
+### 🚀 Advanced Features (5 tasks)
+
+#### Task A0: Performance Optimization & Monitoring
+**Objective**: Optimize canvas performance and add comprehensive monitoring for production readiness
+
+**Status**: ❌ Deferred from Stage 3
+**Rationale**: Current performance acceptable, optimization best done after all features complete
+
+---
+
+#### Task A1: Canvas Export Functionality
+**Objective**: Add PNG and SVG export capabilities for entire canvas or selected objects
+
+**Key Features**:
+- PNG export using Konva's built-in functionality
+- SVG export for vector format
+- Export modal with format selection and quality settings
+- Progress indication for large exports
+
+**Status**: ⏸️ Not Started
+**Priority**: 🟢 Standard - Important for workflow completion
+
+---
+
+#### Task A2: Undo/Redo System
+**Objective**: Implement comprehensive undo/redo functionality with a 5-action limit per user
+
+**Status**: 📋 DOCUMENTED - Ready for implementation
+**Scope**: 6-sprint breakdown available with complete architecture design
+**Priority**: 🔴 Critical - Safety net for destructive operations
+
+**Key Features**:
+- 5-action limit per user with per-user history
+- Command pattern for all undoable actions
+- Collaborative safety with ownership checks
+- Complete state snapshots (Memento pattern)
+
+---
+
+#### Task A3: Toolbar Design Enhancement
+**Objective**: Redesign toolbar with cleaner, more polished button styling and better visual hierarchy
+
+**Status**: ⏸️ Not Started
+**Priority**: 🟢 Standard - Visual polish improvement
+
+---
+
+#### Task A4: Object Deletion Enhancement
+**Objective**: Add comprehensive object deletion with undo/redo support as safety net
+
+**Dependencies**: Requires A2 (Undo/Redo System) to be implemented first
+**Status**: ⏸️ Not Started
+**Priority**: 🔴 High - Depends on A2 for safety
+
+---
+
+### 🐛 Bug Fixes & Improvements (3 tasks)
+
+#### Task B1: Redesign Toolbar with Figma-Compact Spacing
+**Objective**: Redesign toolbar to match Figma's compact, professional spacing standards
+
+**Current Problems**: Excessive white space and loose spacing (80px height vs Figma's 60px)
+
+**Target**: 60px height, 6px vertical padding, tighter tool group spacing
+**Status**: 🔄 Needs Refinement - Previous fix incomplete
+**Priority**: 🔴 High - Quick visual improvement with significant UX impact
+
+---
+
+#### Task B4: Fix Rotation/Resize Tool State Synchronization Bug
+**Objective**: Fix critical bug where resize handles appear after rotating but clicking/dragging does nothing
+
+**Problem**: After rotating any object, resize handles are visible but completely non-responsive
+**Root Cause**: Tool state management corruption between RotateTool and ResizeTool
+
+**Status**: ⏸️ Not Started
+**Priority**: 🔴 Critical - Breaks core functionality
+
+---
+
+#### Task B5: Redesign Delete Tool as Click-to-Delete
+**Objective**: Transform delete functionality from selection-based to direct click-to-delete interaction
+
+**New Behavior**: 
+- Delete becomes primary tool in toolbar
+- Click any object with Delete tool active → Object deletes immediately
+- No selection required, no confirmation dialog
+
+**Status**: ⏸️ Not Started
+**Dependencies**: Works with E12/E13/E14 unified selection model
+**Priority**: 🟡 Medium - UX improvement
+
+---
 
 ## 🐛 Known Bugs
 
