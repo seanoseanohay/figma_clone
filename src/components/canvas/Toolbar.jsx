@@ -114,24 +114,21 @@ const TOOL_CONFIG = {
     label: 'Move Tool',
     shortLabel: 'Move',
     cursor: 'default',
-    shortcut: 'Press M',
-    requiresSelection: true
+    shortcut: 'Press M'
   },
   [TOOLS.RESIZE]: {
     icon: '↔️',
     label: 'Resize Tool',
     shortLabel: 'Resize',
     cursor: 'default',
-    shortcut: 'Press R',
-    requiresSelection: true
+    shortcut: 'Press R'
   },
   [TOOLS.ROTATE]: {
     icon: '🔄',
     label: 'Rotate Tool',
     shortLabel: 'Rotate',
     cursor: 'default',
-    shortcut: 'Press T',
-    requiresSelection: true
+    shortcut: 'Press T'
   },
   [TOOLS.TEXT]: {
     icon: '📝',

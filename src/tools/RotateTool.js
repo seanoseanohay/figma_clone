@@ -80,8 +80,21 @@ export class RotateTool {
     if (clickedObject && canEditObject(clickedObject.id)) {
       console.log('🔄 Object selected for rotation:', clickedObject.id);
       
-      // Unlock previous selection
+      // Clear rotation state if switching to different object
       if (selectedObjectId && selectedObjectId !== clickedObject.id) {
+        console.log('🧹 Clearing rotation state from previous object');
+        const { setIsRotating, setRotateStartData, setLocalRectUpdates } = state;
+        
+        setIsRotating(false);
+        setRotateStartData(null);
+        
+        // Clear local updates for the previous object
+        setLocalRectUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[selectedObjectId];
+          return updated;
+        });
+        
         await unlockObject(selectedObjectId).catch(err => {
           console.error('Failed to unlock previous object:', err);
         });
@@ -101,6 +114,19 @@ export class RotateTool {
     } else if (!clickedObject) {
       // Clicked on empty space - deselect
       if (selectedObjectId) {
+        console.log('🧹 Clearing rotation state before deselecting');
+        const { setIsRotating, setRotateStartData, setLocalRectUpdates } = state;
+        
+        setIsRotating(false);
+        setRotateStartData(null);
+        
+        // Clear local updates for the current object
+        setLocalRectUpdates(prev => {
+          const updated = { ...prev };
+          delete updated[selectedObjectId];
+          return updated;
+        });
+        
         await unlockObject(selectedObjectId).catch(err => {
           console.error('Failed to unlock on deselect:', err);
         });

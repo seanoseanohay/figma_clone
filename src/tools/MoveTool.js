@@ -7,152 +7,312 @@ import {
 import { ACTION_TYPES } from '../hooks/useHistory.js'
 
 /**
- * MoveTool - Handles object movement/dragging for PRE-SELECTED objects
+ * MoveTool - Handles object movement/dragging with auto-selection
  * 
- * NOTE: This tool NO LONGER handles selection. Use SelectTool to select objects first.
- * MoveTool only moves objects that are already selected.
+ * Interaction Model:
+ * - Auto-selects objects when clicked (if none selected or different object clicked)
+ * - Supports multi-selection movement when multiple objects are selected
+ * - Maintains selection after movement for consecutive operations
+ * - Single-click selects, drag moves immediately
  */
 export class MoveTool {
   constructor() {
-    this.DRAG_THRESHOLD = 5
+    // No drag threshold - immediate movement like Figma
   }
 
   /**
-   * Handle mouse down - start moving if clicked object is already selected
+   * Handle mouse down - start moving object (auto-selects if needed)
    */
   async onMouseDown(e, state, helpers) {
     const { pos, canvasId } = helpers
     const { 
       selectedObjectId,
       findObjectAt,
+      canEditObject,
+      setSelectedObjectId,
       setMouseDownPos, 
-      setIsDragThresholdExceeded,
       setMoveOriginalPos,
-      canvasObjects
+      canvasObjects,
+      setIsMoving
     } = state
 
-    // Move tool requires a pre-selected object
-    if (!selectedObjectId) {
-      console.log('Move tool: No object selected. Use Select tool first.')
-      return
-    }
+    // CRITICAL FIX: Always clear previous movement state to prevent offset issues
+    console.log('🧹 Clearing previous movement state to prevent offset bugs')
+    setMouseDownPos(null)
+    setMoveOriginalPos(null)
+    setIsMoving(false)
 
-    // Check if clicked object is the selected one
+    // Auto-select logic: handle object selection
     const clickedObject = findObjectAt(pos)
-    if (!clickedObject || clickedObject.id !== selectedObjectId) {
-      console.log('Move tool: Clicked object is not the selected object')
+    
+    if (!selectedObjectId) {
+      // No object currently selected - try to auto-select clicked object
+      if (clickedObject && canEditObject(clickedObject.id)) {
+        console.log('👆 Move tool: Auto-selecting object', clickedObject.id)
+        
+        // Auto-select the clicked object
+        setSelectedObjectId(clickedObject.id)
+        
+        // Import lock functionality from canvas service
+        const { lockObject } = await import('../services/canvas.service.js')
+        
+        // Lock the object for editing
+        try {
+          await lockObject(clickedObject.id)
+          console.log('✅ Object auto-selected and locked for moving')
+        } catch (error) {
+          console.error('Failed to lock auto-selected object:', error)
+          return
+        }
+        
+        // CRITICAL FIX: Set up movement immediately with the clicked object
+        // Don't wait for state to update since React state updates are async
+        const objectStartPosition = { x: clickedObject.x, y: clickedObject.y }
+        console.log('🔧 MoveTool: Using auto-selected object position:', objectStartPosition, 'for object', clickedObject.id)
+        
+        // Setup for immediate movement (no threshold)
+        setMouseDownPos(pos)
+        setMoveOriginalPos(objectStartPosition)
+        
+        console.log('✅ Move tool: Ready to move auto-selected object')
+        return
+      } else {
+        console.log('Move tool: No object clicked or cannot edit clicked object')
+        return
+      }
+    } else if (clickedObject && clickedObject.id !== selectedObjectId && canEditObject(clickedObject.id)) {
+      // Different object clicked - switch selection
+      console.log('👆 Move tool: Switching to different object', clickedObject.id)
+      
+      // CRITICAL FIX: Clear all movement state from previous object before switching
+      const { 
+        setIsMoving, 
+        setMouseDownPos, 
+        setMoveOriginalPos,
+        setLocalRectUpdates 
+      } = state
+      
+      console.log('🧹 Clearing movement state from previous object')
+      setIsMoving(false)
+      setMouseDownPos(null)
+      setMoveOriginalPos(null)
+      
+      // Clear local updates for the previous object
+      setLocalRectUpdates(prev => {
+        const updated = { ...prev }
+        delete updated[selectedObjectId]
+        return updated
+      })
+      
+      // Unlock previous selection
+      const { unlockObject, lockObject } = await import('../services/canvas.service.js')
+      
+      try {
+        await unlockObject(selectedObjectId)
+        console.log('✅ Previous object unlocked and state cleared')
+      } catch (error) {
+        console.error('Failed to unlock previous object:', error)
+      }
+      
+      // Select and lock the new object
+      setSelectedObjectId(clickedObject.id)
+      
+      try {
+        await lockObject(clickedObject.id)
+        console.log('✅ New object selected and locked for moving')
+        
+        // CRITICAL FIX: Set up movement immediately with the switched object
+        // Don't wait for state to update since React state updates are async
+        const objectStartPosition = { x: clickedObject.x, y: clickedObject.y }
+        console.log('🔧 MoveTool: Using switched object position:', objectStartPosition, 'for object', clickedObject.id)
+        
+        // Setup for immediate movement (no threshold)
+        setMouseDownPos(pos)
+        setMoveOriginalPos(objectStartPosition)
+        
+        console.log('✅ Move tool: Ready to move switched object')
+        return
+      } catch (error) {
+        console.error('Failed to lock new object:', error)
+        return
+      }
+    } else if (!clickedObject) {
+      // Clicked on empty space - deselect current object
+      console.log('👆 Move tool: Clicked empty space, deselecting')
+      
+      // Clear all movement state before deselecting
+      const { 
+        setIsMoving, 
+        setMouseDownPos, 
+        setMoveOriginalPos,
+        setLocalRectUpdates 
+      } = state
+      
+      console.log('🧹 Clearing movement state before deselecting')
+      setIsMoving(false)
+      setMouseDownPos(null)
+      setMoveOriginalPos(null)
+      
+      // Clear local updates for the current object
+      setLocalRectUpdates(prev => {
+        const updated = { ...prev }
+        delete updated[selectedObjectId]
+        return updated
+      })
+      
+      const { unlockObject } = await import('../services/canvas.service.js')
+      
+      try {
+        await unlockObject(selectedObjectId)
+        console.log('✅ Object deselected, unlocked, and state cleared')
+      } catch (error) {
+        console.error('Failed to unlock on deselect:', error)
+      }
+      
+      setSelectedObjectId(null)
       return
+    } else if (clickedObject && clickedObject.id === selectedObjectId) {
+      // Clicked on already selected object - continue with movement
+      console.log('👆 Move tool: Clicked on selected object, ready to move')
     }
 
-    // Find the full object data
-    const fullObject = canvasObjects.find(o => o.id === selectedObjectId)
-    if (!fullObject) {
-      console.log('Move tool: Selected object not found')
+    // Find the currently selected object (may have been updated by auto-selection logic above)
+    const currentSelectedId = state.selectedObjectId || selectedObjectId
+    
+    // Handle the case where no object is currently selected
+    if (!currentSelectedId) {
+      console.log('👆 Move tool: No object currently selected - ready for auto-selection on next click')
       return
     }
+    
+    // Try to find the selected object in the canvas objects
+    let baseObject = canvasObjects.find(o => o.id === currentSelectedId)
+    
+    if (!baseObject) {
+      console.warn('🔄 Move tool: Selected object not found in canvas objects')
+      console.log('Available object IDs:', canvasObjects.map(o => o.id))
+      console.log('Looking for object ID:', currentSelectedId)
+      
+      // Check if canvas objects are still loading from Firestore
+      if (canvasObjects.length === 0) {
+        console.log('📦 Canvas objects appear to be loading - deferring movement setup')
+        
+        // Store the mouse position for when objects load, but don't setup movement yet
+        setMouseDownPos(pos)
+        
+        // Try to find the object after a brief delay to allow Firestore to load
+        setTimeout(() => {
+          const retryObject = canvasObjects.find(o => o.id === currentSelectedId)
+          if (retryObject) {
+            console.log('✅ Found object after retry:', retryObject.id)
+            setMoveOriginalPos({ x: retryObject.x, y: retryObject.y })
+          } else {
+            console.error('❌ Object still not found after retry - clearing stale state')
+            // Clear the stored mouse position to prevent stale state
+            setMouseDownPos(null)
+            setMoveOriginalPos(null)
+          }
+        }, 100)
+        
+        return
+      } else {
+        // Object not found in loaded objects - might be a timing issue with state updates
+        console.warn('⚠️ Selected object not found - this might be a state synchronization issue')
+        console.log('Deferring movement setup to allow state to synchronize')
+        
+        // Don't aggressively clear selection here - let Canvas.jsx handle stale selection cleanup
+        // Just defer the movement setup
+        return
+      }
+    }
 
-    // Setup for potential movement
+    // Use the base Firestore position as the starting point for new movements
+    // This ensures we always start from the correct saved position
+    const objectStartPosition = { x: baseObject.x, y: baseObject.y }
+
+    console.log('🔧 MoveTool: Using fresh object position:', objectStartPosition, 'for object', currentSelectedId)
+
+    // Setup for immediate movement (no threshold)
     setMouseDownPos(pos)
-    setIsDragThresholdExceeded(false)
-    setMoveOriginalPos({ x: fullObject.x, y: fullObject.y })
+    setMoveOriginalPos(objectStartPosition)
 
     console.log('Move tool: Ready to move selected object')
   }
 
   /**
-   * Handle mouse move - drag the pre-selected object with threshold detection
+   * Handle mouse move - drag the pre-selected object immediately (no threshold)
    */
   onMouseMove(e, state, helpers) {
     const { pos, canvasId } = helpers
     const {
       selectedObjectId,
       mouseDownPos,
-      isDragThresholdExceeded,
-      isMoving,
-      moveStartPos,
       moveOriginalPos,
       canvasObjects,
       doWeOwnObject,
       clampRectToCanvas,
-      setIsDragThresholdExceeded,
       setIsMoving,
-      setMoveStartPos,
       setLocalRectUpdates
     } = state
 
-    if (!selectedObjectId || !mouseDownPos) return
+    if (!selectedObjectId || !mouseDownPos || !moveOriginalPos) return
 
-    // Check if we should start dragging (threshold detection)
-    if (!isDragThresholdExceeded) {
-      const distance = Math.sqrt(
-        Math.pow(pos.x - mouseDownPos.x, 2) + 
-        Math.pow(pos.y - mouseDownPos.y, 2)
-      )
+    // Start moving immediately on any mouse movement
+    setIsMoving(true)
 
-      if (distance > this.DRAG_THRESHOLD) {
-        console.log('Move: Drag threshold exceeded, starting movement')
-        setIsDragThresholdExceeded(true)
-        setIsMoving(true)
-        setMoveStartPos(mouseDownPos)
+    // Calculate delta from where we started (mouseDownPos)
+    const deltaX = pos.x - mouseDownPos.x
+    const deltaY = pos.y - mouseDownPos.y
+
+    // Find the object being moved (could be rectangle or circle)
+    const originalObject = canvasObjects.find(o => o.id === selectedObjectId)
+    if (originalObject) {
+      // Apply delta to original position (prevents accumulation)
+      const newObject = {
+        ...originalObject,
+        x: moveOriginalPos.x + deltaX,
+        y: moveOriginalPos.y + deltaY
       }
-    }
 
-    // If we're now moving, handle the movement
-    if (isDragThresholdExceeded && isMoving && moveStartPos && moveOriginalPos) {
-      // Calculate delta from where we started dragging
-      const deltaX = pos.x - moveStartPos.x
-      const deltaY = pos.y - moveStartPos.y
+      // Apply boundary constraints based on shape type
+      let clampedObject
+      if (originalObject.type === 'circle') {
+        clampedObject = state.clampCircleToCanvas(newObject)
+      } else if (originalObject.type === 'star') {
+        clampedObject = state.clampStarToCanvas(newObject)
+      } else if (originalObject.type === 'rectangle') {
+        clampedObject = clampRectToCanvas(newObject)
+      } else {
+        clampedObject = newObject // Default: no clamping
+      }
 
-      // Find the object being moved (could be rectangle or circle)
-      const originalObject = canvasObjects.find(o => o.id === selectedObjectId)
-      if (originalObject) {
-        // Apply delta to original position (prevents accumulation)
-        const newObject = {
-          ...originalObject,
-          x: moveOriginalPos.x + deltaX,
-          y: moveOriginalPos.y + deltaY
+      // Apply local visual update for immediate feedback
+      setLocalRectUpdates(prev => ({
+        ...prev,
+        [selectedObjectId]: clampedObject
+      }))
+
+      // Send updates if we own this object
+      if (doWeOwnObject(selectedObjectId)) {
+        // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
+        // Firestore writes happen ONLY on drag end to avoid excessive database load
+        const rtdbData = {
+          x: clampedObject.x,
+          y: clampedObject.y
         }
-
-        // Apply boundary constraints based on shape type
-        let clampedObject
-        if (originalObject.type === 'circle') {
-          clampedObject = state.clampCircleToCanvas(newObject)
+        
+        // Add shape-specific properties
+        if (originalObject.type === 'rectangle') {
+          rtdbData.width = clampedObject.width
+          rtdbData.height = clampedObject.height
+        } else if (originalObject.type === 'circle') {
+          rtdbData.radius = clampedObject.radius
         } else if (originalObject.type === 'star') {
-          clampedObject = state.clampStarToCanvas(newObject)
-        } else if (originalObject.type === 'rectangle') {
-          clampedObject = clampRectToCanvas(newObject)
-        } else {
-          clampedObject = newObject // Default: no clamping
+          rtdbData.innerRadius = clampedObject.innerRadius
+          rtdbData.outerRadius = clampedObject.outerRadius
         }
-
-        // Apply local visual update for immediate feedback
-        setLocalRectUpdates(prev => ({
-          ...prev,
-          [selectedObjectId]: clampedObject
-        }))
-
-        // Send updates if we own this object
-        if (doWeOwnObject(selectedObjectId)) {
-          // ONLY update RTDB during drag for real-time broadcasting (throttled to 75ms)
-          // Firestore writes happen ONLY on drag end to avoid excessive database load
-          const rtdbData = {
-            x: clampedObject.x,
-            y: clampedObject.y
-          }
-          
-          // Add shape-specific properties
-          if (originalObject.type === 'rectangle') {
-            rtdbData.width = clampedObject.width
-            rtdbData.height = clampedObject.height
-          } else if (originalObject.type === 'circle') {
-            rtdbData.radius = clampedObject.radius
-          } else if (originalObject.type === 'star') {
-            rtdbData.innerRadius = clampedObject.innerRadius
-            rtdbData.outerRadius = clampedObject.outerRadius
-          }
-          
-          updateActiveObjectPosition(canvasId, selectedObjectId, rtdbData)
-        }
+        
+        updateActiveObjectPosition(canvasId, selectedObjectId, rtdbData)
       }
     }
   }
@@ -170,9 +330,7 @@ export class MoveTool {
       doWeOwnObject,
       canvasObjects,
       setIsMoving,
-      setMoveStartPos,
       setMouseDownPos,
-      setIsDragThresholdExceeded,
       setMoveOriginalPos,
       setLocalRectUpdates
     } = state
@@ -219,20 +377,25 @@ export class MoveTool {
       console.log('Move: Click only - object stays selected')
     }
 
-    // Reset movement states
+    // Reset movement states ONLY if we're still working with the same object
+    // This prevents race conditions when rapidly switching between objects
+    const currentSelectedId = state.selectedObjectId || selectedObjectId
+    
+    // Always clear movement states after mouseUp - they're specific to the drag operation
     setIsMoving(false)
-    setMoveStartPos(null)
     setMouseDownPos(null)
-    setIsDragThresholdExceeded(false)
-    setMoveOriginalPos(null)
+    
+    // Always clear local updates for the moved object to prevent visual artifacts
+    setLocalRectUpdates(prev => {
+      const updated = { ...prev }
+      delete updated[selectedObjectId]
+      return updated
+    })
 
-    // Clear local updates after sync
-    if (selectedObjectId) {
-      setLocalRectUpdates(prev => {
-        const updated = { ...prev }
-        delete updated[selectedObjectId]
-        return updated
-      })
+    // Only clear moveOriginalPos if we're still working with the same object
+    // This prevents interference when rapidly switching objects
+    if (currentSelectedId === selectedObjectId) {
+      setMoveOriginalPos(null)
     }
   }
 

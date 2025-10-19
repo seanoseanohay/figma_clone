@@ -126,9 +126,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Move tool state (clean separation)
   const [moveSelectedId, setMoveSelectedId] = useState(null);
   const [isMoving, setIsMoving] = useState(false);
-  const [moveStartPos, setMoveStartPos] = useState(null);
   const [mouseDownPos, setMouseDownPos] = useState(null);
-  const [isDragThresholdExceeded, setIsDragThresholdExceeded] = useState(false);
   const [moveOriginalPos, setMoveOriginalPos] = useState(null); // Store original position
   
   // Resize tool state (clean separation)
@@ -864,6 +862,39 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     };
   }, [canvasId]);
 
+  // Only clean up stale selections when we're certain they're invalid
+  // This runs less frequently to avoid clearing valid selections during state updates
+  useEffect(() => {
+    // Only check after objects have fully loaded and settled
+    if (selectedObjectId && canvasObjects.length > 0 && !objectsLoading) {
+      // Add a small delay to ensure all state updates have completed
+      const timeoutId = setTimeout(() => {
+        const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
+        if (!selectedObj) {
+          console.warn('🔄 Confirmed stale selection - clearing selectedObjectId:', selectedObjectId);
+          console.log('Available object IDs:', canvasObjects.map(o => o.id));
+          
+          // Clear stale selection
+          setSelectedObjectId(null);
+          setMoveSelectedId(null);
+          setResizeSelectedId(null);
+          setRotateSelectedId(null);
+          setTextSelectedId(null);
+          
+          // Clear any related state
+          setMouseDownPos(null);
+          setMoveOriginalPos(null);
+          setIsMoving(false);
+          setLocalRectUpdates({});
+          
+          console.log('✅ Confirmed stale selection cleared');
+        }
+      }, 100); // Small delay to let state settle
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [selectedObjectId, canvasObjects, objectsLoading]);
+
   // Notify parent of selection changes and object updates
   useEffect(() => {
     if (onSelectionChange) {
@@ -1142,11 +1173,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       }
     }
     
-    // Sync move tool state with current selection
+    // Sync move tool state with current selection and clear stale movement state
     if (selectedTool === TOOLS.MOVE && selectedObjectId) {
       // When switching to Move tool, sync moveSelectedId with selectedObjectId
       setMoveSelectedId(selectedObjectId);
       console.log('Move tool: Synced moveSelectedId with selection:', selectedObjectId);
+      
+      // CRITICAL FIX: Clear stale movement state when switching to move tool
+      console.log('🧹 Clearing stale movement state on tool switch to prevent offset issues');
+      setMouseDownPos(null);
+      setMoveOriginalPos(null);
+      setIsMoving(false);
+    }
+    
+    // Clear movement state when switching away from move tool
+    if (selectedTool !== TOOLS.MOVE) {
+      console.log('🧹 Clearing move tool state when switching away');
+      setMoveSelectedId(null);
+      setMouseDownPos(null);
+      setMoveOriginalPos(null);
+      setIsMoving(false);
     }
     
     // Enhanced sync for rotate tool - clear local updates when leaving
@@ -1223,8 +1269,6 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     textEditData,
     drawStart,
     mouseDownPos,
-    isDragThresholdExceeded,
-    moveStartPos,
     moveOriginalPos,
     resizeHandle,
     resizeStartData,
@@ -1255,8 +1299,6 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     setTextEditData,
     setDrawStart,
     setMouseDownPos,
-    setIsDragThresholdExceeded,
-    setMoveStartPos,
     setMoveOriginalPos,
     setResizeHandle,
     setResizeStartData,
@@ -1284,7 +1326,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     TOOLS
   }), [
     selectedObjectId, moveSelectedId, resizeSelectedId, rotateSelectedId, textSelectedId, isPanning, isMoving, isResizing, isRotating, isDrawing, isEditingText,
-    currentRect, currentCircle, currentStar, textEditData, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
+    currentRect, currentCircle, currentStar, textEditData, drawStart, mouseDownPos, moveOriginalPos,
     resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, texts, localRectUpdates, selectedColor,
     findRectAt, findCircleAt, findStarAt, findTextAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
     clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange

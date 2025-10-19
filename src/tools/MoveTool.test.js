@@ -9,6 +9,8 @@ vi.mock('../services/canvas.service.js', () => ({
   updateObjectPosition: vi.fn(),
   updateObject: vi.fn(() => Promise.resolve()),
   clearActiveObject: vi.fn(() => Promise.resolve()),
+  lockObject: vi.fn(() => Promise.resolve()),
+  unlockObject: vi.fn(() => Promise.resolve()),
 }));
 
 describe('MoveTool', () => {
@@ -30,9 +32,7 @@ describe('MoveTool', () => {
     mockState = {
       selectedObjectId: 'rect-1',
       mouseDownPos: null,
-      isDragThresholdExceeded: false,
       isMoving: false,
-      moveStartPos: null,
       moveOriginalPos: null,
       canvasObjects: [mockObjects.rectangle, mockObjects.circle],
       localRectUpdates: {},
@@ -49,14 +49,12 @@ describe('MoveTool', () => {
         return null;
       }),
       doWeOwnObject: vi.fn(() => true),
+      canEditObject: vi.fn(() => true),
       clampRectToCanvas: vi.fn((obj) => obj), // No clamping by default
       clampCircleToCanvas: vi.fn((obj) => obj),
       clampStarToCanvas: vi.fn((obj) => obj),
       setMouseDownPos: vi.fn((pos) => {
         mockState.mouseDownPos = pos;
-      }),
-      setIsDragThresholdExceeded: vi.fn((value) => {
-        mockState.isDragThresholdExceeded = value;
       }),
       setMoveOriginalPos: vi.fn((pos) => {
         mockState.moveOriginalPos = pos;
@@ -64,15 +62,15 @@ describe('MoveTool', () => {
       setIsMoving: vi.fn((value) => {
         mockState.isMoving = value;
       }),
-      setMoveStartPos: vi.fn((pos) => {
-        mockState.moveStartPos = pos;
-      }),
       setLocalRectUpdates: vi.fn((updaterOrValue) => {
         if (typeof updaterOrValue === 'function') {
           mockState.localRectUpdates = updaterOrValue(mockState.localRectUpdates);
         } else {
           mockState.localRectUpdates = updaterOrValue;
         }
+      }),
+      setSelectedObjectId: vi.fn((id) => {
+        mockState.selectedObjectId = id;
       }),
     };
 
@@ -90,8 +88,8 @@ describe('MoveTool', () => {
   });
 
   describe('Constructor', () => {
-    it('should initialize with correct drag threshold', () => {
-      expect(tool.DRAG_THRESHOLD).toBe(5);
+    it('should initialize without drag threshold (immediate movement)', () => {
+      expect(tool.DRAG_THRESHOLD).toBeUndefined();
     });
   });
 
@@ -102,96 +100,93 @@ describe('MoveTool', () => {
       await tool.onMouseDown({}, mockState, mockHelpers);
       
       expect(mockState.setMouseDownPos).toHaveBeenCalledWith({ x: 150, y: 150 });
-      expect(mockState.setIsDragThresholdExceeded).toHaveBeenCalledWith(false);
       expect(mockState.setMoveOriginalPos).toHaveBeenCalledWith({ x: 100, y: 100 });
     });
 
-    it('should not start movement if no object is selected', async () => {
+    it('should auto-select object when no object is currently selected', async () => {
       mockState.selectedObjectId = null;
-      mockHelpers.pos = { x: 150, y: 150 };
+      mockHelpers.pos = { x: 150, y: 150 }; // Clicking on rectangle
       
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      expect(mockState.setMouseDownPos).not.toHaveBeenCalled();
+      // With auto-selection, it should select the object and set up movement
+      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('rect-1');
+      expect(mockState.setMouseDownPos).toHaveBeenCalledWith({ x: 150, y: 150 });
+      expect(mockState.setMoveOriginalPos).toHaveBeenCalledWith({ x: 100, y: 100 });
     });
 
-    it('should not start movement if clicked object is not selected', async () => {
+    it('should switch selection when clicking different object', async () => {
       mockState.selectedObjectId = 'circle-1'; // Circle is selected
       mockHelpers.pos = { x: 150, y: 150 }; // But clicking rectangle
       
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      expect(mockState.setMouseDownPos).not.toHaveBeenCalled();
+      // With auto-selection, it should switch to the clicked object
+      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('rect-1');
+      expect(mockState.setMouseDownPos).toHaveBeenCalledWith({ x: 150, y: 150 });
+      expect(mockState.setMoveOriginalPos).toHaveBeenCalledWith({ x: 100, y: 100 });
     });
 
-    it('should not start movement if selected object is not found in canvas objects', async () => {
-      mockState.selectedObjectId = 'non-existent-id';
-      mockHelpers.pos = { x: 150, y: 150 };
+    it('should auto-select clicked object when current selection does not exist', async () => {
+      mockState.selectedObjectId = 'non-existent-id'; // Invalid selected ID
+      mockHelpers.pos = { x: 150, y: 150 }; // But clicking on valid rectangle
       
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      expect(mockState.setMoveOriginalPos).not.toHaveBeenCalled();
+      // Should auto-select the clicked object (rectangle) even though current selection is invalid
+      expect(mockState.setSelectedObjectId).toHaveBeenCalledWith('rect-1');
+      expect(mockState.setMouseDownPos).toHaveBeenCalledWith({ x: 150, y: 150 });
+      expect(mockState.setMoveOriginalPos).toHaveBeenCalledWith({ x: 100, y: 100 });
     });
   });
 
-  describe('onMouseMove - Drag Threshold', () => {
+  describe('onMouseMove - Immediate Movement', () => {
     beforeEach(async () => {
       // Setup: mouse down on rectangle
       mockHelpers.pos = { x: 150, y: 150 };
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Clear mocks from onMouseDown (which calls setIsDragThresholdExceeded(false))
+      // Clear mocks from onMouseDown
       vi.clearAllMocks();
     });
 
-    it('should not start dragging if threshold not exceeded', () => {
-      // Move within threshold (< 5 pixels)
-      mockHelpers.pos = { x: 152, y: 152 };
+    it('should start moving immediately on any mouse movement', () => {
+      // Even tiny movement (1 pixel) should start drag
+      mockHelpers.pos = { x: 151, y: 150 };
       
       tool.onMouseMove({}, mockState, mockHelpers);
       
-      expect(mockState.setIsDragThresholdExceeded).not.toHaveBeenCalled();
-      expect(mockState.setIsMoving).not.toHaveBeenCalled();
-    });
-
-    it('should start dragging when threshold is exceeded', () => {
-      // Move beyond threshold (> 5 pixels)
-      mockHelpers.pos = { x: 160, y: 160 };
-      
-      tool.onMouseMove({}, mockState, mockHelpers);
-      
-      expect(mockState.setIsDragThresholdExceeded).toHaveBeenCalledWith(true);
       expect(mockState.setIsMoving).toHaveBeenCalledWith(true);
-      expect(mockState.setMoveStartPos).toHaveBeenCalledWith({ x: 150, y: 150 });
     });
 
-    it('should calculate correct distance for threshold detection', () => {
-      // Move exactly 5 pixels horizontally (at threshold boundary)
-      mockHelpers.pos = { x: 155, y: 150 };
+    it('should start moving with zero pixel threshold', () => {
+      // Any movement should trigger drag
+      mockHelpers.pos = { x: 150.5, y: 150.5 };
       
       tool.onMouseMove({}, mockState, mockHelpers);
       
-      // Should trigger because distance = 5, threshold = 5
-      expect(mockState.setIsDragThresholdExceeded).not.toHaveBeenCalled();
+      expect(mockState.setIsMoving).toHaveBeenCalledWith(true);
+    });
+
+    it('should calculate movement from mouseDownPos immediately', () => {
+      // Movement calculation should be immediate
+      mockHelpers.pos = { x: 155, y: 155 }; // 5 pixel movement
       
-      // Move 6 pixels (just past threshold)
-      mockHelpers.pos = { x: 156, y: 150 };
       tool.onMouseMove({}, mockState, mockHelpers);
       
-      expect(mockState.setIsDragThresholdExceeded).toHaveBeenCalledWith(true);
+      expect(mockState.setIsMoving).toHaveBeenCalledWith(true);
+      // Should update localRectUpdates with new position
+      expect(mockState.setLocalRectUpdates).toHaveBeenCalled();
     });
   });
 
   describe('onMouseMove - Object Movement', () => {
     beforeEach(async () => {
-      // Setup: mouse down and exceed drag threshold
+      // Setup: mouse down (immediate movement ready)
       mockHelpers.pos = { x: 150, y: 150 };
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      // Exceed threshold
-      mockState.isDragThresholdExceeded = true;
-      mockState.isMoving = true;
-      mockState.moveStartPos = { x: 150, y: 150 };
+      // Set up for immediate movement (no threshold)
       mockState.moveOriginalPos = { x: 100, y: 100 };
     });
 
@@ -257,12 +252,8 @@ describe('MoveTool', () => {
     it('should handle circle movement with radius property', () => {
       mockState.selectedObjectId = 'circle-1';
       mockState.moveOriginalPos = { x: 300, y: 200 };
-      mockHelpers.pos = { x: 350, y: 250 };
-      
-      // Simulate threshold already exceeded
-      mockState.isDragThresholdExceeded = true;
-      mockState.isMoving = true;
-      mockState.moveStartPos = { x: 300, y: 200 };
+      mockState.mouseDownPos = { x: 300, y: 200 }; // Start position
+      mockHelpers.pos = { x: 350, y: 250 }; // End position (50px right, 50px down)
       
       tool.onMouseMove({}, mockState, mockHelpers);
       
@@ -270,8 +261,8 @@ describe('MoveTool', () => {
         'test-canvas-id',
         'circle-1',
         expect.objectContaining({
-          x: 350,
-          y: 250,
+          x: 350, // 300 + (350-300) = 350
+          y: 250, // 200 + (250-200) = 250
           radius: 75,
         })
       );
@@ -284,9 +275,7 @@ describe('MoveTool', () => {
       mockHelpers.pos = { x: 150, y: 150 };
       await tool.onMouseDown({}, mockState, mockHelpers);
       
-      mockState.isDragThresholdExceeded = true;
       mockState.isMoving = true;
-      mockState.moveStartPos = { x: 150, y: 150 };
       mockState.moveOriginalPos = { x: 100, y: 100 };
       mockState.localRectUpdates = {
         'rect-1': { ...mockObjects.rectangle, x: 150, y: 130 },
@@ -313,9 +302,7 @@ describe('MoveTool', () => {
       await tool.onMouseUp({}, mockState, mockHelpers);
       
       expect(mockState.setIsMoving).toHaveBeenCalledWith(false);
-      expect(mockState.setMoveStartPos).toHaveBeenCalledWith(null);
       expect(mockState.setMouseDownPos).toHaveBeenCalledWith(null);
-      expect(mockState.setIsDragThresholdExceeded).toHaveBeenCalledWith(false);
       expect(mockState.setMoveOriginalPos).toHaveBeenCalledWith(null);
     });
 
