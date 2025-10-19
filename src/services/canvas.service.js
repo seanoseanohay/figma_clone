@@ -12,7 +12,8 @@ import {
   getDocs,
   getDoc,
   setDoc,
-  arrayUnion
+  arrayUnion,
+  writeBatch
 } from 'firebase/firestore'
 import { ref, set, update, remove, onValue, onDisconnect } from 'firebase/database'
 import { db, auth, rtdb } from './firebase.js'
@@ -205,6 +206,94 @@ export const unlockObject = async (objectId) => {
     })
   } catch (error) {
     console.error('Error unlocking object:', error)
+    throw error
+  }
+}
+
+/**
+ * PERFORMANCE OPTIMIZED: Lock multiple objects in a single batched transaction
+ * Reduces database operations from N writes to 1 transaction for multi-selection
+ * @param {string[]} objectIds - Array of document IDs to lock
+ * @returns {Promise<void>}
+ */
+export const batchLockObjects = async (objectIds) => {
+  try {
+    if (!auth.currentUser) {
+      throw new Error('User must be authenticated to lock objects')
+    }
+
+    if (!objectIds || objectIds.length === 0) {
+      return
+    }
+
+    // For single object, use existing function for compatibility
+    if (objectIds.length === 1) {
+      return await lockObject(objectIds[0])
+    }
+
+    // Use Firestore batch for multiple objects
+    const batch = writeBatch(db)
+    const timestamp = serverTimestamp()
+    const userId = auth.currentUser.uid
+
+    objectIds.forEach(objectId => {
+      const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId)
+      batch.update(docRef, {
+        lockedBy: userId,
+        lockedAt: timestamp,
+        lastModifiedAt: timestamp,
+        lastModifiedBy: userId
+      })
+    })
+
+    await batch.commit()
+    console.log(`🔒 Batch locked ${objectIds.length} objects in single transaction`)
+  } catch (error) {
+    console.error('Error batch locking objects:', objectIds, error)
+    throw error
+  }
+}
+
+/**
+ * PERFORMANCE OPTIMIZED: Unlock multiple objects in a single batched transaction
+ * Reduces database operations from N writes to 1 transaction for multi-selection
+ * @param {string[]} objectIds - Array of document IDs to unlock
+ * @returns {Promise<void>}
+ */
+export const batchUnlockObjects = async (objectIds) => {
+  try {
+    if (!auth.currentUser) {
+      throw new Error('User must be authenticated to unlock objects')
+    }
+
+    if (!objectIds || objectIds.length === 0) {
+      return
+    }
+
+    // For single object, use existing function for compatibility
+    if (objectIds.length === 1) {
+      return await unlockObject(objectIds[0])
+    }
+
+    // Use Firestore batch for multiple objects
+    const batch = writeBatch(db)
+    const timestamp = serverTimestamp()
+    const userId = auth.currentUser.uid
+
+    objectIds.forEach(objectId => {
+      const docRef = doc(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS, objectId)
+      batch.update(docRef, {
+        lockedBy: null,
+        lockedAt: null,
+        lastModifiedAt: timestamp,
+        lastModifiedBy: userId
+      })
+    })
+
+    await batch.commit()
+    console.log(`🔓 Batch unlocked ${objectIds.length} objects in single transaction`)
+  } catch (error) {
+    console.error('Error batch unlocking objects:', objectIds, error)
     throw error
   }
 }

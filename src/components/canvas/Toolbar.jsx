@@ -170,6 +170,7 @@ const Toolbar = ({
   selectedTool = TOOLS.PAN, 
   hasSelection = false,
   selectedObject = null,
+  multiSelection = null, // Multi-selection info: { count, isSingle, isMulti, isEmpty, selectedIds, etc. }
   cursorPosition = null,
   zoomLevel = 100,
   selectedColor = '#808080',
@@ -262,6 +263,20 @@ const Toolbar = ({
     return null;
   };
 
+  // Format multi-selection properties for display
+  const formatMultiSelectionProperties = (selection) => {
+    if (!selection || selection.isEmpty) return null;
+    
+    if (selection.isSingle) {
+      // Single selection - use existing format
+      return selectedObject ? formatObjectProperties(selectedObject) : null;
+    }
+    
+    // Multi-selection format
+    const count = selection.count;
+    return `${count} objects selected`;
+  };
+
   const renderToolButton = (toolKey) => {
     const config = TOOL_CONFIG[toolKey];
     const isSelected = selectedTool === toolKey;
@@ -295,15 +310,16 @@ const Toolbar = ({
     );
   };
 
-  // Build Line 1: Object properties or tool name
-  const line1Text = selectedObject 
-    ? formatObjectProperties(selectedObject)
+  // Build Line 1: Selection properties or tool name
+  const line1Text = multiSelection && !multiSelection.isEmpty
+    ? formatMultiSelectionProperties(multiSelection)
     : TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
 
   // Build Line 2: Tool name (if object selected) • Cursor • Zoom
   const line2Parts = [];
   
-  if (selectedObject) {
+  const hasAnySelection = (multiSelection && !multiSelection.isEmpty) || selectedObject;
+  if (hasAnySelection) {
     line2Parts.push(TOOL_CONFIG[selectedTool]?.label || '');
   }
   
@@ -317,7 +333,7 @@ const Toolbar = ({
   
   const line2Text = line2Parts.join(' • ');
 
-  const showColor = hasSelection || SHAPE_TOOLS.includes(selectedTool) || GEOMETRIC_SHAPES.includes(selectedTool);
+  const showColor = hasAnySelection || SHAPE_TOOLS.includes(selectedTool) || GEOMETRIC_SHAPES.includes(selectedTool);
 
   return (
     <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -382,13 +398,13 @@ const Toolbar = ({
             <Typography variant="caption" fontWeight={500} color="grey.700">
               {line1Text}
             </Typography>
-            {selectedObject && showColor && (
+            {hasAnySelection && showColor && (
               <>
                 <Typography variant="caption" color="grey.500">•</Typography>
                 <ColorSquare color={selectedColor} onChange={onColorChange} />
               </>
             )}
-            {selectedObject && (
+            {hasAnySelection && (
               <>
                 <Typography variant="caption" color="grey.500">•</Typography>
                 <ButtonGroup size="small" variant="outlined" sx={{ height: 24 }}>
@@ -429,7 +445,7 @@ const Toolbar = ({
             <Typography variant="caption" color="grey.500">
               {line2Text}
             </Typography>
-            {!selectedObject && showColor && (
+            {!hasAnySelection && showColor && (
               <>
                 <Typography variant="caption" color="grey.500">•</Typography>
                 <ColorSquare color={selectedColor} onChange={onColorChange} />

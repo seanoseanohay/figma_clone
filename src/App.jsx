@@ -23,6 +23,7 @@ const LoggedInLayout = ({ children }) => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.PAN);
   const [hasSelection, setHasSelection] = useState(false);
   const [selectedObject, setSelectedObject] = useState(null);
+  const [multiSelection, setMultiSelection] = useState(null); // Multi-selection info from Canvas
   const [cursorPosition, setCursorPosition] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [selectedColor, setSelectedColor] = useState('#808080');
@@ -42,6 +43,10 @@ const LoggedInLayout = ({ children }) => {
     if (objectData && objectData.fill) {
       setSelectedColor(objectData.fill);
     }
+  };
+
+  const handleMultiSelectionUpdate = (selectionInfo) => {
+    setMultiSelection(selectionInfo);
   };
 
   const handleCursorUpdate = (position) => {
@@ -155,6 +160,7 @@ const LoggedInLayout = ({ children }) => {
           onToolChange={handleToolChange}
           hasSelection={hasSelection}
           selectedObject={selectedObject}
+          multiSelection={multiSelection}
           cursorPosition={cursorPosition}
           zoomLevel={zoomLevel}
           selectedColor={selectedColor}
@@ -194,6 +200,7 @@ const LoggedInLayout = ({ children }) => {
             onToolChange: handleToolChange, 
             onSelectionChange: handleSelectionChange,
             onObjectUpdate: handleObjectUpdate,
+            onMultiSelectionUpdate: handleMultiSelectionUpdate,
             onCursorUpdate: handleCursorUpdate,
             onZoomUpdate: handleZoomUpdate,
             selectedColor,
@@ -217,13 +224,14 @@ const LoggedInLayout = ({ children }) => {
 };
 
 // Canvas page component
-const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => {
+const CanvasPage = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onMultiSelectionUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => {
   return (
     <Canvas 
       selectedTool={selectedTool}
       onToolChange={onToolChange}
       onSelectionChange={onSelectionChange}
       onObjectUpdate={onObjectUpdate}
+      onMultiSelectionUpdate={onMultiSelectionUpdate}
       onCursorUpdate={onCursorUpdate}
       onZoomUpdate={onZoomUpdate}
       selectedColor={selectedColor}
@@ -276,12 +284,13 @@ function App() {
                   path="/canvas" 
                   element={
                     <LoggedInLayout>
-                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
+                      {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onMultiSelectionUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                         <CanvasPage 
                           selectedTool={selectedTool} 
                           onToolChange={onToolChange}
                           onSelectionChange={onSelectionChange}
                           onObjectUpdate={onObjectUpdate}
+                          onMultiSelectionUpdate={onMultiSelectionUpdate}
                           onCursorUpdate={onCursorUpdate}
                           onZoomUpdate={onZoomUpdate}
                           selectedColor={selectedColor}
@@ -320,12 +329,13 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onMultiSelectionUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
                             onSelectionChange={onSelectionChange}
                             onObjectUpdate={onObjectUpdate}
+                            onMultiSelectionUpdate={onMultiSelectionUpdate}
                             onCursorUpdate={onCursorUpdate}
                             onZoomUpdate={onZoomUpdate}
                             selectedColor={selectedColor}
@@ -354,12 +364,13 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <LoggedInLayout>
-                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
+                        {({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onMultiSelectionUpdate, onCursorUpdate, onZoomUpdate, selectedColor, onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, userColorChangeRef, updateUndoRedoState }) => (
                           <CanvasPage 
                             selectedTool={selectedTool} 
                             onToolChange={onToolChange}
                             onSelectionChange={onSelectionChange}
                             onObjectUpdate={onObjectUpdate}
+                            onMultiSelectionUpdate={onMultiSelectionUpdate}
                             onCursorUpdate={onCursorUpdate}
                             onZoomUpdate={onZoomUpdate}
                             selectedColor={selectedColor}

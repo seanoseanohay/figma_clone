@@ -8,6 +8,8 @@ import EmptyState from './EmptyState.jsx';
 import ConnectionBanner from './ConnectionBanner.jsx';
 import TextEditor from './TextEditor.jsx';
 import OwnershipTooltip from './OwnershipTooltip.jsx';
+import SelectionBox from './SelectionBox.jsx';
+import useMultiSelection from '../../hooks/useMultiSelection.js';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
@@ -37,7 +39,7 @@ import {
 } from '../../constants/canvas.constants.js';
 import { CANVAS_TOP_OFFSET } from '../../constants/layout.constants.js';
 
-const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, onUserColorChange, updateUndoRedoState }) => {
+const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate, onMultiSelectionUpdate, onCursorUpdate, onZoomUpdate, selectedColor = '#808080', onColorChange, onZIndexChange, zIndexHandlerRef, rotationHandlerRef, undoHandlerRef, redoHandlerRef, canUndoRef, canRedoRef, undoDescriptionRef, redoDescriptionRef, onUserColorChange, updateUndoRedoState }) => {
   // Get canvas ID from context
   const { canvasId } = useCanvas();
   
@@ -517,6 +519,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     return isLockStale;
   }, [canvasObjects]);
 
+  // Multi-selection state management
+  const multiSelection = useMultiSelection(canEditObject);
+
   // Helper to check if current user owns/controls an object
   const doWeOwnObject = useCallback((objectId) => {
     const obj = canvasObjects.find(o => o.id === objectId);
@@ -543,6 +548,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const result = {
       x: (pointer.x - stage.x()) / stage.scaleX(),
       y: (pointer.y - stage.y()) / stage.scaleY()
+    };
+    
+    return result;
+  }, []);
+
+  // Helper function to get clamped mouse position for drag operations
+  // Clamps to canvas bounds instead of returning null when outside
+  const getClampedMousePos = useCallback((e) => {
+    const stage = e.target.getStage?.();
+    if (!stage) return null;
+    const pointer = stage.getPointerPosition();
+    
+    // Always return a position, but clamp to canvas bounds
+    const rawX = (pointer.x - stage.x()) / stage.scaleX();
+    const rawY = (pointer.y - stage.y()) / stage.scaleY();
+    
+    // Clamp to canvas boundaries
+    const result = {
+      x: Math.max(0, Math.min(rawX, CANVAS_WIDTH)),
+      y: Math.max(0, Math.min(rawY, CANVAS_HEIGHT))
     };
     
     return result;
@@ -917,6 +942,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     }
   }, [selectedObjectId, canvasObjects, onSelectionChange, onObjectUpdate]);
 
+  // Notify parent of multi-selection changes
+  useEffect(() => {
+    if (onMultiSelectionUpdate) {
+      onMultiSelectionUpdate(multiSelection.selectionInfo);
+    }
+  }, [multiSelection.selectionInfo, onMultiSelectionUpdate]);
+
   // Expose handler for updating selected object's color when user explicitly changes it
   useEffect(() => {
     if (onUserColorChange) {
@@ -1016,47 +1048,73 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         }
       }
 
-      // Delete/Backspace - delete selected object
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedObjectId) {
+      // Delete/Backspace - delete selected objects (supports multi-selection)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && (selectedObjectId || multiSelection.selectionInfo.count > 0)) {
         e.preventDefault();
-        const selectedObject = canvasObjects.find(obj => obj.id === selectedObjectId);
         
-        if (selectedObject && canEditObject(selectedObjectId)) {
-          console.log('🗑️ Delete key pressed: Deleting object', selectedObjectId);
-          
-          try {
-            // Import deleteObject dynamically to avoid circular imports
-            import('../../services/canvas.service.js').then(({ deleteObject }) => {
-              deleteObject(selectedObjectId).then(() => {
-                console.log('✅ Object deleted successfully');
-                // Clear selection since object no longer exists
-                setSelectedObjectId(null);
-                setMoveSelectedId(null);
-                setResizeSelectedId(null);
-                setRotateSelectedId(null);
-                setTextSelectedId(null);
-              }).catch(error => {
-                console.error('❌ Failed to delete object:', error);
-                // Show user-friendly error message (could add toast notification here)
-              });
-            });
-          } catch (error) {
-            console.error('❌ Failed to import deleteObject:', error);
-          }
-        } else if (selectedObject) {
-          console.log('❌ Cannot delete: Object is locked or user lacks permissions');
-          // Could show toast notification: "Cannot delete: object is being edited by another user"
+        // Get objects to delete (use multi-selection if available, otherwise single selection)
+        const objectsToDelete = multiSelection.selectionInfo.count > 0 
+          ? multiSelection.selectionInfo.selectedIds
+          : [selectedObjectId];
+        
+        const deletableObjects = objectsToDelete.filter(id => {
+          const obj = canvasObjects.find(o => o.id === id);
+          return obj && canEditObject(id);
+        });
+        
+        if (deletableObjects.length === 0) {
+          console.log('❌ Cannot delete - no editable objects selected');
+          return;
+        }
+
+        const totalObjects = objectsToDelete.length;
+        const lockedCount = totalObjects - deletableObjects.length;
+        
+        if (lockedCount > 0) {
+          console.log(`⚠️ ${lockedCount} of ${totalObjects} objects cannot be deleted (locked by other users)`);
+        }
+
+        console.log('🗑️ Delete key pressed: Deleting', deletableObjects.length, 'objects');
+        
+        try {
+          // Import deleteObject dynamically to avoid circular imports
+          import('../../services/canvas.service.js').then(async ({ deleteObject }) => {
+            // Delete all selected objects
+            for (const objectId of deletableObjects) {
+              try {
+                await deleteObject(objectId);
+                console.log('✅ Object deleted successfully:', objectId);
+              } catch (err) {
+                console.error('❌ Failed to delete object:', objectId, err);
+              }
+            }
+            
+            // Clear all selection since objects no longer exist
+            await multiSelection.clearSelection();
+            setSelectedObjectId(null);
+            setMoveSelectedId(null);
+            setResizeSelectedId(null);
+            setRotateSelectedId(null);
+            setTextSelectedId(null);
+            
+            console.log('✅ Batch deletion completed:', deletableObjects.length, 'objects');
+          });
+        } catch (error) {
+          console.error('❌ Failed to import deleteObject:', error);
         }
         return;
       }
 
-      // Escape - deselect
-      if (e.key === 'Escape' && selectedObjectId) {
+      // Escape - clear all selection
+      if (e.key === 'Escape' && (selectedObjectId || multiSelection.selectionInfo.count > 0)) {
         e.preventDefault();
-        unlockObject(selectedObjectId).catch(err => {
-          console.error('Failed to unlock on escape:', err);
-        });
+        
+        // Clear multi-selection first (this handles unlocking)
+        await multiSelection.clearSelection();
+        
+        // Clear legacy single selection
         setSelectedObjectId(null);
+        console.log('⌨️ Escape pressed: Cleared all selection');
         return;
       }
 
@@ -1086,6 +1144,18 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           // Clear local updates after redo to ensure Firestore data is shown
           setLocalRectUpdates({});
         }
+        return;
+      }
+
+      // Select All - Ctrl+A / Cmd+A
+      if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+        e.preventDefault();
+        await multiSelection.selectAll(canvasObjects);
+        
+        // Update legacy selection state for compatibility
+        const selection = multiSelection.selectionInfo;
+        setSelectedObjectId(selection.isSingle ? selection.primaryId : null);
+        console.log('⌨️ Select All: Selected', selection.count, 'objects');
         return;
       }
 
@@ -1135,7 +1205,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData, undo, redo, canUndo, canRedo]);
+  }, [selectedTool, selectedObjectId, isTemporaryPan, toolBeforePan, onToolChange, canvasObjects, canEditObject, setTextSelectedId, setIsEditingText, setTextEditData, undo, redo, canUndo, canRedo, multiSelection]);
 
   // Clear/manage state when switching tools
   useEffect(() => {
@@ -1290,6 +1360,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     texts,
     localRectUpdates,
     selectedColor,
+    multiSelection, // Multi-selection state and actions
     
     // Setters
     setSelectedObjectId,
@@ -1340,7 +1411,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     currentRect, currentCircle, currentStar, textEditData, drawStart, mouseDownPos, moveOriginalPos,
     resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, texts, localRectUpdates, selectedColor,
     findRectAt, findCircleAt, findStarAt, findTextAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
-    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange
+    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange, multiSelection
   ])
 
   // MOUSE DOWN HANDLER - Tool-specific logic
@@ -1376,24 +1447,33 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   const handleMouseMove = useCallback((e) => {
     const pos = getMousePos(e);
     
-    // Reject if mouse is above clipping boundary
-    if (!pos) {
+    // For drag operations (especially selection), use clamped coordinates
+    // This allows dragging beyond canvas boundaries without losing the drag
+    const isDragOperation = multiSelection?.isSelecting || isPanning || isMoving || isResizing || isRotating || isDrawing;
+    const clampedPos = isDragOperation ? getClampedMousePos(e) : null;
+    
+    // Use clamped position for drag operations, regular position otherwise
+    const toolPos = isDragOperation ? clampedPos : pos;
+    
+    // Reject if mouse is above clipping boundary (but not for drag operations)
+    if (!toolPos) {
       return;
     }
     
-    // Update cursor position for toolbar display (real-time)
-    if (onCursorUpdate && pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT) {
-      onCursorUpdate(pos);
+    // Update cursor position for toolbar display (real-time) - use regular pos if available
+    const displayPos = pos || clampedPos;
+    if (onCursorUpdate && displayPos && displayPos.x >= 0 && displayPos.x <= CANVAS_WIDTH && displayPos.y >= 0 && displayPos.y <= CANVAS_HEIGHT) {
+      onCursorUpdate(displayPos);
     }
     
     // Update cursor position for multiplayer (only when not actively manipulating)
-    if (pos.x >= 0 && pos.x <= CANVAS_WIDTH && pos.y >= 0 && pos.y <= CANVAS_HEIGHT &&
+    if (displayPos && displayPos.x >= 0 && displayPos.x <= CANVAS_WIDTH && displayPos.y >= 0 && displayPos.y <= CANVAS_HEIGHT &&
         !isMoving && !isResizing && !isRotating && !isDrawing && !isPanning) {
-      updateCursor(pos);
+      updateCursor(displayPos);
     }
     
-    // Check for hover over locked objects (for tooltip display)
-    if (!isMoving && !isResizing && !isRotating && !isDrawing && !isPanning) {
+    // Check for hover over locked objects (for tooltip display) - use regular pos if available
+    if (!isMoving && !isResizing && !isRotating && !isDrawing && !isPanning && pos) {
       const hoveredObj = findObjectAt(pos);
       if (hoveredObj && hoveredObj.isLockedByOther) {
         setHoveredLockedObject(hoveredObj);
@@ -1410,16 +1490,26 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
       const state = buildToolState();
-      const helpers = { pos, canvasId, recordAction, stage: stageRef.current };
+      const helpers = { pos: toolPos, canvasId, recordAction, stage: stageRef.current };
       toolHandler.onMouseMove(e, state, helpers);
       return;
     }
     
     // All tools now handled by tool handlers - no fallback needed
-  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate, findObjectAt, recordAction]);
+  }, [selectedTool, isPanning, isMoving, isResizing, isRotating, isDrawing, getMousePos, getClampedMousePos, updateCursor, buildToolState, canvasId, onCursorUpdate, findObjectAt, recordAction, multiSelection]);
 
+  // Debounce mouse up to prevent duplicate processing from multiple event listeners
+  const lastMouseUpTime = useRef(0);
+  
   // MOUSE UP HANDLER - Tool-specific logic
   const handleMouseUp = useCallback(async (e) => {
+    // Prevent duplicate mouse up processing (global + konva listeners can both fire)
+    const now = Date.now();
+    if (now - lastMouseUpTime.current < 50) { // 50ms debounce
+      return;
+    }
+    lastMouseUpTime.current = now;
+    
     console.log('Mouse up with tool:', selectedTool);
     
     // Get tool handler and execute
@@ -1472,6 +1562,28 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       }
     }
   }, [selectedTool, isPanning]);
+
+  // Global mouse up handler to complete drag operations even when mouse is released outside canvas
+  useEffect(() => {
+    const handleGlobalMouseUp = async (e) => {
+      // Only handle if we're in the middle of a drag operation
+      if (multiSelection?.isSelecting || isPanning || isMoving || isResizing || isRotating || isDrawing) {
+        // Create a synthetic event to complete the operation
+        const syntheticEvent = {
+          evt: e,
+          target: { getStage: () => stageRef.current }
+        };
+        await handleMouseUp(syntheticEvent);
+      }
+    };
+
+    // Attach global mouse up listener
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    
+    return () => {
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [handleMouseUp, multiSelection, isPanning, isMoving, isResizing, isRotating, isDrawing]);
 
   // Calculate stage dimensions to cover the viewport below the clipping boundary
   const [stageDimensions, setStageDimensions] = useState({ 
@@ -1529,7 +1641,12 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={handleMouseUp} // Ensure cleanup if mouse leaves canvas
+          onMouseLeave={(e) => {
+            // Only cancel operations when not in the middle of a drag operation
+            if (!multiSelection?.isSelecting && !isPanning && !isMoving && !isResizing && !isRotating && !isDrawing) {
+              handleMouseUp(e);
+            }
+          }}
           draggable={false}
         >
         <Layer>
@@ -2143,6 +2260,13 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               stageScale={stageScale}
             />
           )}
+
+          {/* Selection Box for drag selection */}
+          <SelectionBox 
+            selectionRect={multiSelection.selectionRect}
+            isVisible={multiSelection.isSelecting}
+            stageScale={stageScale}
+          />
         </Layer>
         </Stage>
       </div>
