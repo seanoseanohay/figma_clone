@@ -55,6 +55,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   
   // Selection state - persists across all tools
   const [selectedObjectId, setSelectedObjectId] = useState(null);
+  const [hoveredObjectId, setHoveredObjectId] = useState(null); // For Delete tool hover feedback
   
   // Multiplayer presence hooks
   const { updateCursor } = useCursorTracking();
@@ -1060,6 +1061,10 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             e.preventDefault();
             onToolChange(TOOLS.SELECT);
             break;
+          case 'd':
+            e.preventDefault();
+            onToolChange(TOOLS.DELETE);
+            break;
           case 'm':
             e.preventDefault();
             if (selectedObjectId) onToolChange(TOOLS.MOVE);
@@ -1207,6 +1212,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   const buildToolState = useCallback(() => ({
     // Getters
     selectedObjectId,
+    hoveredObjectId,
     moveSelectedId,
     resizeSelectedId,
     rotateSelectedId,
@@ -1239,6 +1245,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     
     // Setters
     setSelectedObjectId,
+    setHoveredObjectId,
     setMoveSelectedId,
     setResizeSelectedId,
     setRotateSelectedId,
@@ -1311,7 +1318,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
       const state = buildToolState();
-      const helpers = { pos, canvasId, recordAction };
+      const helpers = { pos, canvasId, recordAction, stage: stageRef.current };
       await toolHandler.onMouseDown(e, state, helpers);
       return;
     }
@@ -1357,7 +1364,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     const toolHandler = getToolHandler(selectedTool);
     if (toolHandler) {
       const state = buildToolState();
-      const helpers = { pos, canvasId, recordAction };
+      const helpers = { pos, canvasId, recordAction, stage: stageRef.current };
       toolHandler.onMouseMove(e, state, helpers);
       return;
     }
@@ -1374,7 +1381,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     if (toolHandler) {
       const pos = getMousePos(e);
       const state = buildToolState();
-      const helpers = { pos, canvasId, recordAction };
+      const helpers = { pos, canvasId, recordAction, stage: stageRef.current };
       await toolHandler.onMouseUp(e, state, helpers);
       return;
     }

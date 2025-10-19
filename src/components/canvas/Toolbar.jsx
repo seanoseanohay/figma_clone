@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Box, Paper, Button, ButtonGroup, Divider, TextField, Typography, Popover } from '@mui/material';
 import { SketchPicker } from 'react-color';
+import ShapeToolDropdown from './ShapeToolDropdown';
 
 // Tool constants - separated by type for better organization
 export const TOOLS = {
   PAN: 'pan',
   SELECT: 'select',
+  DELETE: 'delete',
   MOVE: 'move', 
   RESIZE: 'resize',
   ROTATE: 'rotate',
@@ -16,13 +18,14 @@ export const TOOLS = {
 };
 
 // Selection tools (navigation and selection)
-const SELECTION_TOOLS = [TOOLS.PAN, TOOLS.SELECT];
+const SELECTION_TOOLS = [TOOLS.PAN, TOOLS.SELECT, TOOLS.DELETE];
 
 // Modification tools (work on existing shapes)
 const MODIFICATION_TOOLS = [TOOLS.MOVE, TOOLS.RESIZE, TOOLS.ROTATE];
 
-// Shape tools (create new shapes)
-const SHAPE_TOOLS = [TOOLS.TEXT, TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
+// Shape tools (create new shapes) - Text kept separate, geometric shapes in dropdown
+const SHAPE_TOOLS = [TOOLS.TEXT];
+const GEOMETRIC_SHAPES = [TOOLS.RECTANGLE, TOOLS.CIRCLE, TOOLS.STAR];
 
 /**
  * ColorSquare - Inline colored square that opens color picker
@@ -98,29 +101,31 @@ const TOOL_CONFIG = {
   [TOOLS.PAN]: {
     icon: '🤚',
     label: 'Pan Tool',
-    shortLabel: 'Pan',
     cursor: 'grab',
     shortcut: 'Hold Space'
   },
   [TOOLS.SELECT]: {
-    icon: '➡️',
+    icon: '↖',
     label: 'Select Tool',
-    shortLabel: 'Select',
     cursor: 'default',
     shortcut: 'Press V'
   },
+  [TOOLS.DELETE]: {
+    icon: '🗑️',
+    label: 'Delete Tool',
+    cursor: 'pointer',
+    shortcut: 'Press D'
+  },
   [TOOLS.MOVE]: {
-    icon: '👆',
+    icon: '✥',
     label: 'Move Tool',
-    shortLabel: 'Move',
     cursor: 'default',
     shortcut: 'Press M',
     requiresSelection: true
   },
   [TOOLS.RESIZE]: {
-    icon: '↔️',
+    icon: '⤡',
     label: 'Resize Tool',
-    shortLabel: 'Resize',
     cursor: 'default',
     shortcut: 'Press R',
     requiresSelection: true
@@ -283,14 +288,11 @@ const Toolbar = ({
           minWidth: 'auto',
           px: 1.5,
           py: 1,
-          fontSize: '1.125rem',
+          fontSize: '1.25rem',
         }}
       >
-        <Box component="span" sx={{ mr: { xs: 0, sm: 1 } }} role="img" aria-label={config.label}>
+        <Box component="span" role="img" aria-label={config.label}>
           {config.icon}
-        </Box>
-        <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, fontSize: '0.875rem', fontWeight: 500 }}>
-          {config.shortLabel}
         </Box>
       </Button>
     );
@@ -318,7 +320,7 @@ const Toolbar = ({
   
   const line2Text = line2Parts.join(' • ');
 
-  const showColor = hasSelection || SHAPE_TOOLS.includes(selectedTool);
+  const showColor = hasSelection || SHAPE_TOOLS.includes(selectedTool) || GEOMETRIC_SHAPES.includes(selectedTool);
 
   return (
     <Box sx={{ width: '100%', display: 'flex', justifyContent: 'center' }}>
@@ -336,59 +338,6 @@ const Toolbar = ({
           <ButtonGroup size="small" variant="outlined">
             {MODIFICATION_TOOLS.map(toolKey => renderToolButton(toolKey))}
           </ButtonGroup>
-            
-          {/* Z-Index Controls */}
-          {hasSelection && (
-            <>
-              <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
-              
-              <ButtonGroup size="small" variant="outlined">
-                <Button onClick={handleBringToFront} title="Bring to Front (Ctrl+Shift+])">⬆️</Button>
-                <Button onClick={handleMoveForward} title="Move Forward (Ctrl+])">🔼</Button>
-                <Button onClick={handleMoveBackward} title="Move Backward (Ctrl+[)">🔽</Button>
-                <Button onClick={handleSendToBack} title="Send to Back (Ctrl+Shift+[)">⬇️</Button>
-              </ButtonGroup>
-              
-              {/* Delete Button */}
-              <Button
-                onClick={handleDeleteObject}
-                variant="outlined"
-                size="small"
-                color="error"
-                title="Delete Object (Delete key)"
-                sx={{ minWidth: 'auto', px: 1 }}
-              >
-                🗑️
-              </Button>
-              
-              {/* Rotation Input */}
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, ml: 1 }}>
-                <Typography variant="caption" color="grey.600">
-                  Angle:
-                </Typography>
-                <TextField
-                  type="number"
-                  size="small"
-                  value={selectedObject ? Math.round(selectedObject.rotation || 0) : 0}
-                  onChange={(e) => {
-                    const value = parseInt(e.target.value) || 0;
-                    const normalizedValue = ((value % 360) + 360) % 360;
-                    onRotationChange(normalizedValue);
-                  }}
-                  inputProps={{
-                    min: 0,
-                    max: 359,
-                    step: 1,
-                    style: { width: 48, padding: 4, fontSize: '0.75rem' }
-                  }}
-                  title="Rotation angle in degrees (0-359)"
-                />
-                <Typography variant="caption" color="grey.600">
-                  °
-                </Typography>
-              </Box>
-            </>
-          )}
           
           <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
           
@@ -414,10 +363,20 @@ const Toolbar = ({
           
           <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
           
-          {/* Shape Tools */}
-          <ButtonGroup size="small" variant="outlined">
-            {SHAPE_TOOLS.map(toolKey => renderToolButton(toolKey))}
-          </ButtonGroup>
+          {/* Creation Tools */}
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {/* Text Tool */}
+            <ButtonGroup size="small" variant="outlined">
+              {SHAPE_TOOLS.map(toolKey => renderToolButton(toolKey))}
+            </ButtonGroup>
+            
+            {/* Shape Tool Dropdown */}
+            <ShapeToolDropdown
+              selectedTool={selectedTool}
+              onToolChange={onToolChange}
+              selectedColor={selectedColor}
+            />
+          </Box>
         </Box>
         
         {/* Description Area */}
@@ -430,6 +389,41 @@ const Toolbar = ({
               <>
                 <Typography variant="caption" color="grey.500">•</Typography>
                 <ColorSquare color={selectedColor} onChange={onColorChange} />
+              </>
+            )}
+            {selectedObject && (
+              <>
+                <Typography variant="caption" color="grey.500">•</Typography>
+                <ButtonGroup size="small" variant="outlined" sx={{ height: 24 }}>
+                  <Button 
+                    onClick={handleBringToFront} 
+                    title="Bring to Front (Ctrl+Shift+])"
+                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                  >
+                    ⬆️
+                  </Button>
+                  <Button 
+                    onClick={handleMoveForward} 
+                    title="Move Forward (Ctrl+])"
+                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                  >
+                    🔼
+                  </Button>
+                  <Button 
+                    onClick={handleMoveBackward} 
+                    title="Move Backward (Ctrl+[)"
+                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                  >
+                    🔽
+                  </Button>
+                  <Button 
+                    onClick={handleSendToBack} 
+                    title="Send to Back (Ctrl+Shift+[)"
+                    sx={{ minWidth: 'auto', px: 0.5, py: 0, fontSize: '0.875rem' }}
+                  >
+                    ⬇️
+                  </Button>
+                </ButtonGroup>
               </>
             )}
           </Box>

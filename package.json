@@ -1,7 +1,8 @@
 {
-  "name": "figma_clone",
+  "name": "canvasaurus",
+  "description": "Canvasaurus - The big beast of collaboration. Real-time collaborative design canvas.",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

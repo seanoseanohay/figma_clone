@@ -70,18 +70,19 @@ const Header = () => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
           {/* Logo */}
           <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+            <Box component="span" sx={{ fontSize: '2rem', mr: 1 }}>🦖</Box>
             <Typography variant="h5" fontWeight="bold" color="grey.900">
-              CollabCanvas
+              Canvasaurus
             </Typography>
             <Chip
-              label="MVP"
+              label="RAWR"
               size="small"
               sx={{
                 ml: 1,
-                bgcolor: 'primary.light',
-                color: 'primary.dark',
-                fontWeight: 500,
-                fontSize: '0.75rem',
+                bgcolor: 'success.light',
+                color: 'success.dark',
+                fontWeight: 600,
+                fontSize: '0.7rem',
               }}
             />
           </Box>
