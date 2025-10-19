@@ -54,7 +54,7 @@ export function useApiTokens() {
       // Reload tokens list
       await loadTokens();
       
-      toast.success('API token generated successfully');
+      toast.success('RAWR-some! API token generated successfully!');
       return tokenData;
     } catch (err) {
       console.error('Error generating token:', err);
@@ -80,7 +80,7 @@ export function useApiTokens() {
         )
       );
       
-      toast.success('Token revoked successfully');
+      toast.success('Token sent to extinction! Revoked successfully.');
     } catch (err) {
       console.error('Error revoking token:', err);
       toast.error(err.message || 'Failed to revoke token');

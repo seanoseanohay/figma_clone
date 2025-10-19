@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Dinosaur body -->
+  <path d="M 50 35 Q 52 28 50 22 Q 48 16 42 14 Q 38 12 32 12 Q 26 12 22 14 Q 16 16 14 22 L 12 28 Q 10 32 10 36 L 10 42 Q 10 46 14 48 L 18 50 L 22 50 L 24 48 L 24 52 L 26 54 L 28 54 L 30 52 L 30 50 L 36 50 L 38 52 L 40 54 L 42 54 L 44 52 L 44 48 L 46 50 L 50 50 Q 54 48 56 44 Q 58 40 56 36 Q 54 32 50 35 Z" fill="#4CAF50"/>
+  
+  <!-- Spots -->
+  <circle cx="20" cy="30" r="3" fill="#388E3C"/>
+  <circle cx="30" cy="26" r="2.5" fill="#388E3C"/>
+  <circle cx="40" cy="30" r="3" fill="#388E3C"/>
+  <circle cx="28" cy="38" r="2" fill="#388E3C"/>
+  
+  <!-- Head -->
+  <circle cx="48" cy="20" r="8" fill="#4CAF50"/>
+  
+  <!-- Eye -->
+  <circle cx="51" cy="18" r="2.5" fill="white"/>
+  <circle cx="52" cy="17.5" r="1.5" fill="black"/>
+  
+  <!-- Snout -->
+  <ellipse cx="54" cy="22" rx="3" ry="2" fill="#388E3C"/>
+  
+  <!-- Spikes on back -->
+  <path d="M 22 14 L 20 8 L 18 14 Z" fill="#81C784"/>
+  <path d="M 28 12 L 26 6 L 24 12 Z" fill="#81C784"/>
+  <path d="M 34 12 L 32 6 L 30 12 Z" fill="#81C784"/>
+  <path d="M 40 14 L 38 8 L 36 14 Z" fill="#81C784"/>
+  
+  <!-- Tail -->
+  <path d="M 10 36 Q 6 34 4 30 Q 2 26 4 22 L 6 24 Q 5 27 6 30 Q 7 33 10 34 Z" fill="#4CAF50"/>
+</svg>
+

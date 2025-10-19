@@ -60,9 +60,9 @@ const InviteModal = ({ isOpen, onClose }) => {
       
       if (result.success) {
         if (result.pending) {
-          toast.success('Invitation sent! User will be added when they sign up.')
+          toast.success('RAWR-some! Invitation sent! User will be added when they sign up.')
         } else {
-          toast.success('Collaborator added successfully!')
+          toast.success('RAWR-some! Collaborator added successfully!')
         }
         setEmail('')
         

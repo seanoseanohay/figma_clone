@@ -251,7 +251,7 @@ function GenerateTokenModal({ canvases, onClose, onGenerate, generatedToken }) {
   const copyToken = () => {
     if (generatedToken?.token) {
       navigator.clipboard.writeText(generatedToken.token);
-      toast.success('Token copied to clipboard');
+      toast.success('RAWR-some! Token copied to clipboard!');
     }
   };
 

@@ -11,6 +11,7 @@ import ProtectedRoute from './components/layout/ProtectedRoute.jsx';
 import Header from './components/layout/Header.jsx';
 import Toolbar, { TOOLS } from './components/canvas/Toolbar.jsx';
 import Canvas from './components/canvas/Canvas.jsx';
+import NotFound from './components/common/NotFound.jsx';
 import { CANVAS_TOP_OFFSET, HEADER_HEIGHT, Z_INDEX } from './constants/layout.constants.js';
 
 // TEMPORARY: Set to true to bypass authentication and go directly to canvas
@@ -301,7 +302,8 @@ function App() {
                     </LoggedInLayout>
                   } 
                 />
-                <Route path="*" element={<Navigate to="/canvas" replace />} />
+                {/* 404 Page */}
+                <Route path="*" element={<NotFound />} />
               </>
             ) : (
               <>
@@ -386,8 +388,8 @@ function App() {
                   element={<RedirectToCanvas />} 
                 />
                 
-                {/* Catch all */}
-                <Route path="*" element={<Navigate to="/canvas" replace />} />
+                {/* 404 Page */}
+                <Route path="*" element={<NotFound />} />
               </>
             )}
             </Routes>
