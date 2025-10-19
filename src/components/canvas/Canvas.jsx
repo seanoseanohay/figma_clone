@@ -1685,7 +1685,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           
           {/* Render all shapes sorted by z-index */}
           {allShapesSorted.map((shape) => {
-            const isSelected = selectedObjectId === shape.id;
+            const isSelected = selectedObjectId === shape.id || multiSelection.selectedObjectIds.has(shape.id);
             const shouldAttachRef = isSelected && selectedTool === TOOLS.RESIZE && shape.rotation;
             
             // Get owner's color if locked by another user
@@ -1698,7 +1698,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               stroke: shape.isLockedByOther 
                 ? ownerColor // Use owner's color for locked objects
                 : isSelected 
-                  ? "#2563eb" // Blue border for selected
+                  ? (multiSelection.selectedObjectIds.size > 1 ? "#8B5CF6" : "#2563eb") // Purple for multi-select, blue for single
                   : "#333333", // Default border
               strokeWidth: shape.isLockedByOther || isSelected ? 3 : 1, // Thicker border for locked/selected
               opacity: shape.isLockedByOther ? 0.8 : 1.0, // Slightly less dim for better visibility
@@ -1769,7 +1769,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                   stroke={shape.isLockedByOther 
                     ? ownerColor // Use owner's color for locked text
                     : isSelected 
-                      ? "#2563eb" // Blue border for selected
+                      ? (multiSelection.selectedObjectIds.size > 1 ? "#8B5CF6" : "#2563eb") // Purple for multi-select, blue for single
                       : "transparent"} // No border for unselected text
                   strokeWidth={shape.isLockedByOther || isSelected ? 1.5 : 0}
                 />
