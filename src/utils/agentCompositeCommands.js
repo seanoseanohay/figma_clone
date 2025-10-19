@@ -600,7 +600,8 @@ export const createTRexFaceComposite = (options = {}) => {
           type: 'createCircle',
           position: { x: scaledX, y: scaledY },
           radius: shape.radius * scale,
-          fill: shape.color
+          fill: shape.color,
+          zIndex: shape.layer
         })
         break
         
@@ -613,7 +614,8 @@ export const createTRexFaceComposite = (options = {}) => {
             height: shape.height * scale 
           },
           fill: shape.color,
-          rotation: shape.rotation || 0
+          rotation: shape.rotation || 0,
+          zIndex: shape.layer
         })
         break
         
@@ -623,7 +625,8 @@ export const createTRexFaceComposite = (options = {}) => {
           position: { x: scaledX, y: scaledY },
           text: shape.text,
           fontSize: shape.fontSize * scale,
-          fill: shape.color
+          fill: shape.color,
+          zIndex: shape.layer
         })
         break
     }

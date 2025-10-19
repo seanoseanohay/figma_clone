@@ -209,7 +209,7 @@ const AgentChatPanel = ({ canvasId, canvasState, isVisible, onToggle }) => {
                 </Typography>
               </Button>
               <Button 
-                onClick={() => handleExampleClick("Create 5x5 grid of purple circles")}
+                onClick={() => handleExampleClick("Create 5x5 grid of gold stars")}
                 disabled={isLoading}
                 sx={{ 
                   bgcolor: 'grey.50', 
@@ -231,7 +231,7 @@ const AgentChatPanel = ({ canvasId, canvasState, isVisible, onToggle }) => {
                 fullWidth
               >
                 <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
-                  "Create 5x5 grid of purple circles"
+                  "Create 5x5 grid of gold stars"
                 </Typography>
               </Button>
               <Button 
