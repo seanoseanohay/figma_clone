@@ -48,9 +48,9 @@ export const parseAgentResponse = (agentResponse) => {
       return result
     }
 
-    if (commands.length > 10) {
-      result.warnings.push(`Too many commands (${commands.length}), limiting to first 10`)
-      commands.splice(10)
+    if (commands.length > 1000) {
+      result.warnings.push(`Too many commands (${commands.length}), limiting to first 1000`)
+      commands.splice(1000)
     }
 
     // Parse and validate each command
@@ -219,6 +219,18 @@ export const sanitizeCommand = (rawCommand) => {
         'createlayout': 'createLayout',
         'cards': 'createLayout',
         'dashboard': 'createLayout',
+        
+        // T-Rex Commands
+        'createtrex': 'createTRex',
+        'drawtrex': 'createTRex',
+        'createtrexface': 'createTRexFace',
+        'drawtrexface': 'createTRexFace',
+        'createdinosaur': 'createTRex',
+        'drawdinosaur': 'createTRex',
+        'dinosaur': 'createTRex',
+        'dino': 'createTRex',
+        'trex': 'createTRex',
+        't-rex': 'createTRex',
         
         // Existing commands
         'update': 'updateObjectProperties',

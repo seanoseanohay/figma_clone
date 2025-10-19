@@ -195,7 +195,7 @@ export const subscribeToActiveObjects = (canvasId, callback) => {
       callback({}) // Return empty object for graceful degradation
     })
     
-    console.log(`Subscribed to active objects (canvas: ${canvasId})`)
+    // Subscribed to active objects (canvas: ${canvasId})
     
     return unsubscribe
   } catch (error) {

@@ -75,6 +75,12 @@ const AgentChatPanel = ({ canvasId, canvasState, isVisible, onToggle }) => {
     retryLastMessage()
   }
 
+  // Handle example command clicks
+  const handleExampleClick = async (command) => {
+    if (isLoading) return
+    await sendMessage(command)
+  }
+
   if (!isVisible) return null
 
   return (
@@ -121,24 +127,165 @@ const AgentChatPanel = ({ canvasId, canvasState, isVisible, onToggle }) => {
               Welcome to AI Canvas Agent!
             </Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-              Try commands like:
+              Try these commands:
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              <Button 
+                onClick={() => handleExampleClick("Create a red rectangle in the center")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
                   "Create a red rectangle in the center"
                 </Typography>
-              </Paper>
-              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              </Button>
+              <Button 
+                onClick={() => handleExampleClick("Add three blue circles in a row")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
                   "Add three blue circles in a row"
                 </Typography>
-              </Paper>
-              <Paper sx={{ bgcolor: 'grey.50', p: 1.5, textAlign: 'left' }}>
-                <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+              </Button>
+              <Button 
+                onClick={() => handleExampleClick("Create a login form with user and password fields and a submit button")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
+                  "Create a login form with user and password fields and a submit button"
+                </Typography>
+              </Button>
+              <Button 
+                onClick={() => handleExampleClick("Create 5x5 grid of purple circles")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
+                  "Create 5x5 grid of purple circles"
+                </Typography>
+              </Button>
+              <Button 
+                onClick={() => handleExampleClick("Draw a T-Rex")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
+                  "Draw a T-Rex"
+                </Typography>
+              </Button>
+              <Button 
+                onClick={() => handleExampleClick("Move the selected object to the right")}
+                disabled={isLoading}
+                sx={{ 
+                  bgcolor: 'grey.50', 
+                  p: 1.5, 
+                  textAlign: 'left',
+                  justifyContent: 'flex-start',
+                  border: '1px solid transparent',
+                  borderRadius: 2,
+                  '&:hover': { 
+                    bgcolor: 'primary.light', 
+                    borderColor: 'primary.main',
+                    color: 'primary.dark'
+                  },
+                  '&:disabled': {
+                    bgcolor: 'grey.100'
+                  }
+                }}
+                variant="text"
+                fullWidth
+              >
+                <Typography variant="body2" sx={{ color: 'inherit', textTransform: 'none' }}>
                   "Move the selected object to the right"
                 </Typography>
-              </Paper>
+              </Button>
             </Box>
           </Box>
         ) : (

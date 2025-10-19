@@ -18,7 +18,7 @@ export const usePresence = () => {
   useEffect(() => {
     // Don't subscribe if we don't have a canvas yet
     if (!canvasId) {
-      console.log('Presence hook waiting for canvas context...')
+      // Presence hook waiting for canvas context
       setUsers([])
       setIsLoading(true)
       return
@@ -38,7 +38,7 @@ export const usePresence = () => {
         setError(null)
       })
 
-      console.log(`Subscribed to canvas presence: ${canvasId}`)
+      // Subscribed to canvas presence: ${canvasId}
     } catch (err) {
       console.error('Failed to subscribe to canvas presence:', err)
       setError(err.message)
@@ -49,7 +49,7 @@ export const usePresence = () => {
     return () => {
       if (unsubscribe) {
         unsubscribe()
-        console.log(`Unsubscribed from canvas presence: ${canvasId}`)
+        // Unsubscribed from canvas presence: ${canvasId}
       }
     }
   }, [canvasId]) // Re-subscribe when canvas changes

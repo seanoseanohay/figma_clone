@@ -83,7 +83,7 @@ export const createObject = async (type, position, canvasId, properties = {}, re
     )
 
     const docRef = await addDoc(collection(db, FIREBASE_COLLECTIONS.CANVAS_OBJECTS), cleanData)
-    console.log('Canvas object created:', docRef.id)
+    // Canvas object created: ${docRef.id}
     
     // Record action for undo/redo if callback provided
     if (recordAction && typeof recordAction === 'function') {
@@ -140,7 +140,7 @@ export const updateObject = async (objectId, updates, recordAction = null, actio
     }
 
     await updateDoc(docRef, updateData)
-    console.log('Canvas object updated successfully:', objectId)
+    // Canvas object updated successfully: ${objectId}
     
     // Record action for undo/redo if callback provided
     if (recordAction && typeof recordAction === 'function' && actionMetadata.actionType) {
@@ -421,7 +421,7 @@ export const deleteObject = async (objectId, recordAction = null) => {
     }
     
     await deleteDoc(docRef)
-    console.log('Canvas object deleted:', objectId)
+    // Canvas object deleted: ${objectId}
     
     // Record action for undo/redo if callback provided and we have object data
     if (recordAction && typeof recordAction === 'function' && objectData) {
@@ -472,7 +472,7 @@ export const subscribeToObjects = (canvasId, callback) => {
         })
       })
       
-      console.log('Canvas objects updated:', objects.length)
+      // Canvas objects updated: ${objects.length}
       callback(objects)
     }, (error) => {
       console.error('Error subscribing to canvas objects:', error)
@@ -539,7 +539,7 @@ export const getCanvasObjects = async (canvasId) => {
       });
     });
 
-    console.log(`Fetched ${objects.length} objects for canvas:`, canvasId);
+    // Fetched ${objects.length} objects for canvas: ${canvasId}
     return objects;
   } catch (error) {
     console.error('Error fetching canvas objects for canvas:', canvasId, error);
@@ -566,7 +566,7 @@ export const clearAllObjects = async () => {
     })
     
     await Promise.all(deletePromises)
-    console.log('All canvas objects cleared')
+    // All canvas objects cleared
   } catch (error) {
     console.error('Error clearing canvas objects:', error)
     throw error
@@ -876,7 +876,7 @@ export const addCollaboratorToCanvas = async (canvasId, inviteeEmail, inviterUse
 
       console.log('Pending invite created for:', inviteeEmail);
       // TODO: Send email notification to inviteeEmail
-      console.log('TODO: Send email to', inviteeEmail, 'about canvas invitation');
+      // TODO: Send email to ${inviteeEmail} about canvas invitation
       
       return { success: true, pending: true, message: 'Invitation sent. User will be added when they sign up.' };
     }
@@ -978,7 +978,7 @@ export const subscribeToCanvasObjects = (canvasId, callback) => {
         });
       });
       
-      console.log('Canvas objects updated for canvas:', canvasId, objects.length);
+      // Canvas objects updated for canvas: ${canvasId}, count: ${objects.length}
       callback(objects);
     }, (error) => {
       console.error('Error subscribing to canvas objects:', error);
@@ -1175,7 +1175,7 @@ export const subscribeToActiveObjects = (canvasId, callback) => {
       callback({}) // Return empty object for graceful degradation
     })
     
-    console.log(`Subscribed to active objects (canvas: ${canvasId})`)
+    // Subscribed to active objects (canvas: ${canvasId})
     
     return unsubscribe
   } catch (error) {

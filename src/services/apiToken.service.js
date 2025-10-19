@@ -246,7 +246,7 @@ export async function getAgentToken(canvasId) {
     } catch (error) {
       if (error.code === 'failed-precondition' || error.message.includes('index')) {
         console.warn('⚠️ Firestore composite index is still building. This may take a few minutes.');
-        console.log('🔗 Monitor index status: https://console.firebase.google.com/project/collabcanvas-c91ec/firestore/indexes');
+        // Monitor index status: https://console.firebase.google.com/project/collabcanvas-c91ec/firestore/indexes
         console.log('🔄 Falling back to creating new token...');
         
         // Skip query and go directly to token creation
@@ -268,7 +268,7 @@ export async function getAgentToken(canvasId) {
     }
 
     // No valid token found, create a new one directly in Firestore
-    console.log('🔑 Creating new agent token directly in Firestore for canvas:', canvasId);
+    // Creating new agent token directly in Firestore for canvas: ${canvasId}
     
     // Generate a simple token for development/testing
     const newToken = 'agent-token-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);

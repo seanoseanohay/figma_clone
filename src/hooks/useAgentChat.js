@@ -80,7 +80,7 @@ export const useAgentChat = ({ canvasId, canvasState }) => {
       }
 
       console.log('🤖 Sending message to agent:', userMessage)
-      console.log('Canvas state:', currentCanvasState)
+      // Canvas state updated
 
       // Try real AI first, fallback to mock if needed
       let response

@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Box, Drawer, IconButton, Typography, Tab, Tabs, Badge } from '@mui/material'
-import { X, Bot, BarChart3 } from 'lucide-react'
+import { X, Bot } from 'lucide-react'
 import AgentChatPanel from '../ai/AgentChatPanel.jsx'
-import AgentMetricsPanel from '../ai/AgentMetricsPanel.jsx'
 import { useCanvas } from '../../hooks/useCanvas.js'
 
 /**
@@ -11,13 +10,11 @@ import { useCanvas } from '../../hooks/useCanvas.js'
  * Main modal/sidebar container for AI agent functionality.
  * Includes:
  * - Chat interface for AI interactions
- * - Metrics panel for performance tracking
  * - Proper modal overlay and positioning
  * - Responsive design
  */
 const AgentSidebar = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('chat')
-  const [showMetrics, setShowMetrics] = useState(false)
   const { canvasId, objects, selectedObjectIds, viewport } = useCanvas()
 
   // Close modal on Escape key
@@ -117,19 +114,6 @@ const AgentSidebar = ({ isOpen, onClose }) => {
         </Box>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {/* Metrics Toggle */}
-          <IconButton
-            onClick={() => setShowMetrics(!showMetrics)}
-            size="small"
-            sx={{
-              color: 'grey.400',
-              '&:hover': { color: 'grey.600', bgcolor: 'grey.100' },
-            }}
-            title="Toggle metrics"
-          >
-            <BarChart3 style={{ width: 20, height: 20 }} />
-          </IconButton>
-          
           {/* Close Button */}
           <IconButton
             onClick={onClose}
@@ -177,13 +161,6 @@ const AgentSidebar = ({ isOpen, onClose }) => {
         )}
       </Box>
 
-      {/* Floating Metrics Panel */}
-      {showMetrics && (
-        <AgentMetricsPanel
-          isVisible={showMetrics}
-          onToggle={() => setShowMetrics(!showMetrics)}
-        />
-      )}
     </Drawer>
   )
 }

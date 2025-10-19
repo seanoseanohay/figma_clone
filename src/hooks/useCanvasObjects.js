@@ -37,7 +37,7 @@ export const useCanvasObjects = (canvasId = null) => {
         setError(null)
       })
 
-      console.log('Subscribed to canvas objects')
+      // Subscribed to canvas objects
     } catch (err) {
       console.error('Failed to subscribe to canvas objects:', err)
       setError(err.message)
@@ -48,7 +48,7 @@ export const useCanvasObjects = (canvasId = null) => {
     return () => {
       if (unsubscribe) {
         unsubscribe()
-        console.log('Unsubscribed from canvas objects')
+        // Unsubscribed from canvas objects
       }
     }
   }, [canvasId]) // Re-subscribe when canvasId changes

@@ -154,6 +154,86 @@ const ArrangeLayoutSchema = z.object({
   targetIds: z.array(z.string().min(1)).min(1).optional() // Require at least 1 item
 })
 
+// Composite/Template commands
+const CreateFormSchema = z.object({
+  type: z.literal('createForm'),
+  position: PositionSchema,
+  formType: z.enum(['login', 'registration', 'contact']).default('login'),
+  fields: z.array(z.string()).default(['username', 'password']),
+  width: z.number().min(200).max(800).default(300),
+  colors: z.object({
+    background: ColorSchema.optional(),
+    primary: ColorSchema.optional(),
+    text: ColorSchema.optional(),
+    border: ColorSchema.optional()
+  }).optional()
+})
+
+const CreateNavBarSchema = z.object({
+  type: z.literal('createNavBar'),
+  position: PositionSchema,
+  items: z.array(z.string()).default(['Home', 'About', 'Services', 'Contact']),
+  width: z.number().min(400).max(1200).default(800),
+  height: z.number().min(40).max(100).default(60),
+  colors: z.object({
+    background: ColorSchema.optional(),
+    primary: ColorSchema.optional(),
+    text: ColorSchema.optional()
+  }).optional()
+})
+
+const CreateCardLayoutSchema = z.object({
+  type: z.literal('createCardLayout'),
+  position: PositionSchema,
+  cardCount: z.number().min(1).max(20).default(3),
+  columns: z.number().min(1).max(6).default(3),
+  cardWidth: z.number().min(100).max(400).default(200),
+  cardHeight: z.number().min(100).max(400).default(250),
+  spacing: z.number().min(10).max(50).default(20),
+  colors: z.object({
+    background: ColorSchema.optional(),
+    border: ColorSchema.optional(),
+    accent: ColorSchema.optional()
+  }).optional()
+})
+
+const CreateLoginFormSchema = z.object({
+  type: z.literal('createLoginForm'),
+  position: PositionSchema,
+  width: z.number().min(200).max(800).default(300),
+  spacing: z.number().min(10).max(40).default(20),
+  colors: z.object({
+    background: ColorSchema.optional(),
+    primary: ColorSchema.optional(),
+    text: ColorSchema.optional(),
+    border: ColorSchema.optional()
+  }).optional()
+})
+
+const CreateTRexSchema = z.object({
+  type: z.literal('createTRex'),
+  position: PositionSchema.default({ x: 400, y: 300 }),
+  scale: z.number().min(0.1).max(5.0).default(1.0)
+})
+
+const DrawTRexSchema = z.object({
+  type: z.literal('drawTRex'),
+  position: PositionSchema.default({ x: 400, y: 300 }),
+  scale: z.number().min(0.1).max(5.0).default(1.0)
+})
+
+const CreateTRexFaceSchema = z.object({
+  type: z.literal('createTRexFace'),
+  position: PositionSchema.default({ x: 400, y: 300 }),
+  scale: z.number().min(0.1).max(5.0).default(1.0)
+})
+
+const DrawTRexFaceSchema = z.object({
+  type: z.literal('drawTRexFace'),
+  position: PositionSchema.default({ x: 400, y: 300 }),
+  scale: z.number().min(0.1).max(5.0).default(1.0)
+})
+
 // Union of all command schemas
 const AgentCommandSchema = z.union([
   CreateRectangleSchema,
@@ -170,12 +250,20 @@ const AgentCommandSchema = z.union([
   SetCanvasBackgroundSchema,
   GroupObjectsSchema,
   UngroupObjectsSchema,
-  ArrangeLayoutSchema
+  ArrangeLayoutSchema,
+  CreateFormSchema,
+  CreateNavBarSchema,
+  CreateCardLayoutSchema,
+  CreateLoginFormSchema,
+  CreateTRexSchema,
+  DrawTRexSchema,
+  CreateTRexFaceSchema,
+  DrawTRexFaceSchema
 ])
 
 // Agent response schema
 const AgentResponseSchema = z.object({
-  commands: z.array(AgentCommandSchema).min(1).max(10),
+  commands: z.array(AgentCommandSchema).min(1).max(1000),
   explanation: z.string().optional(),
   metadata: z.object({
     model: z.string().optional(),

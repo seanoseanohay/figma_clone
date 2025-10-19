@@ -44,7 +44,7 @@ export const requestAgentResponse = async (prompt, canvasState, options = {}) =>
       }
     }
 
-    console.log('🤖 Requesting AI response:', { prompt, canvasId: canvasState.canvasId })
+    // Requesting AI response for canvas: ${canvasState.canvasId}
 
     const response = await fetch(`${AGENT_API_BASE}/agent`, {
       method: 'POST',
@@ -91,7 +91,7 @@ export const requestAgentResponse = async (prompt, canvasState, options = {}) =>
  */
 export const getMockAgentResponse = async (prompt, canvasState, options = {}) => {
   try {
-    console.log('🤖 Using local mock AI response for:', { prompt, canvasId: canvasState.canvasId })
+    // Using local mock AI response for canvas: ${canvasState.canvasId}
     
     // Skip API call and go directly to local mock for now
     return generateLocalMockResponse(prompt, canvasState)
@@ -651,6 +651,27 @@ const generateLocalMockResponse = async (prompt, canvasState) => {
       position: extractPosition(prompt) || { x: 200, y: 200 },
       cardCount,
       elements: ['title', 'image', 'description']
+    })
+  }
+
+  // T-Rex drawing
+  if (lowerPrompt.includes('t-rex') || lowerPrompt.includes('trex') || lowerPrompt.includes('dinosaur')) {
+    const scaleMatch = prompt.match(/(?:small|large|big|tiny|huge)/i)
+    const frontMatch = prompt.match(/front|facing|face/i)
+    let scale = 1.0
+    
+    if (scaleMatch) {
+      const scaleWord = scaleMatch[0].toLowerCase()
+      if (scaleWord === 'small' || scaleWord === 'tiny') scale = 0.5
+      if (scaleWord === 'large' || scaleWord === 'big' || scaleWord === 'huge') scale = 1.5
+    }
+    
+    const commandType = 'createTRex'
+    
+    commands.push({
+      type: commandType,
+      position: extractPosition(prompt) || { x: 400, y: 300 },
+      scale: scale
     })
   }
 

@@ -136,7 +136,7 @@ export const subscribeToAgentActions = (canvasId, callback) => {
       callback([])
     })
     
-    console.log(`📡 Subscribed to agent actions (canvas: ${canvasId})`)
+    // Subscribed to agent actions (canvas: ${canvasId})
     return unsubscribe
 
   } catch (error) {
@@ -180,7 +180,7 @@ export const subscribeToAgentStatus = (canvasId, callback) => {
       callback({})
     })
     
-    console.log(`📡 Subscribed to agent status (canvas: ${canvasId})`)
+    // Subscribed to agent status (canvas: ${canvasId})
     return unsubscribe
 
   } catch (error) {

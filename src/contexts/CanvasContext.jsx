@@ -58,7 +58,7 @@ export const CanvasProvider = ({ children }) => {
     // Navigate to the canvas URL
     navigate(`/canvas/${newCanvasId}`)
     
-    console.log(`Canvas context updated: canvas=${newCanvasId}`)
+    // Canvas context updated: canvas=${newCanvasId}
   }, [navigate])
 
   /**
@@ -78,7 +78,7 @@ export const CanvasProvider = ({ children }) => {
   const clearCurrentCanvas = useCallback(() => {
     setCanvasId(null)
     localStorage.removeItem('currentCanvasId')
-    console.log('Canvas context cleared')
+    // Canvas context cleared
   }, [])
 
   const value = {

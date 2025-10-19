@@ -22,10 +22,10 @@ export const createLoginFormComposite = (options = {}) => {
     width = 300,
     spacing = 20,
     colors = {
-      background: '#ffffff',
+      background: '#f8fafc',
       primary: '#3b82f6',
       text: '#374151',
-      border: '#d1d5db'
+      border: '#94a3b8'
     }
   } = options
 
@@ -39,7 +39,7 @@ export const createLoginFormComposite = (options = {}) => {
     size: { width: width, height: 280 },
     fill: colors.background,
     stroke: colors.border,
-    strokeWidth: 1
+    strokeWidth: 2
   })
 
   currentY += spacing
@@ -50,6 +50,7 @@ export const createLoginFormComposite = (options = {}) => {
     position: { x: position.x + spacing, y: currentY },
     size: { width: width - (spacing * 2), height: 30 },
     fill: colors.text,
+    strokeWidth: 0,
     // Note: In a real implementation, this would be a text element
   })
 
@@ -60,9 +61,9 @@ export const createLoginFormComposite = (options = {}) => {
     type: 'createRectangle',
     position: { x: position.x + spacing, y: currentY },
     size: { width: width - (spacing * 2), height: 40 },
-    fill: '#f9fafb',
+    fill: '#ffffff',
     stroke: colors.border,
-    strokeWidth: 1
+    strokeWidth: 2
   })
 
   currentY += 60
@@ -72,9 +73,9 @@ export const createLoginFormComposite = (options = {}) => {
     type: 'createRectangle',
     position: { x: position.x + spacing, y: currentY },
     size: { width: width - (spacing * 2), height: 40 },
-    fill: '#f9fafb',
+    fill: '#ffffff',
     stroke: colors.border,
-    strokeWidth: 1
+    strokeWidth: 2
   })
 
   currentY += 70
@@ -422,14 +423,15 @@ COMPOSITE COMMANDS:
 9. TEMPLATES:
    - createLoginForm: Complete login form with fields and button
    - createNavBar: Navigation bar with multiple items
-   - createCardLayout: Grid of cards with headers and content
+   - createCardLayout: Grid of cards with headers and content areas
    - createDashboard: Full dashboard with sidebar, header, and content areas
    - createButtonGroup: Group of styled buttons
+   - createTRex: ASCII-art inspired T-Rex face with detailed features and proper layering
 
 COMPOSITE COMMAND USAGE:
-- Use composite commands for complex UI patterns
-- Specify position, colors, and layout options
-- Templates automatically handle spacing and alignment
+- Use composite commands for complex UI patterns and illustrations
+- Specify position, colors, scale, and layout options
+- Templates automatically handle spacing, alignment, and z-layering
 - Multiple elements created with single command
 
 COMPOSITE EXAMPLES:
@@ -446,6 +448,12 @@ COMPOSITE EXAMPLES:
   "cardCount": 6,
   "columns": 3,
   "spacing": 20
+}
+
+{
+  "type": "createTRex",
+  "position": {"x": 400, "y": 200},
+  "scale": 1.0
 }
 `
 }
@@ -472,6 +480,14 @@ export const parseCompositeCommand = (command) => {
     case 'createButtonGroup':
       return createButtonGroupComposite(command)
       
+    case 'createTRex':
+    case 'drawTRex':
+    case 'createTRexFace':
+    case 'drawTRexFace':
+    case 'createDinosaur':
+    case 'drawDinosaur':
+      return createTRexFaceComposite(command)
+      
     default:
       throw new Error(`Unknown composite command: ${command.type}`)
   }
@@ -488,11 +504,145 @@ export const isCompositeCommand = (command) => {
     'createNavBar', 
     'createCardLayout',
     'createDashboard',
-    'createButtonGroup'
+    'createButtonGroup',
+    'createTRex',
+    'drawTRex',
+    'createTRexFace',
+    'drawTRexFace',
+    'createDinosaur',
+    'drawDinosaur'
   ]
   
   return compositeTypes.includes(command?.type)
 }
+
+export const createTRexFaceComposite = (options = {}) => {
+  const {
+    position = { x: 400, y: 300 }, // Default to canvas center-ish
+    scale = 1.0 // Allow scaling while maintaining proportions
+  } = options
+
+  // ASCII-art inspired T-Rex face blueprint - following exact user specifications
+  const blueprint = [
+    // Layer 1 - Background (light blue rectangle, 400x450)
+    { "type": "rectangle", "x": 0, "y": 0, "width": 400, "height": 450, "color": "#87CEEB", "layer": 1 },
+    
+    // Layer 2 - Main head (green rectangle, 200x160, corner radius 30)
+    { "type": "rectangle", "x": 100, "y": 120, "width": 200, "height": 160, "color": "#8FB830", "layer": 2 },
+    
+    // Layer 3 - Snout/jaw (olive rectangle, 240x120, corner radius 40)
+    { "type": "rectangle", "x": 80, "y": 240, "width": 240, "height": 120, "color": "#7BA428", "layer": 3 },
+    
+    // Layer 4 - Upper jaw detail (dark olive rectangle, 220x40, corner radius 20)
+    { "type": "rectangle", "x": 90, "y": 260, "width": 220, "height": 40, "color": "#6B8E23", "layer": 4 },
+    
+    // Layer 5 - Head bumps/ridges (dark olive circles)
+    { "type": "circle", "x": 130, "y": 130, "radius": 15, "color": "#6B8E23", "layer": 5 },
+    { "type": "circle", "x": 200, "y": 120, "radius": 18, "color": "#6B8E23", "layer": 5 },
+    { "type": "circle", "x": 270, "y": 130, "radius": 15, "color": "#6B8E23", "layer": 5 },
+    { "type": "circle", "x": 95, "y": 160, "radius": 12, "color": "#6B8E23", "layer": 5 },
+    { "type": "circle", "x": 305, "y": 160, "radius": 12, "color": "#6B8E23", "layer": 5 },
+    
+    // Layer 6 - Eye ridges (dark olive rectangles, rotated)
+    { "type": "rectangle", "x": 125, "y": 145, "width": 50, "height": 15, "color": "#6B8E23", "rotation": -10, "layer": 6 },
+    { "type": "rectangle", "x": 225, "y": 145, "width": 50, "height": 15, "color": "#6B8E23", "rotation": 10, "layer": 6 },
+    
+    // Layer 7 - Eye whites (white circles, radius 30)
+    { "type": "circle", "x": 150, "y": 180, "radius": 30, "color": "white", "layer": 7 },
+    { "type": "circle", "x": 250, "y": 180, "radius": 30, "color": "white", "layer": 7 },
+    
+    // Layer 8 - Pupils (black circles, radius 18)
+    { "type": "circle", "x": 150, "y": 180, "radius": 18, "color": "black", "layer": 8 },
+    { "type": "circle", "x": 250, "y": 180, "radius": 18, "color": "black", "layer": 8 },
+    
+    // Layer 9 - Eye highlights (white circles, radius 6)
+    { "type": "circle", "x": 156, "y": 174, "radius": 6, "color": "white", "layer": 9 },
+    { "type": "circle", "x": 256, "y": 174, "radius": 6, "color": "white", "layer": 9 },
+    
+    // Layer 10 - Nostrils (dark olive circles, radius 12)
+    { "type": "circle", "x": 150, "y": 280, "radius": 12, "color": "#4A5F1F", "layer": 10 },
+    { "type": "circle", "x": 250, "y": 280, "radius": 12, "color": "#4A5F1F", "layer": 10 },
+    
+    // Layer 11 - Mouth line (very dark green rectangle, 160x6)
+    { "type": "rectangle", "x": 120, "y": 318, "width": 160, "height": 6, "color": "#2F3F1F", "layer": 11 },
+    
+    // Layer 12 - Teeth (7 white rectangles with varying heights)
+    { "type": "rectangle", "x": 130, "y": 318, "width": 12, "height": 25, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 150, "y": 318, "width": 10, "height": 20, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 168, "y": 318, "width": 12, "height": 28, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 188, "y": 318, "width": 14, "height": 22, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 210, "y": 318, "width": 12, "height": 26, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 230, "y": 318, "width": 10, "height": 20, "color": "#FFF", "layer": 12 },
+    { "type": "rectangle", "x": 248, "y": 318, "width": 12, "height": 24, "color": "#FFF", "layer": 12 },
+    
+    // Layer 13 - Text "ROAR" (dark green, 48px, centered at 200, 60)
+    { "type": "text", "x": 200, "y": 60, "text": "ROAR", "fontSize": 48, "color": "#2F3F1F", "layer": 13 }
+  ]
+
+  const commands = []
+  
+  // Calculate offset from blueprint's origin (200, 225) to desired position
+  const originX = 200
+  const originY = 225
+  const offsetX = position.x - originX
+  const offsetY = position.y - originY
+
+  // Convert blueprint to commands, sorted by layer for proper z-order
+  const sortedBlueprint = blueprint.sort((a, b) => a.layer - b.layer)
+  
+  for (const shape of sortedBlueprint) {
+    const scaledX = originX + (shape.x - originX) * scale + offsetX
+    const scaledY = originY + (shape.y - originY) * scale + offsetY
+
+    switch (shape.type) {
+      case 'circle':
+        commands.push({
+          type: 'createCircle',
+          position: { x: scaledX, y: scaledY },
+          radius: shape.radius * scale,
+          fill: shape.color
+        })
+        break
+        
+      case 'rectangle':
+        commands.push({
+          type: 'createRectangle',
+          position: { x: scaledX, y: scaledY },
+          size: { 
+            width: shape.width * scale, 
+            height: shape.height * scale 
+          },
+          fill: shape.color,
+          rotation: shape.rotation || 0
+        })
+        break
+        
+      case 'text':
+        commands.push({
+          type: 'createText',
+          position: { x: scaledX, y: scaledY },
+          text: shape.text,
+          fontSize: shape.fontSize * scale,
+          fill: shape.color
+        })
+        break
+    }
+  }
+
+  return {
+    commands,
+    explanation: `Created ASCII-art inspired T-Rex face with ${commands.length} shapes: detailed head structure, eyes with highlights, nostrils, mouth with 7 teeth, and "ROAR" text at position (${position.x}, ${position.y}) with ${scale}x scale`,
+    metadata: { 
+      type: 'composite', 
+      subtype: 'ascii_trex_face',
+      shapeCount: commands.length,
+      basePosition: position,
+      scale: scale,
+      canvasSize: { width: 400 * scale, height: 450 * scale }
+    }
+  }
+}
+
 
 export default {
   createLoginFormComposite,
@@ -500,6 +650,7 @@ export default {
   createCardLayoutComposite,
   createDashboardComposite,
   createButtonGroupComposite,
+  createTRexFaceComposite,
   parseCompositeCommand,
   isCompositeCommand,
   getCompositeSystemPrompt

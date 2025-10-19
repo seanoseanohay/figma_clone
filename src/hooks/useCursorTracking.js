@@ -47,7 +47,7 @@ export const useCursorTracking = () => {
   useEffect(() => {
     // Don't initialize if we don't have a canvas yet
     if (!canvasId) {
-      console.log('Cursor tracking waiting for canvas context...')
+      // Cursor tracking waiting for canvas context
       return
     }
 
@@ -59,7 +59,7 @@ export const useCursorTracking = () => {
       try {
         // If switching canvases, cleanup old presence first
         if (isCanvasChange) {
-          console.log(`Switching canvas - cleaning up old presence (${previousCanvasId})`)
+          // Switching canvas - cleaning up old presence
           await setUserOffline(previousCanvasId)
         }
 
@@ -67,7 +67,7 @@ export const useCursorTracking = () => {
         await setUserOnline(canvasId)
         isOnlineRef.current = true
         currentCanvasRef.current = { canvasId }
-        console.log(`Cursor tracking initialized for canvas: ${canvasId}`)
+        // Cursor tracking initialized for canvas: ${canvasId}
       } catch (error) {
         console.error('Failed to set user online:', error)
         isOnlineRef.current = false
@@ -81,7 +81,7 @@ export const useCursorTracking = () => {
       if (canvasId) {
         setUserOffline(canvasId)
         isOnlineRef.current = false
-        console.log(`Cursor tracking cleaned up for canvas: ${canvasId}`)
+        // Cursor tracking cleaned up for canvas: ${canvasId}
       }
     }
   }, [canvasId]) // Re-run when canvas changes

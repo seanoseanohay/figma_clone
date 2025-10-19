@@ -951,7 +951,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   useEffect(() => {
     if (!canvasId) return;
 
-    console.log('Setting up active objects subscription for canvas:', canvasId);
+    // Setting up active objects subscription
     const unsubscribe = subscribeToActiveObjects(canvasId, (activeObjectsData) => {
       setActiveObjects(activeObjectsData);
     });
@@ -971,8 +971,8 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       const timeoutId = setTimeout(() => {
         const selectedObj = canvasObjects.find(obj => obj.id === selectedObjectId);
         if (!selectedObj) {
-          console.warn('🔄 Confirmed stale selection - clearing selectedObjectId:', selectedObjectId);
-          console.log('Available object IDs:', canvasObjects.map(o => o.id));
+          // Confirmed stale selection - clearing selectedObjectId
+          // Available object IDs: ${canvasObjects.map(o => o.id).join(', ')}
           
           // Clear stale selection
           setSelectedObjectId(null);
@@ -2367,10 +2367,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
       </div>
       
       {/* Text Editor Overlay */}
-      {(() => {
-        console.log('🔤 Canvas render check:', { isEditingText, textEditData });
-        return isEditingText && textEditData;
-      })() && (
+      {isEditingText && textEditData && (
         <TextEditor
           position={textEditData.newTextPosition || { x: textEditData.object?.x || 0, y: textEditData.object?.y || 0 }}
           initialText={textEditData.originalText || ''}

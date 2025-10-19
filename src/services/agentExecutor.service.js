@@ -138,7 +138,7 @@ export const executeAgentResponse = async (agentResponse, canvasId, options = {}
   }
 
   try {
-    console.log('🚀 Starting agent command execution for canvas:', canvasId)
+    // Starting agent command execution for canvas: ${canvasId}
 
     // Set agent status to indicate AI is working
     await setAgentStatus(canvasId, {
@@ -392,6 +392,7 @@ const executeCommand = async (command, canvasId, options = {}) => {
       case 'createLayout':
         result.objectIds = await executeCreateLayout(command, canvasId)
         break
+        
         
       // Property and object management
       case 'updateObjectProperties':
@@ -670,7 +671,7 @@ const executeSetCanvasBackground = async (command, canvasId) => {
   
   // TODO: Implement canvas background color
   // This would require updating the canvas component to support background colors
-  console.log(`Canvas background would be set to: ${color}`)
+  // Canvas background would be set to: ${color}
 }
 
 /**
@@ -819,7 +820,7 @@ const executeArrangeLayout = async (command, canvasId) => {
     const targetObjects = allObjects.filter(obj => targetIds.includes(obj.id))
     
     if (targetObjects.length === 0) {
-      console.log('arrangeLayout: No matching objects found on canvas')
+      // arrangeLayout: No matching objects found on canvas
       return
     }
     
@@ -977,6 +978,8 @@ const executeCreateLayout = async (command, canvasId) => {
   
   return objectIds
 }
+
+
 
 /**
  * Execute composite command by expanding it into multiple basic commands

@@ -456,8 +456,8 @@ export const inviteUserToCanvas = async (projectId, canvasId, email, invitingUse
 
     // TODO: Send email notification via Cloud Function or email service
     // For now, we log it
-    console.log('Invitation created for:', email, 'to canvas:', canvasId);
-    console.log('Invitation link:', `${window.location.origin}/canvas/${projectId}/${canvasId}`);
+    // Invitation created for: ${email} to canvas: ${canvasId}
+    // Invitation link: ${window.location.origin}/canvas/${projectId}/${canvasId}
 
     // Note: In production, you would send an email here with:
     // - Link to the canvas

@@ -132,7 +132,7 @@ export const setUserOnline = async (canvasId, userData = {}) => {
     // Set up automatic cleanup on disconnect
     await onDisconnect(userRef).remove()
 
-    console.log(`User set online in canvas: ${displayName} (canvas: ${canvasId})`)
+    // User set online in canvas: ${displayName} (canvas: ${canvasId})
   } catch (error) {
     if (error.code === 'PERMISSION_DENIED') {
       if (!shownWarnings.has('RTDB_PERMISSION_DENIED')) {
@@ -165,7 +165,7 @@ export const setUserOffline = async (canvasId) => {
     const userRef = ref(rtdb, getPresencePath(canvasId, auth.currentUser.uid))
     await remove(userRef)
 
-    console.log(`User set offline from canvas (canvas: ${canvasId})`)
+    // User set offline from canvas (canvas: ${canvasId})
   } catch (error) {
     console.error('Error setting user offline:', error)
   }
@@ -213,7 +213,7 @@ export const subscribeToCanvasPresence = (canvasId, callback) => {
       callback([])
     })
     
-    console.log(`Subscribed to canvas presence (canvas: ${canvasId})`)
+    // Subscribed to canvas presence (canvas: ${canvasId})
     
     // Return unsubscribe function
     return unsubscribe
