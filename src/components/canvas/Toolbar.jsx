@@ -173,6 +173,7 @@ const Toolbar = ({
   selectedTool = TOOLS.PAN, 
   hasSelection = false,
   selectedObject = null,
+  multiSelectionCount = 0,
   cursorPosition = null,
   zoomLevel = 100,
   selectedColor = '#808080',
@@ -298,10 +299,18 @@ const Toolbar = ({
     );
   };
 
-  // Build Line 1: Object properties or tool name
-  const line1Text = selectedObject 
-    ? formatObjectProperties(selectedObject)
-    : TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
+  // Build Line 1: Object properties, multi-selection count, or tool name
+  let line1Text;
+  if (multiSelectionCount > 1) {
+    // Multi-selection
+    line1Text = `${multiSelectionCount} objects selected`;
+  } else if (selectedObject) {
+    // Single selection
+    line1Text = formatObjectProperties(selectedObject);
+  } else {
+    // No selection
+    line1Text = TOOL_CONFIG[selectedTool]?.label || 'Select a tool';
+  }
 
   // Build Line 2: Tool name (if object selected) • Cursor • Zoom
   const line2Parts = [];

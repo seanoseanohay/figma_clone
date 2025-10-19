@@ -8,12 +8,14 @@ import EmptyState from './EmptyState.jsx';
 import ConnectionBanner from './ConnectionBanner.jsx';
 import TextEditor from './TextEditor.jsx';
 import OwnershipTooltip from './OwnershipTooltip.jsx';
+import SelectionBox from './SelectionBox.jsx';
 import { useCursorTracking } from '../../hooks/useCursorTracking.js';
 import { usePresence } from '../../hooks/usePresence.js';
 import { useCanvasObjects } from '../../hooks/useCanvasObjects.js';
 import { useCanvas } from '../../hooks/useCanvas.js';
 import { useConnectionStatus } from '../../hooks/useConnectionStatus.js';
 import { useHistory, ACTION_TYPES } from '../../hooks/useHistory.js';
+import { useMultiSelection } from '../../hooks/useMultiSelection.js';
 import { getUserCursorColor } from '../../services/presence.service.js';
 import { getToolHandler } from '../../tools/index.js';
 import { 
@@ -56,6 +58,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Selection state - persists across all tools
   const [selectedObjectId, setSelectedObjectId] = useState(null);
   const [hoveredObjectId, setHoveredObjectId] = useState(null); // For Delete tool hover feedback
+  
+  // Multi-selection hook
+  const multiSelection = useMultiSelection();
   
   // Multiplayer presence hooks
   const { updateCursor } = useCursorTracking();
@@ -868,7 +873,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
   // Notify parent of selection changes and object updates
   useEffect(() => {
     if (onSelectionChange) {
-      onSelectionChange(selectedObjectId);
+      onSelectionChange(selectedObjectId, multiSelection.selectedCount);
     }
     
     // Update selected object data for toolbar
@@ -981,22 +986,73 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
         }
       }
 
-      // Delete/Backspace - delete selected object
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedObjectId) {
+      // Ctrl+A - Select all objects
+      if ((e.key === 'a' || e.key === 'A') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
-        const selectedObject = canvasObjects.find(obj => obj.id === selectedObjectId);
+        console.log('⌨️ Ctrl+A pressed: Select all objects');
         
-        if (selectedObject && canEditObject(selectedObjectId)) {
-          console.log('🗑️ Delete key pressed: Deleting object', selectedObjectId);
+        // Get all selectable objects (not locked by others)
+        const selectableIds = canvasObjects
+          .filter(obj => canEditObject(obj.id))
+          .map(obj => obj.id);
+        
+        if (selectableIds.length > 0) {
+          // Lock all objects
+          Promise.all(selectableIds.map(id => lockObject(id)))
+            .then(() => {
+              multiSelection.selectAll(selectableIds);
+              if (selectableIds.length === 1) {
+                setSelectedObjectId(selectableIds[0]);
+              } else if (selectableIds.length > 1) {
+                setSelectedObjectId(selectableIds[0]); // First for compatibility
+              }
+              console.log(`✅ Selected all ${selectableIds.length} objects`);
+            })
+            .catch(error => {
+              console.error('Failed to lock objects during select all:', error);
+            });
+        }
+        return;
+      }
+
+      // Escape - Clear selection
+      if (e.key === 'Escape' && multiSelection.selectedCount > 0) {
+        e.preventDefault();
+        console.log('⌨️ Escape pressed: Clear selection');
+        
+        // Unlock all selected objects
+        Promise.all(multiSelection.selectedIdsArray.map(id => unlockObject(id)))
+          .then(() => {
+            multiSelection.clearSelection();
+            setSelectedObjectId(null);
+            console.log('✅ Selection cleared');
+          })
+          .catch(error => {
+            console.error('Failed to unlock objects:', error);
+          });
+        return;
+      }
+
+      // Delete/Backspace - delete selected objects (single or multi)
+      if ((e.key === 'Delete' || e.key === 'Backspace') && multiSelection.selectedCount > 0) {
+        e.preventDefault();
+        
+        const objectsToDelete = canvasObjects.filter(obj => multiSelection.isSelected(obj.id) && canEditObject(obj.id));
+        
+        if (objectsToDelete.length > 0) {
+          console.log(`🗑️ Delete key pressed: Deleting ${objectsToDelete.length} object(s)`);
           
           try {
             // Import deleteObject dynamically to avoid circular imports
             import('../../services/canvas.service.js').then(({ deleteObject }) => {
-              deleteObject(selectedObjectId).then(() => {
-                console.log('✅ Object deleted successfully');
-                // Clear selection since object no longer exists
-                setSelectedObjectId(null);
-                setMoveSelectedId(null);
+              // Delete all selected objects
+              Promise.all(objectsToDelete.map(obj => deleteObject(obj.id)))
+                .then(() => {
+                  console.log(`✅ ${objectsToDelete.length} object(s) deleted successfully`);
+                  // Clear selection since objects no longer exist
+                  multiSelection.clearSelection();
+                  setSelectedObjectId(null);
+                  setMoveSelectedId(null);
                 setResizeSelectedId(null);
                 setRotateSelectedId(null);
                 setTextSelectedId(null);
@@ -1243,6 +1299,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     localRectUpdates,
     selectedColor,
     
+    // Multi-selection
+    multiSelection,
+    
     // Setters
     setSelectedObjectId,
     setHoveredObjectId,
@@ -1293,8 +1352,9 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
     selectedObjectId, moveSelectedId, resizeSelectedId, rotateSelectedId, textSelectedId, isPanning, isMoving, isResizing, isRotating, isDrawing, isEditingText,
     currentRect, currentCircle, currentStar, textEditData, drawStart, mouseDownPos, isDragThresholdExceeded, moveStartPos, moveOriginalPos,
     resizeHandle, resizeStartData, rotateStartData, canvasObjects, rectangles, circles, stars, texts, localRectUpdates, selectedColor,
+    multiSelection,
     findRectAt, findCircleAt, findStarAt, findTextAt, findObjectAt, isPointInCircle, isPointInStar, canEditObject, doWeOwnObject, 
-    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange
+    clampRectToCanvas, clampCircleToCanvas, clampStarToCanvas, isOnline, onToolChange, hoveredObjectId
   ])
 
   // MOUSE DOWN HANDLER - Tool-specific logic
@@ -1522,7 +1582,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
           
           {/* Render all shapes sorted by z-index */}
           {allShapesSorted.map((shape) => {
-            const isSelected = selectedObjectId === shape.id;
+            const isSelected = multiSelection.isSelected(shape.id);
             const shouldAttachRef = isSelected && selectedTool === TOOLS.RESIZE && shape.rotation;
             
             // Get owner's color if locked by another user
@@ -1530,13 +1590,20 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
               ? getUserCursorColor(shape.lockedBy) 
               : null;
             
+            // Determine stroke color based on selection state
+            let strokeColor;
+            if (shape.isLockedByOther) {
+              strokeColor = ownerColor; // Owner's color for locked objects
+            } else if (isSelected) {
+              // Purple for multi-selection, blue for single selection
+              strokeColor = multiSelection.hasMultiSelection ? "#8B5CF6" : "#2563eb";
+            } else {
+              strokeColor = "#333333"; // Default border
+            }
+            
             const commonProps = {
               fill: shape.fill,
-              stroke: shape.isLockedByOther 
-                ? ownerColor // Use owner's color for locked objects
-                : isSelected 
-                  ? "#2563eb" // Blue border for selected
-                  : "#333333", // Default border
+              stroke: strokeColor,
               strokeWidth: shape.isLockedByOther || isSelected ? 3 : 1, // Thicker border for locked/selected
               opacity: shape.isLockedByOther ? 0.8 : 1.0, // Slightly less dim for better visibility
               rotation: shape.rotation || 0,
@@ -1606,7 +1673,7 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
                   stroke={shape.isLockedByOther 
                     ? ownerColor // Use owner's color for locked text
                     : isSelected 
-                      ? "#2563eb" // Blue border for selected
+                      ? (multiSelection.hasMultiSelection ? "#8B5CF6" : "#2563eb") // Purple for multi, blue for single
                       : "transparent"} // No border for unselected text
                   strokeWidth={shape.isLockedByOther || isSelected ? 1.5 : 0}
                 />
@@ -1614,6 +1681,11 @@ const Canvas = ({ selectedTool, onToolChange, onSelectionChange, onObjectUpdate,
             }
             return null;
           })}
+          
+          {/* Render drag selection rectangle */}
+          {multiSelection.isDragSelecting && (
+            <SelectionBox rectangle={multiSelection.selectionRectangle} />
+          )}
           
           {/* Render resize handles for selected rectangle (RESIZE tool only, NON-ROTATED) */}
           {selectedTool === TOOLS.RESIZE && resizeSelectedId && rectangles.find(r => r.id === resizeSelectedId) && (() => {

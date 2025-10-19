@@ -23,6 +23,7 @@ const LoggedInLayout = ({ children }) => {
   const [selectedTool, setSelectedTool] = useState(TOOLS.PAN);
   const [hasSelection, setHasSelection] = useState(false);
   const [selectedObject, setSelectedObject] = useState(null);
+  const [multiSelectionCount, setMultiSelectionCount] = useState(0);
   const [cursorPosition, setCursorPosition] = useState(null);
   const [zoomLevel, setZoomLevel] = useState(100);
   const [selectedColor, setSelectedColor] = useState('#808080');
@@ -33,8 +34,9 @@ const LoggedInLayout = ({ children }) => {
     setSelectedTool(tool);
   };
 
-  const handleSelectionChange = (selected) => {
+  const handleSelectionChange = (selected, count = 0) => {
     setHasSelection(!!selected);
+    setMultiSelectionCount(count);
   };
 
   const handleObjectUpdate = (objectData) => {
@@ -155,6 +157,7 @@ const LoggedInLayout = ({ children }) => {
           onToolChange={handleToolChange}
           hasSelection={hasSelection}
           selectedObject={selectedObject}
+          multiSelectionCount={multiSelectionCount}
           cursorPosition={cursorPosition}
           zoomLevel={zoomLevel}
           selectedColor={selectedColor}
