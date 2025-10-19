@@ -2413,7 +2413,120 @@ User drags any of the 3 objects → All 3 move together as group
 
 ---
 
-### Task E15: Real-Time Sync for Rotation and Resizing
+### Task E15: AI Agent – "Create Login Form" Tool Integration
+
+**Objective:**  
+Enable the AI agent to interpret natural-language prompts such as  
+> "Create a login form with username and password fields."  
+and automatically generate a properly arranged multi-element UI form inside the shared canvas.
+
+**Behavior Requirements:**
+
+1. **Prompt Understanding**
+   - The agent should recognize "login form," "sign-in form," or similar variants.
+   - It should infer the required elements:  
+     - Username input (text field)  
+     - Password input (masked field)  
+     - Submit/Login button  
+   - Optional: "Remember me" checkbox and "Forgot password" link.
+
+2. **Element Creation**
+   - At least **three UI components** are placed: two inputs + one button.  
+   - Components are grouped as a **single logical unit** (e.g., a parent frame or container).  
+   - Each element has sensible names/IDs (e.g., `usernameInput`, `passwordInput`, `loginButton`).
+
+3. **Layout & Styling**
+   - Elements are vertically aligned and evenly spaced.  
+   - Padding, margins, and alignment are consistent with app standards.  
+   - Text fields and buttons are visually distinct (consistent color scheme).  
+   - Form is centered or visually balanced within the agent's placement region.
+
+4. **Intelligent Behavior**
+   - If user says "Create login form," agent automatically infers inputs and button (no follow-up questions).  
+   - If user adds modifiers ("with remember me," "with forgot password link"), the agent expands the plan accordingly.  
+   - Agent executes **multi-step layout plans** (create elements → align → style).  
+   - Handles ambiguity gracefully (e.g., "signin screen" still produces valid form).
+
+5. **Smart Placement**
+   - Elements are positioned relative to the cursor or designated canvas region.  
+   - The group should be movable as one unit post-creation.
+
+6. **Testing Criteria**
+   1. Prompt: "Create a login form with username and password fields"  
+      → Results in 3+ well-arranged elements (inputs + button).  
+   2. Prompt: "Add remember me checkbox"  
+      → Adds checkbox below inputs, retains alignment.  
+   3. Prompt: "Create login form centered on canvas"  
+      → Places grouped form at canvas center.  
+   4. Verify form is selectable and movable as a single grouped object.  
+   5. Style consistency with existing component palette.
+
+**Expected Outcome:**
+- Cursor AI agent successfully converts high-level natural-language requests into structured multi-element UI layouts.
+- Layouts are clean, aligned, and follow standard spacing rules.
+- The system demonstrates **multi-step reasoning and execution** (object creation → grouping → styling).
+
+**Priority:** 🟢 High – Foundation for natural-language UI generation  
+**Status:** ⏸️ Not Started
+
+---
+
+### Task E16: Object Grouping / Ungrouping System
+
+**Objective:**  
+Enable users (and AI agents) to group multiple selected objects into a single manipulable entity.  
+Grouped objects should move, rotate, and—when feasible—resize together around the group's centroid.
+
+**Behavior Rules**
+
+1. **Grouping**
+   - Command: `Ctrl+G` or agent instruction "group objects."
+   - Combines current selection into a new `GroupObject` container.
+   - Group inherits a unique ID and tracks its members' relative transforms.
+   - Stored in Firestore/RTDB as a parent node referencing member IDs.
+
+2. **Ungrouping**
+   - Command: `Ctrl+Shift+G` or agent instruction "ungroup."
+   - Removes the container, restoring individual object independence while preserving positions.
+
+3. **Transform Behavior**
+   - **Move:** Dragging any part of the group moves all children together.
+   - **Rotate:** Rotation occurs around the group's geometric center.
+   - **Resize:** (If feasible) scales all members proportionally from the center.
+   - Handles update both group and child states atomically for multiplayer sync.
+
+4. **Selection & Tool Integration**
+   - Clicking a group selects the group (not its members) unless user double-clicks to enter "isolation mode."
+   - Rotate / Resize / Move tools act on groups just like single objects.
+   - When ungrouped, previous selection restores.
+
+5. **Undo / Redo**
+   - Both operations (group ↔ ungroup) are single history entries once A2 (Undo/Redo System) is live.
+
+6. **Testing Steps**
+   1. Select multiple shapes → press Ctrl+G → verify single bounding box appears.
+   2. Drag group → all shapes move together.
+   3. Rotate group → verify rotation around centroid.
+   4. Resize group → all shapes scale proportionally.
+   5. Ungroup → each shape becomes individually selectable again.
+   6. Test in multiplayer; confirm synced grouping behavior.
+   7. Verify Undo/Redo restores pre-group state.
+
+**Integration with E15 (AI Form Generation)**
+- AI-created forms (e.g., "login form") are automatically grouped so they can be moved, rotated, or scaled as a unit.
+- Ungrouping lets users edit individual form fields if needed.
+
+**Benefits**
+- Essential for multi-element AI-generated layouts.
+- Matches behavior of design tools like Figma / XD.
+- Simplifies alignment, duplication, and export workflows.
+
+**Priority:** 🟢 High  
+**Status:** ⏸️ Not Started
+
+---
+
+### Task E17: Real-Time Sync for Rotation and Resizing
 
 **Objective**: Extend existing real-time movement synchronization so all users instantly see **rotation** and **resize** changes as they occur, matching the current behavior of `position` updates. This ensures full real-time parity between transform types and eliminates visual desync between collaborators.
 
@@ -2704,7 +2817,7 @@ useEffect(() => {
 
 **Notes**:
 - This task completes the real-time sync story started with movement sync
-- After E15, all transform operations will have consistent real-time behavior
+- After E17, all transform operations will have consistent real-time behavior
 - Consider adding visual "transform in progress" indicators for enhanced UX
 - Future: Could add interpolation/smoothing for ultra-smooth remote playback
 
@@ -2712,7 +2825,7 @@ useEffect(() => {
 
 ## Next Steps
 
-**Stage 3 Progress: 11/20 tasks complete** (Enhanced Tools section)
+**Stage 3 Progress: 11/22 tasks complete** (Enhanced Tools section)
 
 **✅ Completed Enhanced Tools** (11 complete):
 - ✅ E1: Add Circle Creation Tool
@@ -2727,11 +2840,13 @@ useEffect(() => {
 - ✅ E10: Enable Continuous Text Editing (Re-edit Existing Text)
 - ✅ E11: Comprehensive Testing Framework (96.7% passing - 491/508 tests)
 
-**⏸️ Remaining Enhanced Tools** (4 not started):
+**⏸️ Remaining Enhanced Tools** (6 not started):
 - ⏸️ E12: Multi-Object Selection System (foundation for E13, E14, B5)
 - ⏸️ E13: Tool Consolidation - Merge Select + Move Tools (depends on E12)
 - ⏸️ E14: Automatic Selection for Transform Tools (depends on E13, works with E12)
-- ⏸️ E15: Real-Time Sync for Rotation and Resizing (works with E6, E4, E5)
+- ⏸️ E15: AI Agent – "Create Login Form" Tool Integration (depends on E16 for grouping)
+- ⏸️ E16: Object Grouping / Ungrouping System (foundation for E15, enables multi-element layouts)
+- ⏸️ E17: Real-Time Sync for Rotation and Resizing (works with E6, E4, E5)
 
 **⏸️ Bug Fixes/Improvements** (5 not started):
 - ⏸️ B1: Redesign Toolbar with Figma-Compact Spacing
@@ -2759,19 +2874,21 @@ Deferred (moved to end or separate stage):
 3. **E12 (Multi-Object Selection)** - Foundation for E13, E14, B5 ← **START HERE**
 4. **E13 (Tool Consolidation)** - Merge Select + Move (depends on E12)
 5. **E14 (Auto-Select Transforms)** - Rotate/Resize auto-select (depends on E13)
-6. **B5 (Click-to-Delete Tool)** - Redesign delete UX (works with E12/E13/E14)
-7. **B4 (Fix Rotate/Resize Bug)** - Tool state synchronization fix
-8. **E15 (Real-Time Sync)** - Rotation/resize real-time sync (independent, can do anytime)
+6. **E16 (Object Grouping)** - Foundation for AI layouts and multi-element workflows (works with E12)
+7. **E15 (AI Form Generation)** - Login form creation via natural language (depends on E16)
+8. **B5 (Click-to-Delete Tool)** - Redesign delete UX (works with E12/E13/E14)
+9. **B4 (Fix Rotate/Resize Bug)** - Tool state synchronization fix
+10. **E17 (Real-Time Sync)** - Rotation/resize real-time sync (independent, can do anytime)
 
 **Phase 3: Safety & Stability** (Critical Features)
-9. **A2 (Undo/Redo System)** - Critical safety net for destructive operations (6 sprints)
-10. **A4 (Object Deletion Enhancement)** - Depends on A2 for undo support
+11. **A2 (Undo/Redo System)** - Critical safety net for destructive operations (6 sprints)
+12. **A4 (Object Deletion Enhancement)** - Depends on A2 for undo support
 
 **Phase 4: Export & Polish** (Final Features)
-11. **A1 (Canvas Export)** - PNG/SVG export functionality
-12. **A3 (Toolbar Design)** - Visual polish and refinement (or integrate with E12-E14)
-13. **B1 (Figma-Compact Spacing)** - Toolbar spacing redesign (coordinate with A3)
-14. **A0 (Performance)** - Optimization and monitoring (deferred to end or Stage 4)
+13. **A1 (Canvas Export)** - PNG/SVG export functionality
+14. **A3 (Toolbar Design)** - Visual polish and refinement (or integrate with E12-E14)
+15. **B1 (Figma-Compact Spacing)** - Toolbar spacing redesign (coordinate with A3)
+16. **A0 (Performance)** - Optimization and monitoring (deferred to end or Stage 4)
 
 **Why E11 Was First? (COMPLETED)**
 - ✅ Established testing foundation to prevent regressions
@@ -2789,22 +2906,31 @@ Deferred (moved to end or separate stage):
 - ✅ User-specific colored borders and hover tooltips implemented
 - ✅ Comprehensive unit tests with TDD approach
 
-**Why Phase 2 (E12→E13→E14→B5→E15) Next?**
+**Why Phase 2 (E12→E13→E14→E16→E15→B5→E17) Next?**
 - **E12 is the foundation**: Multi-selection unlocks modern design tool UX
 - **E13 builds on E12**: Select+Move consolidation requires multi-select working
 - **E14 completes the model**: Auto-select for transforms creates consistent interaction
 - **B5 benefits from all three**: Click-to-delete works beautifully with multi-select
 - **B4 can happen anytime**: Bug fix doesn't block others
-- **E15 is independent**: Real-time sync enhancement, can be done anytime in Phase 2 or even parallel
+- **E16 enables AI workflows**: Object grouping is foundation for multi-element AI-generated layouts
+- **E15 builds on E16**: AI form generation requires grouping for cohesive multi-component forms
+- **E17 is independent**: Real-time sync enhancement, can be done anytime in Phase 2 or even parallel
 - **User experience wins**: These tasks transform the app from "functional" to "professional"
-- **Logical progression**: Each task builds on the previous one (except E15 which is standalone)
+- **Logical progression**: Each task builds on the previous one (except E17 which is standalone)
 - **Single focus area**: All about selection, interaction, and collaboration
 
-**Why E15 in Phase 2?**
-- **Independent task**: Doesn't depend on E12-E14, can be done anytime
+**Why E16 and E15 in Phase 2?**
+- **E16 (Grouping) is foundational**: Enables multi-element manipulation and AI-generated layouts
+- **E15 (AI Forms) builds on E16**: AI-created forms need to be grouped for cohesive manipulation
+- **AI workflow integration**: Natural language form generation is key differentiator
+- **Moderate scope**: Each is 1-2 sprints, focused enhancements
+- **High user value**: Transforms basic drawing tool into intelligent design assistant
+
+**Why E17 in Phase 2?**
+- **Independent task**: Doesn't depend on E12-E16, can be done anytime
 - **Completes real-time story**: Movement sync exists, rotation/resize sync missing
 - **Collaboration enhancement**: Makes multi-user experience feel professional
-- **Can be done in parallel**: Junior engineer could work on E15 while senior works on E12-E14
+- **Can be done in parallel**: Junior engineer could work on E17 while senior works on E12-E16
 - **Small scope**: 1 sprint, focused technical enhancement
 - **High impact**: Figma-grade responsiveness for all transforms
 
