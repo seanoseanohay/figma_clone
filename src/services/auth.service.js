@@ -84,8 +84,11 @@ export const signInWithEmail = async (email, password) => {
 export const signInWithGoogle = async () => {
   try {
     // Try popup first, fallback to redirect if blocked
+    console.log('🚀 Attempting Google sign-in with popup...');
     const userCredential = await signInWithPopup(auth, googleProvider);
     const user = userCredential.user;
+
+    console.log('✅ Google popup sign-in successful:', user.displayName);
 
     // Create or update user document
     await createUserDocument(user);
@@ -100,15 +103,23 @@ export const signInWithGoogle = async () => {
       }
     };
   } catch (error) {
-    console.error('Error signing in with Google:', error);
+    console.error('❌ Google popup sign-in failed:', error.code, error.message);
     
-    // If popup is blocked, try redirect method
-    if (error.code === 'auth/popup-blocked' || error.code === 'auth/popup-closed-by-user') {
+    // Check for popup-related errors that should trigger redirect fallback
+    const isPopupError = error.code === 'auth/popup-blocked' || 
+                        error.code === 'auth/popup-closed-by-user' ||
+                        error.code === 'auth/cancelled-popup-request' ||
+                        error.message?.includes('popup') ||
+                        error.message?.includes('blocked');
+    
+    if (isPopupError) {
+      console.warn('⚠️ Popup blocked or cancelled, falling back to redirect login...');
       try {
         await signInWithRedirect(auth, googleProvider);
+        console.log('🔄 Redirect initiated successfully');
         return { success: true, redirect: true };
       } catch (redirectError) {
-        console.error('Redirect also failed:', redirectError);
+        console.error('❌ Redirect also failed:', redirectError.code, redirectError.message);
         return {
           success: false,
           error: getAuthErrorMessage(redirectError.code)
@@ -126,9 +137,13 @@ export const signInWithGoogle = async () => {
 // Handle redirect result after Google sign-in redirect
 export const handleGoogleRedirectResult = async () => {
   try {
+    console.log('🔍 Checking for redirect result...');
     const result = await getRedirectResult(auth);
-    if (result) {
+    
+    if (result && result.user) {
       const user = result.user;
+      console.log('✅ Google redirect sign-in successful:', user.displayName);
+      
       // Create or update user document
       await createUserDocument(user);
       return {
@@ -141,9 +156,36 @@ export const handleGoogleRedirectResult = async () => {
         }
       };
     }
+    
+    // No redirect result found (normal case when not coming from redirect)
+    console.log('ℹ️ No redirect result found (normal when not redirecting)');
     return { success: true, noResult: true };
   } catch (error) {
-    console.error('Error handling redirect result:', error);
+    // Handle the "missing initial state" error specifically
+    if (error.code === 'auth/invalid-api-key' || 
+        error.code === 'auth/web-storage-unsupported' ||
+        error.message?.includes('missing initial state') ||
+        error.message?.includes('sessionStorage')) {
+      console.warn('⚠️ Browser storage issue detected:', error.message);
+      console.warn('This often happens in Safari/Brave with partitioned storage');
+      
+      // Clear any problematic auth state
+      try {
+        if (typeof Storage !== 'undefined') {
+          sessionStorage.removeItem(`firebase:authUser:${auth.config.apiKey}:[DEFAULT]`);
+          localStorage.removeItem(`firebase:authUser:${auth.config.apiKey}:[DEFAULT]`);
+        }
+      } catch (storageError) {
+        console.warn('Could not clear storage:', storageError);
+      }
+      
+      return {
+        success: false,
+        error: 'Browser storage issue detected. Please try signing in again with the popup method.'
+      };
+    }
+    
+    console.error('❌ Error handling redirect result:', error.code, error.message);
     return {
       success: false,
       error: getAuthErrorMessage(error.code)
@@ -307,6 +349,8 @@ const getAuthErrorMessage = (errorCode) => {
       return 'Sign-in was cancelled. Please try again.';
     case 'auth/popup-blocked':
       return 'Popup was blocked by your browser. Please allow popups and try again.';
+    case 'auth/cancelled-popup-request':
+      return 'Sign-in popup was cancelled. Please try again.';
     case 'auth/too-many-requests':
       return 'Too many failed attempts. Please wait a moment and try again.';
     case 'auth/network-request-failed':
@@ -314,9 +358,13 @@ const getAuthErrorMessage = (errorCode) => {
     case 'auth/cors-unsupported':
       return 'Your browser is blocking the authentication popup. Please try the hidden login form (Ctrl+Shift+L).';
     case 'auth/web-storage-unsupported':
-      return 'Your browser does not support authentication. Please enable cookies and try again.';
+      return 'Your browser does not support authentication storage. Please enable cookies and local storage, then try again.';
     case 'auth/operation-not-supported-in-this-environment':
       return 'This authentication method is not supported in your current browser environment.';
+    case 'auth/invalid-api-key':
+      return 'Authentication configuration error. Please refresh the page and try again.';
+    case 'auth/missing-initial-state':
+      return 'Browser storage issue detected. Please refresh the page and try signing in again.';
     default:
       return 'An error occurred during authentication. Please try again.';
   }
